@@ -1,6 +1,122 @@
 
 
 ---
+1.1.1.4v90 - 20250516:
+- support viewing commit history graphically
+- support force push with lease
+
+
+
+- 支持图形化预览提交历史
+- 强制推送支持with lease
+
+
+---
+1.1.1.3v89 - 20250513:
+- adjust Editor style
+- improve UI for some screens
+
+
+
+- 调整文本编辑器样式
+- 提升一些页面的UI
+
+
+---
+1.1.1.2v88 - 20250510:
+- popup keyboard when rename file and go to path at Files
+- optimize Editor reload check logic
+- Editor: fix change type indicator position wrong when RTL layout enabled
+
+
+
+- 在文件管理器重命名文件和跳转路径时弹出键盘
+- 优化文本编辑器重载检测逻辑
+- 文本编辑器：修复修改类型指示器在RTL布局下位置错误
+
+
+---
+1.1.1.1v87 - 20250509:
+- Files now display thumbnail for video
+
+
+
+- 文件管理器现在可以为视频显示缩略图了
+
+---
+1.1.1.0v86 - 20250508:
+- minor bugs fixed
+
+
+
+- 小bug修正
+
+
+---
+1.1.0.9v85 - 20250508:
+- show icon for apks and images in the file list
+- minor bugs fixed
+
+
+
+- 文件列表显示apk和图片文件的图标
+- 小bug修正
+
+---
+
+1.1.0.8v84 - 20250502:
+- Differences screen support multi files
+- show random loading text when launching
+- improve UI
+- fix bugs
+
+
+
+- 差异页面支持多文件
+- 启动时显示随机加载文本
+- 提升UI
+- 修复bug
+
+
+
+忘了写到更新日志的新功能：
+- 下拉刷新(pull to refresh)
+- 文本编辑器预览补丁模式(patch mode of Editor)
+
+---
+
+1.1.0.7v83 - 20250428:
+- ChangeList and FileHistory screens: return from Diff screen will scroll list to make last viewed item visible
+- fix: on Tablet, Repos screen layout may become weired after rotated device
+
+
+
+- 修改列表和文件历史页面：从Diff页面返回后将滚动列表以使最后查看条目可见
+- 修复仓库页面布局在旋转屏幕后可能错乱的bug
+
+---
+
+1.1.0.6v82 - 20250427:
+- fix: Editor load file twice when open file
+- fix: if compare to ref which include '/', then app will crash
+- fix: bugs of screen navigate
+- fix: rotation screen lost state
+- show a crash Activity when compose crashed
+- reduce memory use
+
+
+
+- 修复文本编辑器打开文件会加载两次的bug
+- 修复比较引用包含'/'时app会崩溃的bug
+- 修复页面导航相关的bug
+- 修复旋转屏幕会丢失状态的bug
+- 在compose崩溃时显示一个崩溃页面
+- 减少内存占用
+
+
+注：app崩溃显示crash Activity的新功能忘了写到发行的changelog里，仅在此记录
+
+---
 
 1.1.0.5v81 - 20250426:
 - fix: navigator state err cause app crashed

@@ -87,7 +87,7 @@ fun RequireCommitMsgDialog(
 
     AlertDialog(
         title = {
-            Text(stringResource(R.string.commit_message))
+            DialogTitle(stringResource(R.string.commit_message))
         },
         text = {
             ScrollableColumn {
@@ -211,7 +211,7 @@ fun RequireCommitMsgDialog(
                             onOk(curRepo, getCommitMsg(), requirePush, requireSync)
                         }
                     ) {
-                        Text(stringResource(id = R.string.push))
+                        Text(stringResource(R.string.push))
                     }
                 }
 
@@ -220,7 +220,7 @@ fun RequireCommitMsgDialog(
                         onCancel(curRepo)
                     }
                 ) {
-                    Text(stringResource(id = R.string.cancel))
+                    Text(stringResource(R.string.cancel), color = MyStyleKt.TextColor.danger())
                 }
             }
 

@@ -33,7 +33,7 @@ fun ConfirmDialog(
             if(requireShowTitleCompose) {
                 titleCompose()
             }else {
-                Text(title)
+                DialogTitle(title)
             }
         },
         text = {

@@ -5,9 +5,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -73,10 +73,8 @@ fun <T> SelectedUnSelectedList(
 ) {
     MySelectionContainer {
         if(loading) {
-            LoadingText(modifier = Modifier.height(30.dp).fillMaxWidth(), text = stringResource(R.string.loading))
-        }
-
-        if(loading.not()) {
+            LoadingTextBase(modifier = Modifier.fillMaxWidth().padding(top=20.dp), text = { Text(stringResource(R.string.loading)) })
+        }else {
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally,

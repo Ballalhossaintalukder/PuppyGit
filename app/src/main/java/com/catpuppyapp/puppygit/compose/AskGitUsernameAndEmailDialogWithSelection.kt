@@ -67,7 +67,7 @@ fun AskGitUsernameAndEmailDialogWithSelection(
 
     AlertDialog(
         title = {
-            Text(stringResource(R.string.user_info))
+            DialogTitle(stringResource(R.string.user_info))
         },
         text = {
             ScrollableColumn {
@@ -103,11 +103,13 @@ fun AskGitUsernameAndEmailDialogWithSelection(
                                 selected = selectedOption.intValue==k,
                                 onClick = null // null recommended for accessibility with screenreaders
                             )
-                            Text(
-                                text = optext,
-                                style = MaterialTheme.typography.bodyLarge,
-                                modifier = Modifier.padding(start = 10.dp)
-                            )
+                            ScrollableRow {
+                                Text(
+                                    text = optext,
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    modifier = Modifier.padding(start = 10.dp)
+                                )
+                            }
                         }
                     }
                 }

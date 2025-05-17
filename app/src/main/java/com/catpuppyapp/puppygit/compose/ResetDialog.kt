@@ -62,7 +62,7 @@ fun ResetDialog(
 
     AlertDialog(
         title = {
-            Text(text = stringResource(id = R.string.reset))
+            DialogTitle(stringResource(R.string.reset))
         },
         text = {
             ScrollableColumn {

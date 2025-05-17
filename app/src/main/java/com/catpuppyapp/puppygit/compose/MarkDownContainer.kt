@@ -5,6 +5,7 @@ import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.sp
 import com.catpuppyapp.puppygit.style.MyStyleKt
@@ -18,6 +19,7 @@ fun MarkDownContainer(
     content:String,
     basePathNoEndSlash:String,
     fontSize:Int,
+    fontColor:Color,
     onLinkClicked: (String) -> Boolean = {false},
 ) {
     val activityContext = LocalContext.current
@@ -29,7 +31,7 @@ fun MarkDownContainer(
         linkifyMask = Linkify.EMAIL_ADDRESSES or Linkify.WEB_URLS,
         onLinkClicked = onLinkClicked,
         linkColor = MyStyleKt.ClickableText.color,
-        style = LocalTextStyle.current.copy(fontSize = fontSize.sp),
+        style = LocalTextStyle.current.copy(fontSize = fontSize.sp, color = fontColor),
         isTextSelectable = true,
         syntaxHighlightColor = if(inDarkTheme) MaterialTheme.colorScheme.surfaceBright else MaterialTheme.colorScheme.surfaceDim,
         coilStore = MdUtil.getCoilStore(context = activityContext, basePathNoEndSlash = basePathNoEndSlash)

@@ -48,7 +48,7 @@ fun ConfirmDialogAndDisableSelection(
                 if(requireShowTitleCompose) {
                     titleCompose()
                 }else {
-                    Text(title)
+                    DialogTitle(title)
                 }
             }
         },

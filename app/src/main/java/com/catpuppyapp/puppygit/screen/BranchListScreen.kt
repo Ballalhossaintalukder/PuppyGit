@@ -54,21 +54,23 @@ import com.catpuppyapp.puppygit.compose.AskGitUsernameAndEmailDialogWithSelectio
 import com.catpuppyapp.puppygit.compose.BottomSheet
 import com.catpuppyapp.puppygit.compose.BottomSheetItem
 import com.catpuppyapp.puppygit.compose.BranchItem
-import com.catpuppyapp.puppygit.compose.DefaultPaddingRow
-import com.catpuppyapp.puppygit.compose.DefaultPaddingText
 import com.catpuppyapp.puppygit.compose.CheckoutDialog
 import com.catpuppyapp.puppygit.compose.CheckoutDialogFrom
 import com.catpuppyapp.puppygit.compose.ConfirmDialog
 import com.catpuppyapp.puppygit.compose.ConfirmDialog2
 import com.catpuppyapp.puppygit.compose.CopyableDialog
 import com.catpuppyapp.puppygit.compose.CreateBranchDialog
+import com.catpuppyapp.puppygit.compose.DefaultPaddingRow
+import com.catpuppyapp.puppygit.compose.DefaultPaddingText
 import com.catpuppyapp.puppygit.compose.FilterTextField
+import com.catpuppyapp.puppygit.compose.FullScreenScrollableColumn
 import com.catpuppyapp.puppygit.compose.GoToTopAndGoToBottomFab
 import com.catpuppyapp.puppygit.compose.LoadingDialog
 import com.catpuppyapp.puppygit.compose.LongPressAbleIconBtn
 import com.catpuppyapp.puppygit.compose.MyCheckBox
 import com.catpuppyapp.puppygit.compose.MyLazyColumn
 import com.catpuppyapp.puppygit.compose.MySelectionContainer
+import com.catpuppyapp.puppygit.compose.PullToRefreshBox
 import com.catpuppyapp.puppygit.compose.RepoInfoDialog
 import com.catpuppyapp.puppygit.compose.ResetDialog
 import com.catpuppyapp.puppygit.compose.ScrollableColumn
@@ -90,6 +92,8 @@ import com.catpuppyapp.puppygit.play.pro.R
 import com.catpuppyapp.puppygit.screen.functions.defaultTitleDoubleClick
 import com.catpuppyapp.puppygit.screen.functions.filterModeActuallyEnabled
 import com.catpuppyapp.puppygit.screen.functions.filterTheList
+import com.catpuppyapp.puppygit.screen.functions.goToCommitListScreen
+import com.catpuppyapp.puppygit.screen.functions.goToTreeToTreeChangeList
 import com.catpuppyapp.puppygit.screen.functions.triggerReFilter
 import com.catpuppyapp.puppygit.settings.SettingsUtil
 import com.catpuppyapp.puppygit.style.MyStyleKt
@@ -115,7 +119,7 @@ import com.github.git24j.core.Branch
 import com.github.git24j.core.Repository
 
 private const val TAG = "BranchListScreen"
-private const val stateKeyTag = "BranchListScreen"
+
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -129,6 +133,8 @@ fun BranchListScreen(
 //    branch:String?,
     naviUp: () -> Boolean,
 ) {
+    val stateKeyTag = Cache.getSubPageKey(TAG)
+    
     val homeTopBarScrollBehavior = AppModel.homeTopBarScrollBehavior
     val navController = AppModel.navController
     val activityContext = LocalContext.current
@@ -1336,10 +1342,27 @@ fun BranchListScreen(
     }
 
 
+    BackHandler {
+        if(filterModeOn.value) {
+            filterModeOn.value = false
+        } else {
+            naviUp()
+        }
+    }
+
+
     val filterLastPosition = rememberSaveable { mutableStateOf(0) }
     val lastPosition = rememberSaveable { mutableStateOf(0) }
 
     val filterResultNeedRefresh = rememberSaveable { mutableStateOf("") }
+
+    val isInitLoading = rememberSaveable { mutableStateOf(true) }
+    val initLoadingOn = { msg:String ->
+        isInitLoading.value = true
+    }
+    val initLoadingOff = {
+        isInitLoading.value = false
+    }
 
     Scaffold(
         modifier = Modifier.nestedScroll(homeTopBarScrollBehavior.nestedScrollConnection),
@@ -1484,303 +1507,314 @@ fun BranchListScreen(
             }
         }
     ) { contentPadding ->
-        if (loading.value) {
+        PullToRefreshBox(
+            contentPadding = contentPadding,
+            onRefresh = { changeStateTriggerRefreshPage(needRefresh) },
+
+        ) {
+
+            if (loading.value) {
 //            LoadingText(text = loadingText.value, contentPadding = contentPadding)
-            LoadingDialog(text = loadingText.value)
-        }
+                LoadingDialog(text = loadingText.value)
+            }
 
-        if(showBottomSheet.value) {
-            BottomSheet(showBottomSheet, sheetState, curObjInPage.value.shortName) {
-                BottomSheetItem(sheetState, showBottomSheet, stringResource(R.string.checkout),textDesc= stringResource(R.string.switch_branch),
-                    enabled = curObjInPage.value.shortName != repoCurrentActiveBranchOrShortDetachedHashForShown.value
-                ){
-                    val curObjInPage = curObjInPage.value
-                    doJobThenOffLoading {
-                        checkoutLocalBranch.value = curObjInPage.type==Branch.BranchType.LOCAL
+            if(showBottomSheet.value) {
+                BottomSheet(showBottomSheet, sheetState, curObjInPage.value.shortName) {
+                    BottomSheetItem(sheetState, showBottomSheet, stringResource(R.string.checkout),textDesc= stringResource(R.string.switch_branch),
+                        enabled = curObjInPage.value.shortName != repoCurrentActiveBranchOrShortDetachedHashForShown.value
+                    ){
+                        val curObjInPage = curObjInPage.value
+                        doJobThenOffLoading {
+                            checkoutLocalBranch.value = curObjInPage.type==Branch.BranchType.LOCAL
 
-                        val isCheckoutRemote = curObjInPage.type == Branch.BranchType.REMOTE
-                        isCheckoutRemoteBranch.value =  isCheckoutRemote
+                            val isCheckoutRemote = curObjInPage.type == Branch.BranchType.REMOTE
+                            isCheckoutRemoteBranch.value =  isCheckoutRemote
 
-                        if(isCheckoutRemote) { // isRemote
-                            //这个Remotes列表每次刷新页面后会更新
-                            val maybeIsRemoteIfNoNameAmbiguous = upstreamRemoteOptionsList.value.find { curObjInPage.shortName.startsWith(it) }
+                            if(isCheckoutRemote) { // isRemote
+                                //这个Remotes列表每次刷新页面后会更新
+                                val maybeIsRemoteIfNoNameAmbiguous = upstreamRemoteOptionsList.value.find { curObjInPage.shortName.startsWith(it) }
 
-                            initUpstreamForCheckoutRemoteBranch.value = if(maybeIsRemoteIfNoNameAmbiguous != null) {
-                                remotePrefixMaybe.value = maybeIsRemoteIfNoNameAmbiguous
+                                initUpstreamForCheckoutRemoteBranch.value = if(maybeIsRemoteIfNoNameAmbiguous != null) {
+                                    remotePrefixMaybe.value = maybeIsRemoteIfNoNameAmbiguous
 
-                                val branchNameNoRemotePrefix = curObjInPage.shortName.removePrefix("$maybeIsRemoteIfNoNameAmbiguous/")
-                                // checkout HEAD，不填名字
-                                if(branchNameNoRemotePrefix == Cons.gitHeadStr) {
-                                    ""
+                                    val branchNameNoRemotePrefix = curObjInPage.shortName.removePrefix("$maybeIsRemoteIfNoNameAmbiguous/")
+                                    // checkout HEAD，不填名字
+                                    if(branchNameNoRemotePrefix == Cons.gitHeadStr) {
+                                        ""
+                                    }else {
+                                        branchNameNoRemotePrefix
+                                    }
                                 }else {
-                                    branchNameNoRemotePrefix
-                                }
-                            }else {
-                                remotePrefixMaybe.value = ""
+                                    remotePrefixMaybe.value = ""
 
-                                ""
+                                    ""
+                                }
+
+                            }else {  //非remote，清空相关字段
+                                remotePrefixMaybe.value = ""
+                                initUpstreamForCheckoutRemoteBranch.value = ""
                             }
 
-                        }else {  //非remote，清空相关字段
-                            remotePrefixMaybe.value = ""
-                            initUpstreamForCheckoutRemoteBranch.value = ""
+                            showCheckoutBranchDialog.value = true
+
                         }
-
-                        showCheckoutBranchDialog.value = true
-
                     }
-                }
-                //merge into current 实际上是和HEAD进行合并，产生一个新的提交
-                //x 对当前分支禁用这个选项，只有其他分支才能用
-                BottomSheetItem(sheetState, showBottomSheet, stringResource(R.string.merge),
+                    //merge into current 实际上是和HEAD进行合并，产生一个新的提交
+                    //x 对当前分支禁用这个选项，只有其他分支才能用
+                    BottomSheetItem(sheetState, showBottomSheet, stringResource(R.string.merge),
 //                        textDesc = repoCurrentActiveBranchOrShortDetachedHashForShown.value+(if(curRepoIsDetached.value) "[Detached]" else ""),
 //                    textDesc = replaceStringResList(stringResource(id = R.string.merge_branch1_into_branch2), listOf(getStrShorterThanLimitLength(curObjInPage.value.shortName), (if(curRepoIsDetached.value) "Detached HEAD" else getStrShorterThanLimitLength(repoCurrentActiveBranchOrShortDetachedHashForShown.value)))) ,
-                    textDesc = stringResource(R.string.merge_into_current),
-                    enabled = curObjInPage.value.shortName != repoCurrentActiveBranchOrShortDetachedHashForShown.value
-                ){
-                    doTaskOrShowSetUsernameAndEmailDialog(curRepo.value) {
-                        requireRebase.value = false
-                        //弹出确认框，如果确定，执行merge，否则不执行
-                        showRebaseOrMergeDialog.value = true
-                    }
-                }
-
-                if(UserUtil.isPro() && (dev_EnableUnTestedFeature || rebaseTestPassed)) {
-                    BottomSheetItem(sheetState, showBottomSheet, stringResource(R.string.rebase),
-//                        textDesc = repoCurrentActiveBranchOrShortDetachedHashForShown.value+(if(curRepoIsDetached.value) "[Detached]" else ""),
-                        textDesc = stringResource(R.string.rebase_current_onto),
+                        textDesc = stringResource(R.string.merge_into_current),
                         enabled = curObjInPage.value.shortName != repoCurrentActiveBranchOrShortDetachedHashForShown.value
                     ){
                         doTaskOrShowSetUsernameAndEmailDialog(curRepo.value) {
-                            requireRebase.value = true
+                            requireRebase.value = false
                             //弹出确认框，如果确定，执行merge，否则不执行
                             showRebaseOrMergeDialog.value = true
                         }
                     }
-                }
 
-                if(curObjInPage.value.type == Branch.BranchType.LOCAL) {
-                    BottomSheetItem(sheetState, showBottomSheet, stringResource(R.string.set_upstream),
-                        enabled = curObjInPage.value.type == Branch.BranchType.LOCAL
-                    ){
-                        //这里不管是否有上游都一定显示弹窗并且无成功callback，所以直接调用init弹窗而不是先检查是否有上游再决定是执行任务还是显示弹窗的doTaskOrShowSetUpstream函数
-                        initSetUpstreamDialog(curObjInPage.value, null)
+                    if(UserUtil.isPro() && (dev_EnableUnTestedFeature || rebaseTestPassed)) {
+                        BottomSheetItem(sheetState, showBottomSheet, stringResource(R.string.rebase),
+//                        textDesc = repoCurrentActiveBranchOrShortDetachedHashForShown.value+(if(curRepoIsDetached.value) "[Detached]" else ""),
+                            textDesc = stringResource(R.string.rebase_current_onto),
+                            enabled = curObjInPage.value.shortName != repoCurrentActiveBranchOrShortDetachedHashForShown.value
+                        ){
+                            doTaskOrShowSetUsernameAndEmailDialog(curRepo.value) {
+                                requireRebase.value = true
+                                //弹出确认框，如果确定，执行merge，否则不执行
+                                showRebaseOrMergeDialog.value = true
+                            }
+                        }
                     }
 
-                    if(proFeatureEnabled(branchListPagePublishBranchTestPassed)) {
-                        BottomSheetItem(sheetState, showBottomSheet, stringResource(R.string.publish),
+                    if(curObjInPage.value.type == Branch.BranchType.LOCAL) {
+                        BottomSheetItem(sheetState, showBottomSheet, stringResource(R.string.set_upstream),
                             enabled = curObjInPage.value.type == Branch.BranchType.LOCAL
                         ){
-                            doTaskOrShowSetUpstream(curObjInPage.value) {
-                                forcePublish.value = false
-                                showPublishDialog.value = true
-                            }
+                            //这里不管是否有上游都一定显示弹窗并且无成功callback，所以直接调用init弹窗而不是先检查是否有上游再决定是执行任务还是显示弹窗的doTaskOrShowSetUpstream函数
+                            initSetUpstreamDialog(curObjInPage.value, null)
                         }
-                    }
 
-                    BottomSheetItem(sheetState, showBottomSheet, stringResource(R.string.diff_to_upstream),
-                        enabled = curObjInPage.value.type == Branch.BranchType.LOCAL
-                    ){
-                        val curObj = curObjInPage.value
-
-                        if(!curObj.isUpstreamValid()) {  // invalid upstream
-                            Msg.requireShowLongDuration(activityContext.getString(R.string.upstream_not_set_or_not_published))
-                        }else {
-                            val upOid = curObj.upstream?.remoteOid ?: ""
-                            if(upOid.isBlank()) {  // invalid upstream oid
-                                Msg.requireShowLongDuration(activityContext.getString(R.string.upstream_oid_is_invalid))
-                            }else {
-                                val commit1 = curObj.oidStr
-                                val commit2 = upOid
-
-                                if(commit1 == commit2) {  // local and upstream are the same, no need compare
-                                    Msg.requireShow(activityContext.getString(R.string.both_are_the_same))
-                                }else {   // necessary things are ready and local vs upstream ain't same, then , should go to diff page
-                                    Cache.set(Cache.Key.treeToTreeChangeList_titleDescKey, activityContext.getString(R.string.compare_to_upstream))
-                                    val commitForQueryParents = Cons.git_AllZeroOidStr
-
-                                    // url 参数： 页面导航id/repoId/treeoid1/treeoid2/desckey
-                                    navController.navigate(
-                                        //注意是 parentTreeOid to thisObj.treeOid，也就是 旧提交to新提交，相当于 git diff abc...def，比较的是旧版到新版，新增或删除或修改了什么，反过来的话，新增删除之类的也就反了
-                                        "${Cons.nav_TreeToTreeChangeListScreen}/${curRepo.value.id}/$commit1/$commit2/$commitForQueryParents"
-                                    )
+                        if(proFeatureEnabled(branchListPagePublishBranchTestPassed)) {
+                            BottomSheetItem(sheetState, showBottomSheet, stringResource(R.string.publish),
+                                enabled = curObjInPage.value.type == Branch.BranchType.LOCAL
+                            ){
+                                doTaskOrShowSetUpstream(curObjInPage.value) {
+                                    forcePublish.value = false
+                                    showPublishDialog.value = true
                                 }
-
                             }
                         }
-                    }
 
-                    BottomSheetItem(sheetState, showBottomSheet, stringResource(R.string.go_upstream),
-                        enabled = curObjInPage.value.type == Branch.BranchType.LOCAL
-                    ){
-                        goToUpstream(curObjInPage.value)
-                    }
-                }
+                        BottomSheetItem(sheetState, showBottomSheet, stringResource(R.string.diff_to_upstream),
+                            enabled = curObjInPage.value.type == Branch.BranchType.LOCAL
+                        ){
+                            val curObj = curObjInPage.value
 
-                if(proFeatureEnabled(resetByHashTestPassed)) {
-                    BottomSheetItem(sheetState, showBottomSheet, stringResource(R.string.reset),
-                    ){
-    //                    resetDialogShortOid.value = curObjInPage.value.shortOidStr
-                        resetDialogOid.value = curObjInPage.value.oidStr
-    //                    acceptHardReset.value = false
-                        showResetDialog.value = true
-                    }
-                }
+                            if(!curObj.isUpstreamValid()) {  // invalid upstream
+                                Msg.requireShowLongDuration(activityContext.getString(R.string.upstream_not_set_or_not_published))
+                            }else {
+                                val upOid = curObj.upstream?.remoteOid ?: ""
+                                if(upOid.isBlank()) {  // invalid upstream oid
+                                    Msg.requireShowLongDuration(activityContext.getString(R.string.upstream_oid_is_invalid))
+                                }else {
+                                    val commit1 = curObj.oidStr
+                                    val commit2 = upOid
 
-                BottomSheetItem(sheetState, showBottomSheet, stringResource(R.string.details)){
-                    val sb = StringBuilder()
-                    val it = curObjInPage.value
-                    sb.append(activityContext.getString(R.string.name)).append(": ").append(it.shortName).appendLine().appendLine()
-                    sb.append(activityContext.getString(R.string.full_name)).append(": ").append(it.fullName).appendLine().appendLine()
-                    sb.append(activityContext.getString(R.string.last_commit)).append(": ").append(it.shortOidStr).appendLine().appendLine()
-                    sb.append(activityContext.getString(R.string.last_commit_full_oid)).append(": ").append(it.oidStr).appendLine().appendLine()
-                    sb.append(activityContext.getString(R.string.type)).append(": ").append(it.getTypeString(activityContext, false)).appendLine().appendLine()
-                    if(it.type==Branch.BranchType.LOCAL) {
-                        sb.append(activityContext.getString(R.string.upstream)).append(": ").append(it.getUpstreamShortName(activityContext)).appendLine().appendLine()
-                        if(it.isUpstreamValid()) {
-                            sb.append(activityContext.getString(R.string.upstream_full_name)).append(": ").append(it.getUpstreamFullName(activityContext)).appendLine().appendLine()
-                            sb.append(activityContext.getString(R.string.status)).append(": ").append(it.getAheadBehind(activityContext, false)).appendLine().appendLine()
+                                    if(commit1 == commit2) {  // local and upstream are the same, no need compare
+                                        Msg.requireShow(activityContext.getString(R.string.both_are_the_same))
+                                    }else {   // necessary things are ready and local vs upstream ain't same, then , should go to diff page
+
+                                        //注意是 parentTreeOid to thisObj.treeOid，也就是 旧提交to新提交，相当于 git diff abc...def，比较的是旧版到新版，新增或删除或修改了什么，反过来的话，新增删除之类的也就反了
+                                        goToTreeToTreeChangeList(
+                                            title = activityContext.getString(R.string.compare_to_upstream),
+                                            repoId = curRepo.value.id,
+                                            commit1 = commit1,
+                                            commit2 = commit2,
+                                            commitForQueryParents = Cons.git_AllZeroOidStr,
+                                        )
+                                    }
+
+                                }
+                            }
+                        }
+
+                        BottomSheetItem(sheetState, showBottomSheet, stringResource(R.string.go_upstream),
+                            enabled = curObjInPage.value.type == Branch.BranchType.LOCAL
+                        ){
+                            goToUpstream(curObjInPage.value)
                         }
                     }
 
-                    if(it.isSymbolic) {
-                        sb.append(activityContext.getString(R.string.symbolic_target)).append(": ").append(it.symbolicTargetShortName).appendLine().appendLine()
-                        sb.append(activityContext.getString(R.string.symbolic_target_full_name)).append(": ").append(it.symbolicTargetFullName).appendLine().appendLine()
+                    if(proFeatureEnabled(resetByHashTestPassed)) {
+                        BottomSheetItem(sheetState, showBottomSheet, stringResource(R.string.reset),
+                        ){
+                            //                    resetDialogShortOid.value = curObjInPage.value.shortOidStr
+                            resetDialogOid.value = curObjInPage.value.oidStr
+                            //                    acceptHardReset.value = false
+                            showResetDialog.value = true
+                        }
                     }
 
-                    sb.append(activityContext.getString(R.string.other)).append(": ").append(it.getOther(activityContext, false)).appendLine().appendLine()
+                    BottomSheetItem(sheetState, showBottomSheet, stringResource(R.string.details)){
+                        val sb = StringBuilder()
+                        val it = curObjInPage.value
+                        sb.append(activityContext.getString(R.string.name)).append(": ").append(it.shortName).appendLine().appendLine()
+                        sb.append(activityContext.getString(R.string.full_name)).append(": ").append(it.fullName).appendLine().appendLine()
+                        sb.append(activityContext.getString(R.string.last_commit)).append(": ").append(it.shortOidStr).appendLine().appendLine()
+                        sb.append(activityContext.getString(R.string.last_commit_full_oid)).append(": ").append(it.oidStr).appendLine().appendLine()
+                        sb.append(activityContext.getString(R.string.type)).append(": ").append(it.getTypeString(activityContext, false)).appendLine().appendLine()
+                        if(it.type==Branch.BranchType.LOCAL) {
+                            sb.append(activityContext.getString(R.string.upstream)).append(": ").append(it.getUpstreamShortName(activityContext)).appendLine().appendLine()
+                            if(it.isUpstreamValid()) {
+                                sb.append(activityContext.getString(R.string.upstream_full_name)).append(": ").append(it.getUpstreamFullName(activityContext)).appendLine().appendLine()
+                                sb.append(activityContext.getString(R.string.status)).append(": ").append(it.getAheadBehind(activityContext, false)).appendLine().appendLine()
+                            }
+                        }
+
+                        if(it.isSymbolic) {
+                            sb.append(activityContext.getString(R.string.symbolic_target)).append(": ").append(it.symbolicTargetShortName).appendLine().appendLine()
+                            sb.append(activityContext.getString(R.string.symbolic_target_full_name)).append(": ").append(it.symbolicTargetFullName).appendLine().appendLine()
+                        }
+
+                        sb.append(activityContext.getString(R.string.other)).append(": ").append(it.getOther(activityContext, false)).appendLine().appendLine()
 
 
 
-                    sb.append(Cons.flagStr).append(": ").append(it.getTypeString(activityContext, true)).append("; ${it.getAheadBehind(activityContext, true)}").append("; ${it.getOther(activityContext, true)}").appendLine().appendLine()
+                        sb.append(Cons.flagStr).append(": ").append(it.getTypeString(activityContext, true)).append("; ${it.getAheadBehind(activityContext, true)}").append("; ${it.getOther(activityContext, true)}").appendLine().appendLine()
 
-                    detailsString.value = sb.toString()
+                        detailsString.value = sb.toString()
 
-                    showDetailsDialog.value = true
-                }
-
-                if(curObjInPage.value.type == Branch.BranchType.LOCAL && proFeatureEnabled(branchRenameTestPassed)) {
-                    BottomSheetItem(sheetState, showBottomSheet, stringResource(R.string.rename)) {
-                        nameForRenameDialog.value = curObjInPage.value.shortName
-                        forceForRenameDialog.value= false
-                        showRenameDialog.value = true
+                        showDetailsDialog.value = true
                     }
-                }
 
-                BottomSheetItem(sheetState, showBottomSheet, stringResource(R.string.delete), textColor = MyStyleKt.TextColor.danger(),
-                    //只能删除非当前分支，不过如果是detached，所有分支都能删。这个不做检测了，因为就算界面出了问题，用户针对当前分支执行了删除操作，libgit2也会抛异常，所以还是不会被执行。
-                    enabled = curObjInPage.value.shortName != repoCurrentActiveBranchOrShortDetachedHashForShown.value
-                ){
-                    // onClick()
+                    if(curObjInPage.value.type == Branch.BranchType.LOCAL && proFeatureEnabled(branchRenameTestPassed)) {
+                        BottomSheetItem(sheetState, showBottomSheet, stringResource(R.string.rename)) {
+                            nameForRenameDialog.value = curObjInPage.value.shortName
+                            forceForRenameDialog.value= false
+                            showRenameDialog.value = true
+                        }
+                    }
+
+                    BottomSheetItem(sheetState, showBottomSheet, stringResource(R.string.delete), textColor = MyStyleKt.TextColor.danger(),
+                        //只能删除非当前分支，不过如果是detached，所有分支都能删。这个不做检测了，因为就算界面出了问题，用户针对当前分支执行了删除操作，libgit2也会抛异常，所以还是不会被执行。
+                        enabled = curObjInPage.value.shortName != repoCurrentActiveBranchOrShortDetachedHashForShown.value
+                    ){
+                        // onClick()
 //                        该写删除了，别忘了删除上游的逻辑和提示删除远程分支需要联网
-                    // 弹出确认框，删除分支
-                    if(curObjInPage.value.type == Branch.BranchType.REMOTE) {
-                        curRequireDelRemoteNameIsAmbiguous.value = curObjInPage.value.isRemoteNameAmbiguous()
-                        userSpecifyRemoteName.value=""
-                        pushCheckBoxForRemoteBranchDelDialog.value = false
-                        showRemoteBranchDelDialog.value = true
-                    }else {
-                        //如果没上游或上游无效(例如没发布或者配置文件中没设置相关字段)，禁用删除上游勾选框，否则启用
+                        // 弹出确认框，删除分支
+                        if(curObjInPage.value.type == Branch.BranchType.REMOTE) {
+                            curRequireDelRemoteNameIsAmbiguous.value = curObjInPage.value.isRemoteNameAmbiguous()
+                            userSpecifyRemoteName.value=""
+                            pushCheckBoxForRemoteBranchDelDialog.value = false
+                            showRemoteBranchDelDialog.value = true
+                        }else {
+                            //如果没上游或上游无效(例如没发布或者配置文件中没设置相关字段)，禁用删除上游勾选框，否则启用
 //                        isUpstreamValidForDelLocalBranch.value = curObjInPage.value.isUpstreamValid()
-                        delUpstreamToo.value = false
-                        delUpstreamPush.value = false
-                        showLocalBranchDelDialog.value = true
+                            delUpstreamToo.value = false
+                            delUpstreamPush.value = false
+                            showLocalBranchDelDialog.value = true
 
+                        }
                     }
+
                 }
-
             }
-        }
 
 
-        //根据关键字过滤条目
-        val keyword = filterKeyword.value.text.lowercase()  //关键字
-        val enableFilter = filterModeActuallyEnabled(filterOn = filterModeOn.value, keyword = keyword)
+            if(list.value.isEmpty()) {
+                FullScreenScrollableColumn(contentPadding) {
+                    Text(stringResource(if(isInitLoading.value) R.string.loading else R.string.item_list_is_empty))
+                }
+            }else {
+                //根据关键字过滤条目
+                val keyword = filterKeyword.value.text.lowercase()  //关键字
+                val enableFilter = filterModeActuallyEnabled(filterOn = filterModeOn.value, keyword = keyword)
 
-        val lastNeedRefresh = rememberSaveable { mutableStateOf("") }
-        val list = filterTheList(
-            needRefresh = filterResultNeedRefresh.value,
-            lastNeedRefresh = lastNeedRefresh,
-            enableFilter = enableFilter,
-            keyword = keyword,
-            lastKeyword = lastKeyword,
-            searching = searching,
-            token = token,
-            activityContext = activityContext,
-            filterList = filterList.value,
-            list = list.value,
-            resetSearchVars = resetSearchVars,
-            match = { idx: Int, it: BranchNameAndTypeDto ->
-            it.fullName.lowercase().contains(keyword)
-                    || it.oidStr.lowercase().contains(keyword)
-                    || it.symbolicTargetFullName.lowercase().contains(keyword)
-                    || it.getUpstreamShortName(activityContext).lowercase().contains(keyword)
+                val lastNeedRefresh = rememberSaveable { mutableStateOf("") }
+                val list = filterTheList(
+                    needRefresh = filterResultNeedRefresh.value,
+                    lastNeedRefresh = lastNeedRefresh,
+                    enableFilter = enableFilter,
+                    keyword = keyword,
+                    lastKeyword = lastKeyword,
+                    searching = searching,
+                    token = token,
+                    activityContext = activityContext,
+                    filterList = filterList.value,
+                    list = list.value,
+                    resetSearchVars = resetSearchVars,
+                    match = { idx: Int, it: BranchNameAndTypeDto ->
+                        it.fullName.lowercase().contains(keyword)
+                                || it.oidStr.lowercase().contains(keyword)
+                                || it.symbolicTargetFullName.lowercase().contains(keyword)
+                                || it.getUpstreamShortName(activityContext).lowercase().contains(keyword)
 
-                    //如果加这个，一搜"remote"会把关联了远程分支的本地分支也显示出来，因为这些分支的上游完整名是 "refs/remotes/....."，其中包含了关键字"remote"
-                    // || it.getUpstreamFullName(activityContext).lowercase().contains(k)
+                                //如果加这个，一搜"remote"会把关联了远程分支的本地分支也显示出来，因为这些分支的上游完整名是 "refs/remotes/....."，其中包含了关键字"remote"
+                                // || it.getUpstreamFullName(activityContext).lowercase().contains(k)
 
-                    || it.getOther(activityContext, false).lowercase().contains(keyword)
-                    || it.getOther(activityContext, true).lowercase().contains(keyword)
-                    || it.getTypeString(activityContext, false).lowercase().contains(keyword)
-                    || it.getTypeString(activityContext, true).lowercase().contains(keyword)
-                    || it.getAheadBehind(activityContext, false).lowercase().contains(keyword)
-                    || it.getAheadBehind(activityContext, true).lowercase().contains(keyword)
-            }
-        )
+                                || it.getOther(activityContext, false).lowercase().contains(keyword)
+                                || it.getOther(activityContext, true).lowercase().contains(keyword)
+                                || it.getTypeString(activityContext, false).lowercase().contains(keyword)
+                                || it.getTypeString(activityContext, true).lowercase().contains(keyword)
+                                || it.getAheadBehind(activityContext, false).lowercase().contains(keyword)
+                                || it.getAheadBehind(activityContext, true).lowercase().contains(keyword)
+                    }
+                )
 
 
-        val listState = if(enableFilter) filterListState else listState
+                val listState = if(enableFilter) filterListState else listState
 //        if(enableFilter) {  //更新filter列表state
 //            filterListState.value = listState
 //        }
 
-        //更新是否启用filter
-        enableFilterState.value = enableFilter
+                //更新是否启用filter
+                enableFilterState.value = enableFilter
 
 
-        MyLazyColumn(
-            contentPadding = contentPadding,
-            list = list,
-            listState = listState,
-            requireForEachWithIndex = true,
-            requirePaddingAtBottom = true,
-            forEachCb = {},
-        ){idx, it->
-            //长按会更新curObjInPage为被长按的条目
-            BranchItem(
-                showBottomSheet = showBottomSheet,
-                curObjFromParent = curObjInPage,
-                idx = idx,
-                thisObj = it,
-                requireBlinkIdx = requireBlinkIdx,
-                lastClickedItemKey = lastClickedItemKey,
-                pageRequest = pageRequest
-            ) {  //onClick
-                //点击条目跳转到分支的提交历史记录页面
-                Cache.set(Cache.Key.commitList_fullOidKey, it.oidStr)
-                Cache.set(Cache.Key.commitList_shortBranchNameKey, it.shortName)
-                val useFullOid = "1"
-                val isHEAD = if(it.isCurrent) "1" else "0"
-                navController.navigate(Cons.nav_CommitListScreen + "/" + repoId +"/" +useFullOid + "/" + isHEAD)
+                MyLazyColumn (
+                    contentPadding = contentPadding,
+                    list = list,
+                    listState = listState,
+                    requireForEachWithIndex = true,
+                    requirePaddingAtBottom = true,
+                    forEachCb = {},
+                ){idx, it->
+                    //长按会更新curObjInPage为被长按的条目
+                    BranchItem(
+                        showBottomSheet = showBottomSheet,
+                        curObjFromParent = curObjInPage,
+                        idx = idx,
+                        thisObj = it,
+                        requireBlinkIdx = requireBlinkIdx,
+                        lastClickedItemKey = lastClickedItemKey,
+                        pageRequest = pageRequest
+                    ) {  //onClick
+                        //点击条目跳转到分支的提交历史记录页面
+                        goToCommitListScreen(
+                            repoId = repoId,
+                            fullOid = it.oidStr,
+                            shortBranchName = it.shortName,
+                            useFullOid = true,
+                            isHEAD = it.isCurrent
+                        )
+                    }
+
+                    HorizontalDivider()
+                }
+
             }
 
-            HorizontalDivider()
         }
 
-    }
-
-    BackHandler {
-        if(filterModeOn.value) {
-            filterModeOn.value = false
-        } else {
-            naviUp()
-        }
     }
 
     //compose创建时的副作用
     LaunchedEffect(needRefresh.value) {
         try {
-            doJobThenOffLoading(loadingOn = loadingOn, loadingOff = loadingOff, loadingText = activityContext.getString(R.string.loading)) {
+//            doJobThenOffLoading(loadingOn = loadingOn, loadingOff = loadingOff, loadingText = activityContext.getString(R.string.loading)) {
+            doJobThenOffLoading(initLoadingOn, initLoadingOff) {
                 list.value.clear()  //先清一下list，然后可能添加也可能不添加
 
                 if(!repoId.isNullOrBlank()) {

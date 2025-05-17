@@ -33,12 +33,12 @@ import com.catpuppyapp.puppygit.screen.functions.ChangeListFunctions
 import com.catpuppyapp.puppygit.screen.shared.SharedState
 import com.catpuppyapp.puppygit.settings.SettingsUtil
 import com.catpuppyapp.puppygit.utils.AppModel
+import com.catpuppyapp.puppygit.utils.cache.Cache
 import com.catpuppyapp.puppygit.utils.state.mutableCustomStateListOf
 import com.catpuppyapp.puppygit.utils.state.mutableCustomStateOf
 import com.github.git24j.core.Repository
 
-private val TAG = "IndexScreen"
-private val stateKeyTag = "IndexScreen"
+private const val TAG = "IndexScreen"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -53,6 +53,7 @@ fun IndexScreen(
     naviUp: () -> Unit
 ) {
 
+    val stateKeyTag = Cache.getSubPageKey(TAG)
 
     val navController = AppModel.navController
     val homeTopBarScrollBehavior = AppModel.homeTopBarScrollBehavior
@@ -227,6 +228,9 @@ fun IndexScreen(
 //        val commitParentList = remember { mutableStateListOf<String>() }
 
         ChangeListInnerPage(
+//            stateKeyTag = Cache.combineKeys(stateKeyTag, "ChangeListInnerPage"),
+            stateKeyTag = stateKeyTag,
+
             lastSearchKeyword=changeListLastSearchKeyword,
             searchToken=changeListSearchToken,
             searching=changeListSearching,

@@ -26,15 +26,14 @@ import com.catpuppyapp.puppygit.ui.theme.Theme
 import com.catpuppyapp.puppygit.utils.AppModel
 import com.catpuppyapp.puppygit.utils.Libgit2Helper
 import com.catpuppyapp.puppygit.utils.UIHelper
-import com.catpuppyapp.puppygit.utils.addPrefix
 import com.catpuppyapp.puppygit.utils.changeStateTriggerRefreshPage
 import com.catpuppyapp.puppygit.utils.dbIntToBool
 import com.catpuppyapp.puppygit.utils.doJobThenOffLoading
 import com.catpuppyapp.puppygit.utils.state.CustomStateListSaveable
 import com.catpuppyapp.puppygit.utils.state.CustomStateSaveable
+import com.github.git24j.core.Repository
 import kotlinx.coroutines.CoroutineScope
 
-//private val stateKeyTag = "ChangeListTitle"
 
 @Composable
 fun ChangeListTitle(
@@ -136,7 +135,13 @@ fun ChangeListTitle(
             menuItem = { r ->
                 DropDownMenuItemText(
                     text = r.repoName,
-                    selected = r.id == changeListCurRepo.value.id
+                    selected = r.id == changeListCurRepo.value.id,
+
+                    //仓库状态若不是NONE，则显示 (其实等于 仓库状态等于null的仓库并不会显示在这里，查询的时候就过滤掉了，不过为了逻辑完整，还是保留null判断
+                    secondLineText = r.gitRepoState.let { if(it == null) stringResource(R.string.invalid) else if(it != Repository.StateT.NONE) it.toString() else "" },
+
+                    //仓库名一般不会太长，仅显示一行即可
+                    maxLines = 1,
                 )
             },
             titleOnLongClick = { showTitleInfoDialog.value = true },

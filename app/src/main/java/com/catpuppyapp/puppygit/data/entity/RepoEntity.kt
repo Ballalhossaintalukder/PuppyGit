@@ -56,6 +56,7 @@ data class RepoEntity(
     var cloneUrl:String="",
 
     //仓库默认状态为 active，可通过仓库设置页面(不是公用仓库选项，是仓库私有的选项)设置为 inactive，如果是inactive，将不会自动检查仓库状态，在changelist也不能查看仓库状态(在changelist切换仓库，没这个仓库)
+    @Deprecated("实际上没用到这个字段")
     var isActive: Int=Cons.dbCommonTrue,
 
     var createBy:Int= Cons.dbRepoCreateByClone,

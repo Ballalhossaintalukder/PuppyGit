@@ -179,6 +179,7 @@ object Cons {
     const val dbRepoWorkStatusNeedSync=7  //本地和远程ahead和behind输出不都是0，需要同步
     const val dbRepoWorkStatusRebasing=8  // need rebase continue or abort
     const val dbRepoWorkStatusCherrypicking=9  // need cherrypick continue or abort
+    const val dbRepoWorkStatusNoHEAD=10 //仓库有效，但没创建任何提交，这时需要创建文件并提交以使仓库正常工作，创建了仓库但没创建任何文件任何提交任何分支，就会是这个状态
 
 
     //            注意，workStatus超过50就代表错误了

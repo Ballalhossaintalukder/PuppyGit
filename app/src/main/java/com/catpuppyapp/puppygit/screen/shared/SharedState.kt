@@ -18,6 +18,7 @@ object SharedState {
     //用于在indexToWorkTree那个页面指示index是否有条目
     var homeChangeList_indexHasItem = mutableStateOf(false)
 
+    // index to worktree
     val homeChangeList_LastClickedItemKey = mutableStateOf(Cons.init_last_clicked_item_key)
     val index_LastClickedItemKey = mutableStateOf(Cons.init_last_clicked_item_key)
     val treeToTree_LastClickedItemKey = mutableStateOf(Cons.init_last_clicked_item_key)
@@ -25,12 +26,6 @@ object SharedState {
 
     val homeChangeList_Refresh = mutableStateOf("IndexToWorkTree_ChangeList_refresh_init_value_5hpn")
     val indexChangeList_Refresh = mutableStateOf("HeadToIndex_ChangeList_refresh_init_value_ts7n")
-
-    val editorPreviewNavStack = EditorPreviewNavStack("")
-    val subEditorPreviewNavStack = EditorPreviewNavStack("")
-
-    val editorUndoStack = mutableStateOf(UndoStack(""))
-    val subEditorUndoStack = mutableStateOf(UndoStack(""))
 
     //用来在请求选择和执行选择的FileChooser页面之间共享选中的路径
     val fileChooser_DirPath = mutableStateOf("")  //如果用app内置 File Picker 选目录，用这个做state

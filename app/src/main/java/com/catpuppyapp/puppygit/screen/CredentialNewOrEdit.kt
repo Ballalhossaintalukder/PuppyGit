@@ -51,13 +51,13 @@ import com.catpuppyapp.puppygit.play.pro.R
 import com.catpuppyapp.puppygit.screen.content.homescreen.scaffold.title.ScrollableTitle
 import com.catpuppyapp.puppygit.style.MyStyleKt
 import com.catpuppyapp.puppygit.utils.AppModel
+import com.catpuppyapp.puppygit.utils.cache.Cache
 import com.catpuppyapp.puppygit.utils.doJobThenOffLoading
 import com.catpuppyapp.puppygit.utils.state.mutableCustomStateOf
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-private val stateKeyTag = "CredentialNewOrEdit"
-private val TAG = "CredentialNewOrEdit"
+private const val TAG = "CredentialNewOrEdit"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -65,6 +65,7 @@ fun CredentialNewOrEdit(
     credentialId: String?,  //编辑已存在条目的时候，用得着这个
     naviUp: () -> Unit,
 ) {
+    val stateKeyTag = Cache.getSubPageKey(TAG)
 
     val activityContext = LocalContext.current
 
@@ -270,8 +271,8 @@ fun CredentialNewOrEdit(
         }
 
         Column (modifier = Modifier
-            .padding(contentPadding)
             .fillMaxSize()
+            .padding(contentPadding)
             .verticalScroll(listState)
             .padding(bottom = MyStyleKt.Padding.PageBottom)  //这个padding是为了使密码框不在底部，类似vscode中文件的最后一行也可滑到屏幕中间一样的意义
         ){
@@ -457,8 +458,8 @@ fun CredentialNewOrEdit(
         //      从数据库异步查询repo数据，更新页面state
         //      设置页面loading 为false
         doJobThenOffLoading(
-            loadingOn = { showLoadingDialog.value = true },
-            loadingOff = { showLoadingDialog.value = false }
+//            loadingOn = { showLoadingDialog.value = true },
+//            loadingOff = { showLoadingDialog.value = false }
         ) job@{
             // 废弃，没必要重置，只重置这个状态，其他状态不重置，万一按钮隐藏了但密码状态为显示？怎么办？根本没必要重置，让这个变量个其他变量生命周期和初始状态都一致即可）重置此变量，避免错误显示查看密码按钮。
 //         //   oldPassIsEmpty.value = false

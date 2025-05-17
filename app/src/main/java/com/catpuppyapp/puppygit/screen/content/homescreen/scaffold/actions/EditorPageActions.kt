@@ -14,6 +14,7 @@ import androidx.compose.material.icons.filled.CheckBoxOutlineBlank
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -80,6 +81,7 @@ fun EditorPageActions(
     editorPageRequest:MutableState<String>,
     editorPageSearchMode:MutableState<Boolean>,
     editorPageMergeMode:MutableState<Boolean>,
+    editorPagePatchMode:MutableState<Boolean>,
     readOnlyMode:MutableState<Boolean>,
     editorSearchKeyword:String,
     isSubPageMode:Boolean,
@@ -139,6 +141,14 @@ fun EditorPageActions(
             editorPageRequest.value = PageRequest.editorPreviewPageGoForward
         }
 
+        LongPressAbleIconBtn(
+            enabled = true,
+            tooltipText = stringResource(R.string.refresh),
+            icon = Icons.Filled.Refresh,
+        ) {
+            editorPageRequest.value = PageRequest.editor_RequireRefreshPreviewPage
+        }
+
         return  //返回，以免显示菜单项
     }else if(editorPageSearchMode.value) {
         LongPressAbleIconBtn(
@@ -191,9 +201,10 @@ fun EditorPageActions(
 
     if(enableMenuItem) {
         if(showUndoRedo.value) {
+            val enableUndo = remember(undoStack.undoStackIsEmpty()) { undoStack.undoStackIsEmpty().not() }
             val undoStr = stringResource(R.string.undo)
             LongPressAbleIconBtn(
-                enabled = undoStack.undoStackIsEmpty().not(),
+                enabled = enableUndo,
                 tooltipText = undoStr,
                 icon = Icons.AutoMirrored.Filled.Undo,
                 iconContentDesc = undoStr,
@@ -208,9 +219,10 @@ fun EditorPageActions(
                 editorPageRequest.value = PageRequest.requestUndo
             }
 
+            val enableRedo = remember(undoStack.redoStackIsEmpty()) { undoStack.redoStackIsEmpty().not() }
             val redoStr = stringResource(R.string.redo)
             LongPressAbleIconBtn(
-                enabled = undoStack.redoStackIsEmpty().not(),
+                enabled = enableRedo,
                 tooltipText = redoStr,
                 icon = Icons.AutoMirrored.Filled.Redo,
                 iconContentDesc = redoStr,
@@ -386,6 +398,29 @@ fun EditorPageActions(
 
                 )
             }
+
+            DropdownMenuItem(
+                enabled = enableMenuItem,
+                text = { Text(stringResource(R.string.patch_mode)) },
+                trailingIcon = {
+                    Icon(
+                        imageVector = if(editorPagePatchMode.value) Icons.Filled.CheckBox else Icons.Filled.CheckBoxOutlineBlank,
+                        contentDescription = null
+                    )
+                },
+                onClick = {
+                    val newValue = !editorPagePatchMode.value
+                    editorPagePatchMode.value = newValue
+
+                    //更新配置文件
+                    SettingsUtil.update {
+                        it.editor.patchModeOn = newValue
+                    }
+
+                    closeMenu()
+                }
+
+            )
 
             DropdownMenuItem(
                 //非readOnly目录才允许开启或关闭readonly状态，否则强制启用readonly状态且不允许关闭

@@ -11,9 +11,12 @@ import androidx.compose.ui.platform.ClipboardManager
 import com.catpuppyapp.puppygit.constants.Cons
 import com.catpuppyapp.puppygit.constants.LineNum
 import com.catpuppyapp.puppygit.constants.PageRequest
+import com.catpuppyapp.puppygit.dev.DevFeature
 import com.catpuppyapp.puppygit.dto.UndoStack
 import com.catpuppyapp.puppygit.fileeditor.texteditor.state.TextEditorState
+import com.catpuppyapp.puppygit.git.DiffableItem
 import com.catpuppyapp.puppygit.play.pro.R
+import com.catpuppyapp.puppygit.screen.shared.DiffFromScreen
 import com.catpuppyapp.puppygit.screen.shared.FileChooserType
 import com.catpuppyapp.puppygit.screen.shared.FilePath
 import com.catpuppyapp.puppygit.utils.AppModel
@@ -22,15 +25,16 @@ import com.catpuppyapp.puppygit.utils.Libgit2Helper
 import com.catpuppyapp.puppygit.utils.Msg
 import com.catpuppyapp.puppygit.utils.MyLog
 import com.catpuppyapp.puppygit.utils.UIHelper
-import com.catpuppyapp.puppygit.utils.cache.Cache
+import com.catpuppyapp.puppygit.utils.cache.NaviCache
 import com.catpuppyapp.puppygit.utils.doJobThenOffLoading
 import com.catpuppyapp.puppygit.utils.doJobWithMainContext
 import com.catpuppyapp.puppygit.utils.generateRandomString
-import com.catpuppyapp.puppygit.utils.getRandomUUID
+import com.catpuppyapp.puppygit.utils.getShortUUID
 import com.catpuppyapp.puppygit.utils.replaceStringResList
 import com.catpuppyapp.puppygit.utils.state.CustomStateSaveable
 import com.catpuppyapp.puppygit.utils.withMainContext
 import kotlinx.coroutines.CoroutineScope
+import java.io.File
 
 private const val TAG = "ScreenHelper"
 
@@ -95,10 +99,10 @@ suspend fun goToFileHistoryByRelativePathWithMainContext(repoId:String, relative
 }
 
 fun naviToFileHistoryByRelativePath(repoId:String, relativePathUnderRepo:String) {
-    Cache.set(Cache.Key.fileHistory_fileRelativePathKey, relativePathUnderRepo)
+    val fileRelativePathKey = NaviCache.setThenReturnKey(relativePathUnderRepo)
     //go to file history page
     doJobWithMainContext {
-        AppModel.navController.navigate(Cons.nav_FileHistoryScreen + "/" + repoId)
+        AppModel.navController.navigate(Cons.nav_FileHistoryScreen + "/" + repoId+"/"+fileRelativePathKey)
     }
 }
 
@@ -122,30 +126,41 @@ fun getClipboardText(clipboardManager:ClipboardManager):String? {
     }
 }
 
-fun openFileWithInnerSubPageEditor(filePath:String, mergeMode:Boolean, readOnly:Boolean) {
-    Cache.set(Cache.Key.subPageEditor_filePathKey, filePath)
-    val goToLine = LineNum.lastPosition
-    val initMergeMode = if(mergeMode) "1" else "0"
-    val initReadOnly = if(readOnly) "1" else "0"
+fun openFileWithInnerSubPageEditor(
+    context: Context,
+    filePath:String,
+    mergeMode:Boolean,
+    readOnly:Boolean,
+    goToLine:Int = LineNum.lastPosition,
+    onlyGoToWhenFileExists: Boolean = false
+) {
+    doJobWithMainContext job@{
+        if(onlyGoToWhenFileExists && File(filePath).exists().not()) {
+            Msg.requireShowLongDuration(context.getString(R.string.file_doesnt_exist))
+            return@job
+        }
 
-    AppModel.subEditorPreviewModeOnWhenDestroy.value = false
+        val filePathKey = NaviCache.setThenReturnKey(filePath)
 
-    doJobWithMainContext {
-        AppModel.navController.navigate(Cons.nav_SubPageEditor + "/$goToLine/$initMergeMode/$initReadOnly")
+        val initMergeMode = if(mergeMode) "1" else "0"
+        val initReadOnly = if(readOnly) "1" else "0"
+
+
+        AppModel.navController.navigate(Cons.nav_SubPageEditor + "/$goToLine/$initMergeMode/$initReadOnly/$filePathKey")
     }
 }
 
-
+/**
+ * @param shortName short hash or tag name or branch name
+ */
 fun fromTagToCommitHistory(fullOid:String, shortName:String, repoId:String){
-    //点击条目跳转到分支的提交历史记录页面
-    Cache.set(Cache.Key.commitList_fullOidKey, fullOid)
-    Cache.set(Cache.Key.commitList_shortBranchNameKey, shortName)  //short hash or tag name or branch name
-    val useFullOid = "1"
-    val isHEAD = "0"
-
-    doJobWithMainContext {
-        AppModel.navController.navigate(Cons.nav_CommitListScreen + "/" + repoId + "/" +useFullOid  + "/" + isHEAD)
-    }
+    goToCommitListScreen(
+        repoId = repoId,
+        fullOid = fullOid,
+        shortBranchName = shortName,
+        useFullOid = true,
+        isHEAD = false,
+    )
 }
 
 
@@ -225,7 +240,7 @@ fun generateNewTokenForSearch():String {
 }
 
 fun triggerReFilter(filterResultNeedRefresh:MutableState<String>) {
-    filterResultNeedRefresh.value = getRandomUUID()
+    filterResultNeedRefresh.value = getShortUUID()
 }
 
 @Composable
@@ -375,3 +390,71 @@ suspend fun goToStashPage(repoId:String) {
         AppModel.navController.navigate(Cons.nav_StashListScreen+"/"+repoId)
     }
 }
+
+fun goToTreeToTreeChangeList(title:String, repoId: String, commit1:String, commit2:String, commitForQueryParents:String) {
+    doJobWithMainContext {
+        val commit1OidStrCacheKey = NaviCache.setThenReturnKey(commit1)
+        val commit2OidStrCacheKey = NaviCache.setThenReturnKey(commit2)
+        val commitForQueryParentsCacheKey = NaviCache.setThenReturnKey(commitForQueryParents)
+        //当前比较的描述信息的key，用来在界面显示这是在比较啥，值例如“和父提交比较”或者“比较两个提交”之类的
+        val titleCacheKey = NaviCache.setThenReturnKey(title)
+
+        // url 参数： 页面导航id/repoId/treeoid1/treeoid2/desckey
+        AppModel.navController.navigate(
+            //注意是 parentTreeOid to thisObj.treeOid，也就是 旧提交to新提交，相当于 git diff abc...def，比较的是旧版到新版，新增或删除或修改了什么，反过来的话，新增删除之类的也就反了
+            "${Cons.nav_TreeToTreeChangeListScreen}/$repoId/$commit1OidStrCacheKey/$commit2OidStrCacheKey/$commitForQueryParentsCacheKey/$titleCacheKey"
+        )
+    }
+}
+
+fun goToCommitListScreen(repoId: String, fullOid:String, shortBranchName:String, useFullOid:Boolean, isHEAD:Boolean) {
+    doJobWithMainContext {
+        val fullOidCacheKey = NaviCache.setThenReturnKey(fullOid)
+        val shortBranchNameCacheKey = NaviCache.setThenReturnKey(shortBranchName)
+
+        //注：如果fullOidKey传null，会变成字符串 "null"，然后查不出东西，返回空字符串，与其在导航组件取值时做处理，不如直接传空字符串，不做处理其实也行，只要“null“作为cache key取不出东西就行，但要是不做处理万一字符串"null"作为cache key能查出东西，就歇菜了，总之，走正常流程取得有效cache key，cache value传空字符串，即可
+        AppModel.navController.navigate(Cons.nav_CommitListScreen + "/" + repoId +"/" + (if(useFullOid) "1" else "0") + "/" + (if(isHEAD) "1" else "0") +"/"+fullOidCacheKey+"/"+shortBranchNameCacheKey)
+    }
+}
+
+fun goToDiffScreen(
+//    relativePathList:List<String>,
+    diffableList:List<DiffableItem>,
+    repoId: String,
+    fromTo: String,
+    commit1OidStr:String,
+    commit2OidStr:String,
+    isDiffToLocal:Boolean,
+    curItemIndexAtDiffableList:Int,
+    localAtDiffRight:Boolean,
+    fromScreen:String,
+) {
+    doJobWithMainContext {
+//        val relativePathCacheKey = NaviCache.setThenReturnKey(relativePathList)
+
+        //设置条目列表
+//        val invalidCacheKey = getRandomUUID(10)
+        //等于null说明目标页面不需要此列表，所以不用设置
+        val diffableListCacheKey = NaviCache.setThenReturnKey(diffableList) ;
+
+//        val isMultiMode = if(fromScreen != DiffFromScreen.FILE_HISTORY.code) 1 else 0
+        val isMultiMode:Boolean = if(fromScreen != DiffFromScreen.FILE_HISTORY.code) DevFeature.singleDiff.state.value.not() else false;
+
+        AppModel.navController.navigate(
+            Cons.nav_DiffScreen +
+                    "/" + repoId +
+                    "/" + fromTo +
+                    "/" + commit1OidStr +
+                    "/" + commit2OidStr +
+                    "/" + (if(isDiffToLocal) 1 else 0)
+                    + "/" + curItemIndexAtDiffableList
+                    +"/" + (if(localAtDiffRight) 1 else 0)
+
+                    +"/" + fromScreen
+
+                    +"/"+diffableListCacheKey
+                    +"/"+(if(isMultiMode) 1 else 0)
+        )
+    }
+}
+

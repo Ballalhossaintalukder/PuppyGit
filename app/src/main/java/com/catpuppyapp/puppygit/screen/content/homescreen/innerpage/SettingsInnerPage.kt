@@ -1,5 +1,6 @@
 package com.catpuppyapp.puppygit.screen.content.homescreen.innerpage
 
+import android.content.Context
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.clickable
@@ -36,8 +37,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.catpuppyapp.puppygit.compose.ClickableText
 import com.catpuppyapp.puppygit.compose.ConfirmDialog2
 import com.catpuppyapp.puppygit.compose.ConfirmDialog3
@@ -55,6 +57,8 @@ import com.catpuppyapp.puppygit.compose.SingleSelectList
 import com.catpuppyapp.puppygit.compose.SoftkeyboardVisibleListener
 import com.catpuppyapp.puppygit.compose.SpacerRow
 import com.catpuppyapp.puppygit.constants.Cons
+import com.catpuppyapp.puppygit.dev.DevFeature
+import com.catpuppyapp.puppygit.dev.DevItem
 import com.catpuppyapp.puppygit.play.pro.R
 import com.catpuppyapp.puppygit.settings.SettingsCons
 import com.catpuppyapp.puppygit.settings.SettingsUtil
@@ -69,10 +73,9 @@ import com.catpuppyapp.puppygit.utils.LanguageUtil
 import com.catpuppyapp.puppygit.utils.Lg2HomeUtils
 import com.catpuppyapp.puppygit.utils.Msg
 import com.catpuppyapp.puppygit.utils.MyLog
-import com.catpuppyapp.puppygit.utils.PrefMan
-import com.catpuppyapp.puppygit.utils.PrefUtil
 import com.catpuppyapp.puppygit.utils.StrListUtil
 import com.catpuppyapp.puppygit.utils.UIHelper
+import com.catpuppyapp.puppygit.utils.cache.Cache
 import com.catpuppyapp.puppygit.utils.doJobThenOffLoading
 import com.catpuppyapp.puppygit.utils.encrypt.MasterPassUtil
 import com.catpuppyapp.puppygit.utils.fileopenhistory.FileOpenHistoryMan
@@ -80,17 +83,20 @@ import com.catpuppyapp.puppygit.utils.formatMinutesToUtc
 import com.catpuppyapp.puppygit.utils.getInvalidTimeZoneOffsetErrMsg
 import com.catpuppyapp.puppygit.utils.getValidTimeZoneOffsetRangeInMinutes
 import com.catpuppyapp.puppygit.utils.isValidOffsetInMinutes
+import com.catpuppyapp.puppygit.utils.pref.PrefMan
+import com.catpuppyapp.puppygit.utils.pref.PrefUtil
 import com.catpuppyapp.puppygit.utils.replaceStringResList
 import com.catpuppyapp.puppygit.utils.snapshot.SnapshotUtil
 import com.catpuppyapp.puppygit.utils.state.mutableCustomStateListOf
 import com.catpuppyapp.puppygit.utils.state.mutableCustomStateOf
 import com.catpuppyapp.puppygit.utils.storagepaths.StoragePathsMan
 
-private const val stateKeyTag = "SettingsInnerPage"
 private const val TAG = "SettingsInnerPage"
 
 @Composable
 fun SettingsInnerPage(
+    stateKeyTag:String,
+
     contentPadding: PaddingValues,
     needRefreshPage:MutableState<String>,
     openDrawer:()->Unit,
@@ -99,6 +105,7 @@ fun SettingsInnerPage(
     goToFilesPage:(path:String)->Unit,
 
 ){
+    val stateKeyTag = Cache.getComponentKey(stateKeyTag, TAG)
 
     // softkeyboard show/hidden relate start
 
@@ -236,6 +243,13 @@ fun SettingsInnerPage(
     val cleanFileOpenHistory = rememberSaveable { mutableStateOf(false) }
 
     val allowUnknownHosts = rememberSaveable { mutableStateOf(settingsState.value.sshSetting.allowUnknownHosts) }
+
+    //这几个本身就是state，不需要remember
+//    val dev_singleDiffOn = rememberSaveable { DevFeature.singleDiff.state }
+//    val dev_showMatchedAllAtDiff = rememberSaveable { DevFeature.showMatchedAllAtDiff.state }
+//    val dev_showRandomLaunchingText = rememberSaveable { DevFeature.showRandomLaunchingText.state }
+//    val dev_legacyChangeListLoadMethod = rememberSaveable { DevFeature.legacyChangeListLoadMethod.state }
+
 //    val showResetKnownHostsDialog = rememberSaveable { mutableStateOf(false) }
     val showForgetHostKeysDialog = rememberSaveable { mutableStateOf(false) }
     if(showForgetHostKeysDialog.value) {
@@ -737,18 +751,18 @@ fun SettingsInnerPage(
     BackHandler(enabled = isBackHandlerEnable.value, onBack = {backHandlerOnBack()})
     //back handler block end
 
-    val itemFontSize = 20.sp
-    val itemDescFontSize = 15.sp
-    val switcherIconSize = 60.dp
-    val selectorWidth = MyStyleKt.DropDownMenu.minWidth.dp
+    val itemFontSize = MyStyleKt.SettingsItem.itemFontSize
+    val itemDescFontSize = MyStyleKt.SettingsItem.itemDescFontSize
+    val switcherIconSize = MyStyleKt.SettingsItem.switcherIconSize
+    val selectorWidth = MyStyleKt.SettingsItem.selectorWidth
 
-    val itemLeftWidthForSwitcher = .8f
-    val itemLeftWidthForSelector = .6f
+    val itemLeftWidthForSwitcher = MyStyleKt.SettingsItem.itemLeftWidthForSwitcher
+    val itemLeftWidthForSelector = MyStyleKt.SettingsItem.itemLeftWidthForSelector
 
     Column(
         modifier = Modifier
-            .padding(contentPadding)
             .fillMaxSize()
+            .padding(contentPadding)
             .verticalScroll(listState)
     ) {
         SettingsTitle(stringResource(R.string.general))
@@ -1192,6 +1206,62 @@ fun SettingsInnerPage(
             }
         }
 
+        //一些用来测试的功能
+        if(devModeOn.value) {
+            SettingsTitle("Dev Zone")
+
+            // single diff
+            DevBooleanSettingsItem(
+                item = DevFeature.singleDiff,
+                context = activityContext,
+                itemLeftWidthForSwitcher = itemLeftWidthForSwitcher,
+                itemFontSize = itemFontSize,
+                itemDescFontSize = itemDescFontSize,
+                switcherIconSize = switcherIconSize,
+            )
+
+            // line menu item, matched all and no-matched all
+            DevBooleanSettingsItem(
+                item = DevFeature.showMatchedAllAtDiff,
+                context = activityContext,
+                itemLeftWidthForSwitcher = itemLeftWidthForSwitcher,
+                itemFontSize = itemFontSize,
+                itemDescFontSize = itemDescFontSize,
+                switcherIconSize = switcherIconSize,
+            )
+
+            // show random launching text when app loading
+            DevBooleanSettingsItem(
+                item = DevFeature.showRandomLaunchingText,
+                context = activityContext,
+                itemLeftWidthForSwitcher = itemLeftWidthForSwitcher,
+                itemFontSize = itemFontSize,
+                itemDescFontSize = itemDescFontSize,
+                switcherIconSize = switcherIconSize,
+            )
+
+            // legacy change list load method
+            DevBooleanSettingsItem(
+                item = DevFeature.legacyChangeListLoadMethod,
+                context = activityContext,
+                itemLeftWidthForSwitcher = itemLeftWidthForSwitcher,
+                itemFontSize = itemFontSize,
+                itemDescFontSize = itemDescFontSize,
+                switcherIconSize = switcherIconSize,
+            )
+
+
+            // crash the app
+            SettingsContent(onClick = {
+                throw RuntimeException("App Crashed For Test Purpose")
+            }) {
+                Column {
+                    Text("Crash App", fontSize = itemFontSize)
+                }
+            }
+
+        }
+
         SpacerRow()
     }
 
@@ -1216,3 +1286,40 @@ fun SettingsInnerPage(
 
 }
 
+@Composable
+private fun DevBooleanSettingsItem(
+    item: DevItem<Boolean>,
+    context: Context,
+    itemLeftWidthForSwitcher: Float,
+    itemFontSize: TextUnit,
+    itemDescFontSize: TextUnit,
+    switcherIconSize: Dp,
+) {
+    SettingsContent(
+        onClick = {
+            item.update(!item.state.value, context)
+        }
+    ) {
+        val itemEnabled = item.state.value
+
+        Column(modifier = Modifier.fillMaxWidth(itemLeftWidthForSwitcher)) {
+            Text(item.text, fontSize = itemFontSize)
+
+            // desc
+            item.desc.let {
+                if(it.isNotBlank()) {
+                    Text(it, fontSize = itemDescFontSize, fontWeight = FontWeight.Light)
+                }
+            }
+
+        }
+
+        Icon(
+            modifier = Modifier.size(switcherIconSize),
+            imageVector = UIHelper.getIconForSwitcher(itemEnabled),
+            contentDescription = if(itemEnabled) stringResource(R.string.enable) else stringResource(R.string.disable),
+            tint = UIHelper.getColorForSwitcher(itemEnabled),
+
+        )
+    }
+}

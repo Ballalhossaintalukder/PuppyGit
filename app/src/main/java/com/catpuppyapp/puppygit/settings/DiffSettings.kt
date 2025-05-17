@@ -28,13 +28,13 @@ data class DiffSettings (
      */
     var loadDiffContentCheckAbortSignalLines:Int=1000,
     /**
-     * load how much size will check once abort signal, when this or `loadDiffContentCheckAbortSignalFrequency` reached will check abort signal
+     * load how much size will check once abort signal, when this or `loadDiffContentCheckAbortSignalLines` reached will check abort signal
      */
     var loadDiffContentCheckAbortSignalSize:Long=1000000L,  // unit byte, default 1MB
 
 
     var showLineNum:Boolean=true,
-    var showOriginType:Boolean=false,
+    var showOriginType:Boolean=true,
     var fontSize:Int = SettingsCons.defaultFontSize,  //字体大小，单位sp
     var lineNumFontSize:Int = SettingsCons.defaultLineNumFontSize,  //行号字体大小
 

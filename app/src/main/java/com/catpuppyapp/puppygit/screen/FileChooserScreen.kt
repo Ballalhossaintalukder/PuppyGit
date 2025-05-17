@@ -40,13 +40,13 @@ import com.catpuppyapp.puppygit.settings.SettingsUtil
 import com.catpuppyapp.puppygit.utils.AppModel
 import com.catpuppyapp.puppygit.utils.FsUtils
 import com.catpuppyapp.puppygit.utils.Msg
+import com.catpuppyapp.puppygit.utils.cache.Cache
 import com.catpuppyapp.puppygit.utils.changeStateTriggerRefreshPage
 import com.catpuppyapp.puppygit.utils.state.mutableCustomStateListOf
 import com.catpuppyapp.puppygit.utils.state.mutableCustomStateOf
 import java.io.File
 
 private const val TAG = "FileChooserScreen"
-private const val stateKeyTag = "FileChooserScreen"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -54,6 +54,7 @@ fun FileChooserScreen(
     type: FileChooserType,
     naviUp: () -> Unit
 ) {
+    val stateKeyTag = Cache.getSubPageKey(TAG)
 
     val isFileChooser = remember { true }
 
@@ -296,6 +297,8 @@ fun FileChooserScreen(
 
 //                changeStateTriggerRefreshPage(needRefreshFilesPage)
         FilesInnerPage(
+//            stateKeyTag = Cache.combineKeys(stateKeyTag, "FilesInnerPage"),
+            stateKeyTag = stateKeyTag,
             naviUp = naviUp,
             updateSelectedPath = updateSelectedPath,
             isFileChooser = isFileChooser,

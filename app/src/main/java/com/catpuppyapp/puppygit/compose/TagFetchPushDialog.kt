@@ -156,7 +156,7 @@ fun TagFetchPushDialog(
 
     AlertDialog(
         title = {
-            Text(title)
+            DialogTitle(title)
         },
         text = {
             Column(modifier = Modifier.verticalScroll(rememberScrollState())) {

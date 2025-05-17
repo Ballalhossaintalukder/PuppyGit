@@ -3,6 +3,7 @@ package com.catpuppyapp.puppygit.utils
 import android.content.Context
 import com.catpuppyapp.puppygit.constants.LangCode
 import com.catpuppyapp.puppygit.play.pro.R
+import com.catpuppyapp.puppygit.utils.pref.PrefMan
 
 
 object LanguageUtil {

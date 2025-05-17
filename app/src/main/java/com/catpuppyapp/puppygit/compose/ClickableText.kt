@@ -18,8 +18,8 @@ fun ClickableText(text:String, onClick:(()->Unit)?) {
         text = text,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
-        fontWeight = FontWeight.Light,
-        style = MyStyleKt.ClickableText.style,
+        fontWeight = MyStyleKt.TextItem.defaultFontWeight(),
+        style = MyStyleKt.ClickableText.getStyle(),
         color = MyStyleKt.ClickableText.color,
         fontSize = 16.sp,
         modifier = if(onClick == null) {
@@ -37,7 +37,7 @@ fun ClickableText(
     maxLines:Int = Int.MAX_VALUE,
     overflow: TextOverflow = TextOverflow.Ellipsis,
     fontWeight: FontWeight? = null,
-    style:TextStyle = MyStyleKt.ClickableText.style,
+    style:TextStyle = MyStyleKt.ClickableText.getStyle(),
     color:Color = MyStyleKt.ClickableText.color,
     fontSize:TextUnit = 16.sp,
     modifier: Modifier

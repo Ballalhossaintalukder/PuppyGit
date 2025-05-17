@@ -1,7 +1,6 @@
 package com.catpuppyapp.puppygit.screen.content.homescreen.innerpage
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -21,14 +20,13 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.catpuppyapp.puppygit.compose.AppIcon
 import com.catpuppyapp.puppygit.compose.ClickableText
 import com.catpuppyapp.puppygit.compose.SpacerRow
 import com.catpuppyapp.puppygit.play.pro.R
@@ -36,7 +34,6 @@ import com.catpuppyapp.puppygit.style.MyStyleKt
 import com.catpuppyapp.puppygit.utils.ActivityUtil
 import com.catpuppyapp.puppygit.utils.AppModel
 import com.catpuppyapp.puppygit.utils.ComposeHelper
-import com.catpuppyapp.puppygit.utils.Msg
 
 
 const val authorMail = "luckyclover33xx@gmail.com"
@@ -84,14 +81,13 @@ fun AboutInnerPage(
     val activityContext = LocalContext.current
     val exitApp = AppModel.exitApp;
 
-    val appIcon = AppModel.getAppIcon(activityContext)
 
-    val clipboardManager = LocalClipboardManager.current
+//    val clipboardManager = LocalClipboardManager.current
 
-    val copy={text:String ->
-        clipboardManager.setText(AnnotatedString(text))
-        Msg.requireShow(activityContext.getString(R.string.copied))
-    }
+//    val copy={text:String ->
+//        clipboardManager.setText(AnnotatedString(text))
+//        Msg.requireShow(activityContext.getString(R.string.copied))
+//    }
 
     //back handler block start
     val isBackHandlerEnable = rememberSaveable { mutableStateOf(true)}
@@ -103,16 +99,17 @@ fun AboutInnerPage(
 
     Column(
         modifier = Modifier
+            .fillMaxSize()
             .padding(contentPadding)
             .padding(top = 10.dp)
-            .fillMaxSize()
             .verticalScroll(listState)
         ,
         horizontalAlignment = Alignment.CenterHorizontally,
 //        verticalArrangement = Arrangement.Center
     ){
         //图标，app名，contact
-        Image(bitmap = appIcon, contentDescription = stringResource(id = R.string.app_icon))
+        AppIcon()
+
         Column(modifier = Modifier.padding(10.dp)
 
             ,
@@ -226,7 +223,7 @@ fun AboutInnerPage(
         ) {
 //            Text(text = stringResource(R.string.contact_author)+":")
             ClickableText(
-                text = stringResource(R.string.donate),
+                text = "💖"+stringResource(R.string.donate)+"💖",
                 modifier = MyStyleKt.ClickableText.modifierNoPadding.clickable {
 //                    copy(authorMail)
                     ActivityUtil.openUrl(activityContext, donateLink)

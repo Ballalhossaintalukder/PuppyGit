@@ -50,16 +50,16 @@ import com.catpuppyapp.puppygit.compose.CopyableDialog
 import com.catpuppyapp.puppygit.compose.CreateRemoteDialog
 import com.catpuppyapp.puppygit.compose.FilterTextField
 import com.catpuppyapp.puppygit.compose.GoToTopAndGoToBottomFab
-import com.catpuppyapp.puppygit.compose.LoadingText
+import com.catpuppyapp.puppygit.compose.LoadingTextSimple
 import com.catpuppyapp.puppygit.compose.LongPressAbleIconBtn
 import com.catpuppyapp.puppygit.compose.MyLazyColumn
+import com.catpuppyapp.puppygit.compose.PullToRefreshBox
 import com.catpuppyapp.puppygit.compose.RemoteItem
 import com.catpuppyapp.puppygit.compose.RepoInfoDialog
 import com.catpuppyapp.puppygit.compose.ScrollableColumn
 import com.catpuppyapp.puppygit.compose.SetBranchForRemoteDialog
 import com.catpuppyapp.puppygit.compose.UnLinkCredentialAndRemoteDialogForRemoteListPage
 import com.catpuppyapp.puppygit.constants.Cons
-import com.catpuppyapp.puppygit.constants.SpecialCredential
 import com.catpuppyapp.puppygit.data.entity.RemoteEntity
 import com.catpuppyapp.puppygit.data.entity.RepoEntity
 import com.catpuppyapp.puppygit.dev.createRemoteTestPassed
@@ -79,6 +79,7 @@ import com.catpuppyapp.puppygit.utils.AppModel
 import com.catpuppyapp.puppygit.utils.Libgit2Helper
 import com.catpuppyapp.puppygit.utils.Msg
 import com.catpuppyapp.puppygit.utils.MyLog
+import com.catpuppyapp.puppygit.utils.cache.Cache
 import com.catpuppyapp.puppygit.utils.changeStateTriggerRefreshPage
 import com.catpuppyapp.puppygit.utils.createAndInsertError
 import com.catpuppyapp.puppygit.utils.doJobThenOffLoading
@@ -91,7 +92,6 @@ import com.github.git24j.core.Remote
 import com.github.git24j.core.Repository
 
 private const val TAG = "RemoteListScreen"
-private const val stateKeyTag = "RemoteListScreen"
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -104,6 +104,8 @@ fun RemoteListScreen(
     repoId:String,
     naviUp: () -> Boolean,
 ) {
+    val stateKeyTag = Cache.getSubPageKey(TAG)
+
     val homeTopBarScrollBehavior = AppModel.homeTopBarScrollBehavior
     val activityContext = LocalContext.current
     val navController = AppModel.navController
@@ -658,6 +660,14 @@ fun RemoteListScreen(
     val filterLastPosition = rememberSaveable { mutableStateOf(0) }
     val lastPosition = rememberSaveable { mutableStateOf(0) }
 
+    BackHandler {
+        if(filterModeOn.value) {
+            filterModeOn.value = false
+        } else {
+            naviUp()
+        }
+    }
+
     Scaffold(
         modifier = Modifier.nestedScroll(homeTopBarScrollBehavior.nestedScrollConnection),
         topBar = {
@@ -854,99 +864,97 @@ fun RemoteListScreen(
             }
         }
 
-        if(isLoading.value) {
-            LoadingText(contentPadding = contentPadding, text = loadingText.value)
-        }else {
-            //根据关键字过滤条目
-            val keyword = filterKeyword.value.text.lowercase()  //关键字
-            val enableFilter = filterModeActuallyEnabled(filterModeOn.value, keyword)
+        PullToRefreshBox(
+            contentPadding = contentPadding,
+            onRefresh = { changeStateTriggerRefreshPage(needRefresh) }
+        ) {
 
-            val lastNeedRefresh = rememberSaveable { mutableStateOf("") }
-            val list = filterTheList(
-                needRefresh = filterResultNeedRefresh.value,
-                lastNeedRefresh = lastNeedRefresh,
-                enableFilter = enableFilter,
-                keyword = keyword,
-                lastKeyword = lastKeyword,
-                searching = searching,
-                token = token,
-                activityContext = activityContext,
-                filterList = filterList.value,
-                list = list.value,
-                resetSearchVars = resetSearchVars,
-                match = { idx:Int, it: RemoteDto ->
-                    it.remoteName.lowercase().contains(keyword)
-                            || it.remoteUrl.lowercase().contains(keyword)
-                            || it.pushUrl.lowercase().contains(keyword)
-                            || it.credentialName?.lowercase()?.contains(keyword) == true
-                            || it.pushCredentialName?.lowercase()?.contains(keyword) == true
-                            || it.branchListForFetch.toString().lowercase().contains(keyword)
-                }
-            )
+            if(isLoading.value) {
+                LoadingTextSimple(contentPadding = contentPadding, text = loadingText.value)
+            }else {
+                //根据关键字过滤条目
+                val keyword = filterKeyword.value.text.lowercase()  //关键字
+                val enableFilter = filterModeActuallyEnabled(filterModeOn.value, keyword)
+
+                val lastNeedRefresh = rememberSaveable { mutableStateOf("") }
+                val list = filterTheList(
+                    needRefresh = filterResultNeedRefresh.value,
+                    lastNeedRefresh = lastNeedRefresh,
+                    enableFilter = enableFilter,
+                    keyword = keyword,
+                    lastKeyword = lastKeyword,
+                    searching = searching,
+                    token = token,
+                    activityContext = activityContext,
+                    filterList = filterList.value,
+                    list = list.value,
+                    resetSearchVars = resetSearchVars,
+                    match = { idx:Int, it: RemoteDto ->
+                        it.remoteName.lowercase().contains(keyword)
+                                || it.remoteUrl.lowercase().contains(keyword)
+                                || it.pushUrl.lowercase().contains(keyword)
+                                || it.credentialName?.lowercase()?.contains(keyword) == true
+                                || it.pushCredentialName?.lowercase()?.contains(keyword) == true
+                                || it.branchListForFetch.toString().lowercase().contains(keyword)
+                    }
+                )
 
 
-            val listState = if(enableFilter) filterListState else lazyListState
+                val listState = if(enableFilter) filterListState else lazyListState
 //            if(enableFilter) {  //更新filter列表state
 //                filterListState.value = listState
 //            }
-            //更新是否启用filter
-            enableFilterState.value = enableFilter
+                //更新是否启用filter
+                enableFilterState.value = enableFilter
 
-            MyLazyColumn(
-                contentPadding = contentPadding,
-                list = list,
-                listState = listState,
-                requireForEachWithIndex = true,
-                requirePaddingAtBottom = true
-            ) {idx,it->
-                //在这个组件里更新了 state curObj，所以长按后直接用curObj就能获取到当前对象了
-                RemoteItem(showBottomSheet,curObjInState,idx,it, lastClickedItemKey){ //onClick
-                    //生成要显示的字符串
-                    val sb = StringBuilder()
-                    sb.append(activityContext.getString(R.string.name)+": "+it.remoteName)
-                    sb.appendLine()
-                    sb.appendLine()
-                    sb.append(activityContext.getString(R.string.url)+": "+it.remoteUrl)
-                    sb.appendLine()
-                    sb.appendLine()
+                MyLazyColumn(
+                    contentPadding = contentPadding,
+                    list = list,
+                    listState = listState,
+                    requireForEachWithIndex = true,
+                    requirePaddingAtBottom = true
+                ) {idx,it->
+                    //在这个组件里更新了 state curObj，所以长按后直接用curObj就能获取到当前对象了
+                    RemoteItem(showBottomSheet,curObjInState,idx,it, lastClickedItemKey){ //onClick
+                        //生成要显示的字符串
+                        val sb = StringBuilder()
+                        sb.append(activityContext.getString(R.string.name)+": "+it.remoteName)
+                        sb.appendLine()
+                        sb.appendLine()
+                        sb.append(activityContext.getString(R.string.url)+": "+it.remoteUrl)
+                        sb.appendLine()
+                        sb.appendLine()
 
 //                    sb.append(appContext.getString(R.string.push_url)+": "+(it.pushUrl.ifEmpty { it.remoteUrl }))  // no more check pushUrl empty need after 20241007
-                    // after 20241007, if need, pushUrl will replaced to fetch url when querying, so reached here, directly show pushUrl is ok
-                    sb.append(activityContext.getString(R.string.push_url)+": "+it.pushUrl)
+                        // after 20241007, if need, pushUrl will replaced to fetch url when querying, so reached here, directly show pushUrl is ok
+                        sb.append(activityContext.getString(R.string.push_url)+": "+it.pushUrl)
 
-                    sb.appendLine()
-                    sb.appendLine()
-                    sb.append(activityContext.getString(R.string.fetch_credential)+": "+it.getLinkedFetchCredentialName())
-                    sb.appendLine()
-                    sb.appendLine()
-                    sb.append(activityContext.getString(R.string.push_credential)+": "+it.getLinkedPushCredentialName())
-                    sb.appendLine()
-                    sb.appendLine()
-                    sb.append(activityContext.getString(R.string.branch_mode)+": "+(if(it.branchMode == Cons.dbRemote_Fetch_BranchMode_All) activityContext.getString(R.string.all) else activityContext.getString(R.string.custom)))
-                    if(it.branchMode != Cons.dbRemote_Fetch_BranchMode_All) {
                         sb.appendLine()
                         sb.appendLine()
-                        sb.append((if(it.branchListForFetch.size > 1) activityContext.getString(R.string.branches) else activityContext.getString(R.string.branch)) +": ${it.branchListForFetch}")
+                        sb.append(activityContext.getString(R.string.fetch_credential)+": "+it.getLinkedFetchCredentialName())
+                        sb.appendLine()
+                        sb.appendLine()
+                        sb.append(activityContext.getString(R.string.push_credential)+": "+it.getLinkedPushCredentialName())
+                        sb.appendLine()
+                        sb.appendLine()
+                        sb.append(activityContext.getString(R.string.branch_mode)+": "+(if(it.branchMode == Cons.dbRemote_Fetch_BranchMode_All) activityContext.getString(R.string.all) else activityContext.getString(R.string.custom)))
+                        if(it.branchMode != Cons.dbRemote_Fetch_BranchMode_All) {
+                            sb.appendLine()
+                            sb.appendLine()
+                            sb.append((if(it.branchListForFetch.size > 1) activityContext.getString(R.string.branches) else activityContext.getString(R.string.branch)) +": ${it.branchListForFetch}")
+                        }
+
+
+                        //更新状态，然后显示弹窗
+                        viewDialogText.value = sb.toString()
+                        showViewDialog.value = true
                     }
-
-
-                    //更新状态，然后显示弹窗
-                    viewDialogText.value = sb.toString()
-                    showViewDialog.value = true
+                    HorizontalDivider()
                 }
-                HorizontalDivider()
+
             }
-
         }
 
-    }
-
-    BackHandler {
-        if(filterModeOn.value) {
-            filterModeOn.value = false
-        } else {
-            naviUp()
-        }
     }
 
     //compose创建时的副作用

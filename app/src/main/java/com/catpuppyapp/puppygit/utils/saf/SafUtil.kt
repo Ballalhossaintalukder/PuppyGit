@@ -49,6 +49,7 @@ object SafUtil {
         return path.startsWith(safContentPrefix)
     }
 
+    @Deprecated("")
     fun uriUnderSafDir(uri:Uri):Pair<Boolean, String?> {
         //他妈的这个uri怎么转换？
         //方法1，代码简单，死板：
@@ -64,6 +65,7 @@ object SafUtil {
         }
     }
 
+    @Deprecated("")
     fun realPathToExternalAppsUri(realPath:String):Uri? {
         return try {
             var realPath = realPath.removePrefix(safDir!!.canonicalPath+"/")
@@ -77,6 +79,7 @@ object SafUtil {
     /**
      * @see res/xml/file_paths.xml
      */
+    @Deprecated("")
     fun getAppInternalUriPrefix():String {
         return "content://${FsUtils.getAuthorityOfUri()}/internal/"
     }
@@ -84,6 +87,7 @@ object SafUtil {
     /**
      * @see res/xml/file_paths.xml
      */
+    @Deprecated("")
     fun getAppExternalUriPrefix():String {
         return "content://${FsUtils.getAuthorityOfUri()}/external/"
     }
@@ -93,6 +97,7 @@ object SafUtil {
      * 例如 "content://com.catpuppyapp.puppygit.play.pro/internal/abc.txt"，对应 /storage/emulated/0/Android/com.catpuppyapp.puppygit.play.pro/files/PuppyGitRepos/abc.txt
      *   其中 internal 对应的实际路径在 res/xml/file_paths.xml里配置，external的路径和上述路径的区别就是把internal以及其对应的实际路径替换下。
      */
+    @Deprecated("")
     fun appCreatedUriToPath(uri: Uri):String? {
         val uriStr = uri.toString()
 

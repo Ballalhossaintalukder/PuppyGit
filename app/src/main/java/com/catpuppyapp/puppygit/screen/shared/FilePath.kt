@@ -20,14 +20,19 @@ private val knownSystemFilesManagerUris = listOf(
     "content://com.android.externalstorage.documents/tree/primary",
     "content://com.android.externalstorage.documents/document/primary",
 
-    )
+)
 
+// 这里的uri前缀末尾必须带 '/'，因为转换为绝对路径时会移动索引以使用uri中的/，如果不带/的话，得特殊处理
 private val knownUris = listOf(
     "content://net.gsantner.markor.provider/external_files/",
     "content://com.blacksquircle.ui.provider/root/",
     "content://com.raival.compose.file.explorer.provider/storage_root/",
 
-    )
+    //支持解析我自己的app的uri，很有必要，因为有时候在app内点击未知类型，
+    // 再打开，这时候可以选择我的app，但给到Editor的路径却是uri，脱裤子放屁，多此一举，所以解析下
+    "content://${FsUtils.getAuthorityOfUri()}/root/",
+
+)
 
 @Parcelize
 class FilePath(
@@ -117,8 +122,14 @@ class FilePath(
                     val indexOfPrefix = uriStr.indexOf(uriPrefix)
                     // indexOf == 0, means `include` and `starsWith`, both are `true`
                     if(indexOfPrefix == 0) {
-                        // length-1 是为了保留之前的 "/"，如果不减1，还得自己在前面prepend一个 "/"
-                        resolvedPath = readableCanonicalPathOrDefault(File(uriStr.substring(uriPrefix.length-1)), emptyPath)
+                        //20250505修改：之前这里写的是 `uriStr.substring(length-1)`，这样是是为了保留之前的 "/"，
+                        // 但后来我想，万一以后这个鸟uri前缀有变化呢？比如变成"content://packname.abc.def:absolute_path"，
+                        // 变成这个鸟样的话我还得改代码，所以不如直接匹配前缀，再把/加上，完美
+                        val realPathNoRootPrefix = uriStr.substring(uriPrefix.length)  //注：substring从length开始，其值为最大索引+1，所以不包含最后一个字符
+                        val file = File("/", realPathNoRootPrefix)
+                        //打印的两个路径：第1个应该是没 / 前缀的， 第2个是有的
+                        MyLog.d(TAG, "resolved a known uri: realPathNoRootPrefix=$realPathNoRootPrefix, the path which will using is '${file.canonicalPath}'")
+                        resolvedPath = readableCanonicalPathOrDefault(file, emptyPath)
                         if(resolvedPath.isNotBlank()) {
                             break
                         }

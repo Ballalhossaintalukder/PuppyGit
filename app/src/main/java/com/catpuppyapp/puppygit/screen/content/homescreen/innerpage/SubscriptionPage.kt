@@ -25,7 +25,7 @@ import com.catpuppyapp.puppygit.utils.ComposeHelper
 import com.catpuppyapp.puppygit.utils.Msg
 import com.catpuppyapp.puppygit.utils.MyLog
 
-private val TAG = "SubscriptionPage"
+private const val TAG = "SubscriptionPage"
 
 @Composable
 fun SubscriptionPage(contentPadding: PaddingValues, needRefresh: MutableState<String>, openDrawer: ()->Unit){
@@ -33,7 +33,8 @@ fun SubscriptionPage(contentPadding: PaddingValues, needRefresh: MutableState<St
     val activityContext = LocalContext.current
     val exitApp = AppModel.exitApp;
 
-    val appIcon = AppModel.getAppIcon(activityContext)
+    //这个页面暂时没用了，如果有用的话，也不要自己获取图标，改用AppIcon组件
+//    val appIcon = AppModel.getAppIcon(activityContext)
 
     val clipboardManager = LocalClipboardManager.current
 
@@ -52,9 +53,9 @@ fun SubscriptionPage(contentPadding: PaddingValues, needRefresh: MutableState<St
 
 
     Column (modifier = Modifier
+        .fillMaxSize()
         .padding(contentPadding)
         .padding(top = 10.dp)
-        .fillMaxSize()
         .verticalScroll(rememberScrollState())
         ,
         horizontalAlignment = Alignment.CenterHorizontally,

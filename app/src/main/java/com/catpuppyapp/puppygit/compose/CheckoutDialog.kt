@@ -41,8 +41,7 @@ import com.catpuppyapp.puppygit.utils.doJobThenOffLoading
 import com.github.git24j.core.Oid
 import com.github.git24j.core.Repository
 
-private val TAG = "CheckoutDialog"
-private val stateKeyTag = "CheckoutDialog"
+private const val TAG = "CheckoutDialog"
 
 
 @Composable
