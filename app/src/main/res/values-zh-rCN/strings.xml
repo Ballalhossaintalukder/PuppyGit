@@ -368,7 +368,7 @@
     <string name="import_has_err">导入出错</string>
     <string name="import_success">导入成功</string>
     <string name="import_failed">导入失败</string>
-    <string name="you_can_click_here_copy_err_msg">点此复制错误信息到剪贴板</string>
+    <string name="you_can_click_here_copy_err_msg">点此复制错误信息</string>
     <string name="err_msg">错误信息</string>
     <string name="file_not_found">文件不存在</string>
     <string name="do_you_want_save_before_close_file">关闭文件前你想先保存吗？</string>
@@ -836,7 +836,7 @@
     <string name="path_under_repo">仓库下路径</string>
     <string name="submodules">子模块</string>
     <string name="cloned">已克隆</string>
-    <string name="not_clone">未克隆</string>
+    <string name="not_cloned">未克隆</string>
     <string name="will_clone_selected_submodules_are_you_sure">将会克隆选中的子模块，你确定吗？</string>
     <string name="re_clone">重新克隆</string>
     <string name="re_clone_submodules_warning_text">将会删除硬盘上的子模块然后重新克隆</string>
@@ -1232,5 +1232,29 @@
     <!-- new at 20250420 -->
     <string name="link_all">关联所有</string>
 
+
+    <!-- new at 20250427 -->
+    <string name="append_a_line">追加一行</string>
+    <string name="restart_app">重启App</string>
+
+
+    <!-- new at 20250501 -->
+    <string name="expand_all">展开全部</string>
+    <string name="collapse_all">收起全部</string>
+    <string name="patch_mode">补丁模式</string>
+
+
+    <!-- new at 20250513 -->
+    <string name="no_commit">无提交</string>
+    <string name="repo_no_commit_note">你的仓库没有提交，请创建一些文件并提交它们。</string>
+
+
+    <!-- new at 20250516 -->
+    <string name="expected_refspec">期望的 Refspec</string>
+    <string name="push_force_with_lease_note">仅当上游最新提交和期望一致时才会执行强制推送</string>
+    <string name="checking">正在检查…</string>
+    <string name="nodes">节点</string>
+    <string name="note_pat_instead_of_password">注意: 如果你启用了2FA，则必须使用个人访问令牌(Personal Access Token)替代密码，且令牌必须拥有读、写仓库内容(Contents)和工作流(Workflows)的权限。</string>
+    <string name="graph">图示</string>
 
 </resources>

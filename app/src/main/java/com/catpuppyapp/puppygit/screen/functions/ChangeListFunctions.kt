@@ -512,7 +512,10 @@ object ChangeListFunctions {
         activityContext:Context,
         loadingText:MutableState<String>,
         bottomBarActDoneCallback:(String, RepoEntity)->Unit,
-        dbContainer: AppContainer
+        dbContainer: AppContainer,
+        forcePush_pushWithLease: Boolean = false,
+        forcePush_expectedRefspecForLease:String = "",
+
     ) : Boolean {
         try {
 //            MyLog.d(TAG, "#doPush: start")
@@ -532,9 +535,23 @@ object ChangeListFunctions {
                         return@doPush false
                     }
                 }
+
                 MyLog.d(TAG, "#doPush: upstream.remote="+upstream!!.remote+", upstream.branchFullRefSpec="+upstream!!.branchRefsHeadsFullRefSpec)
 
-                loadingText.value = activityContext.getString(R.string.pushing)
+                //如果是force push with lease，检查下提交是否和期望匹配
+                if(force && forcePush_pushWithLease) {
+                    loadingText.value = activityContext.getString(R.string.checking)
+
+                    Libgit2Helper.forcePushLeaseCheckPassedOrThrow(
+                        repoEntity = curRepoFromParentPage,
+                        repo = repo,
+                        forcePush_expectedRefspecForLease = forcePush_expectedRefspecForLease,
+                        upstream = upstream,
+                    )
+
+                }
+
+                loadingText.value = activityContext.getString(if(force) R.string.force_pushing else R.string.pushing)
 
                 //执行到这里，必定有上游，push
                 val credential = Libgit2Helper.getRemoteCredential(

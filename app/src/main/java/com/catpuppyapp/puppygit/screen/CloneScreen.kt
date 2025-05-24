@@ -9,10 +9,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
@@ -72,6 +72,7 @@ import com.catpuppyapp.puppygit.compose.LoadingDialog
 import com.catpuppyapp.puppygit.compose.LongPressAbleIconBtn
 import com.catpuppyapp.puppygit.compose.MySelectionContainer
 import com.catpuppyapp.puppygit.compose.SingleSelectList
+import com.catpuppyapp.puppygit.compose.TokenInsteadOfPasswordHint
 import com.catpuppyapp.puppygit.constants.Cons
 import com.catpuppyapp.puppygit.constants.SpecialCredential
 import com.catpuppyapp.puppygit.data.entity.CredentialEntity
@@ -88,7 +89,9 @@ import com.catpuppyapp.puppygit.utils.AppModel
 import com.catpuppyapp.puppygit.utils.FsUtils
 import com.catpuppyapp.puppygit.utils.Libgit2Helper
 import com.catpuppyapp.puppygit.utils.Msg
+import com.catpuppyapp.puppygit.utils.baseVerticalScrollablePageModifier
 import com.catpuppyapp.puppygit.utils.boolToDbInt
+import com.catpuppyapp.puppygit.utils.cache.Cache
 import com.catpuppyapp.puppygit.utils.checkFileOrFolderNameAndTryCreateFile
 import com.catpuppyapp.puppygit.utils.dbIntToBool
 import com.catpuppyapp.puppygit.utils.doJobThenOffLoading
@@ -101,7 +104,7 @@ import com.catpuppyapp.puppygit.utils.withMainContext
 import java.io.File
 
 private const val TAG = "CloneScreen"
-private const val stateKeyTag = "CloneScreen"
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -109,6 +112,8 @@ fun CloneScreen(
     repoId: String?,  //编辑已存在仓库的时候，用得着这个
     naviUp: () -> Boolean,
 ) {
+
+    val stateKeyTag = Cache.getSubPageKey(TAG)
 
 
     val activityContext = LocalContext.current
@@ -285,9 +290,9 @@ fun CloneScreen(
             textCompose = {
                 MySelectionContainer {
                     Column(modifier = Modifier
-                        .verticalScroll(rememberScrollState())
                         .fillMaxWidth()
                         .padding(5.dp)
+                        .verticalScroll(rememberScrollState())
                     ) {
                         InternalFileChooser(activityContext, path = storagePathForAdd)
                     }
@@ -551,12 +556,13 @@ fun CloneScreen(
             LoadingDialog(loadingText.value)
         }
 
-        Column (modifier = Modifier
-            .padding(contentPadding)
-            .fillMaxSize()
-            .verticalScroll(listState)
-            .padding(bottom = MyStyleKt.Padding.PageBottom)  //这个padding是为了使密码框不在底部，类似vscode中文件的最后一行也可滑到屏幕中间一样的意义
-        ){
+        Column (
+            modifier = Modifier
+                .baseVerticalScrollablePageModifier(contentPadding, listState)
+                .padding(bottom = MyStyleKt.Padding.PageBottom)
+                .imePadding()
+            ,
+        ) {
             TextField(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -825,7 +831,9 @@ fun CloneScreen(
 
             HorizontalDivider(modifier = Modifier.padding(spacerPadding))
             //choose credential
-            Column(modifier = Modifier.selectableGroup(),
+            Column(modifier = Modifier
+                .padding(top = 10.dp)
+                .selectableGroup(),
             ) {
                 //如果对应类型的集合为空，就不显示“选择凭据”选项了
 //                val skipSelect = (curCredentialType.intValue == Cons.dbCredentialTypeHttp && credentialHttpList.value.isEmpty()) || (curCredentialType.intValue==Cons.dbCredentialTypeSsh && credentialSshList.value.isEmpty())
@@ -984,11 +992,19 @@ fun CloneScreen(
                         }
                     }
                 )
+
+                // 若是http，提示用户可能需要用token替代密码
+                if(curCredentialType.intValue == Cons.dbCredentialTypeHttp) {
+                    TokenInsteadOfPasswordHint()
+                }
+
             }else if(credentialSelectedOption == optNumSelectCredential) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .wrapContentSize(Alignment.Center),
+                        .padding(10.dp)
+//                        .wrapContentSize(Alignment.Center)
+                    ,
 
                     verticalArrangement = Arrangement.Center,
                     horizontalAlignment = Alignment.CenterHorizontally
@@ -1055,8 +1071,8 @@ fun CloneScreen(
         //      从数据库异步查询repo数据，更新页面state
         //      设置页面loading 为false
         doJobThenOffLoading(
-            loadingOn = { showLoadingDialog.value = true },
-            loadingOff = { showLoadingDialog.value = false }
+//            loadingOn = { showLoadingDialog.value = true },
+//            loadingOff = { showLoadingDialog.value = false }
         ) job@{
             if (isEditMode) {  //如果是编辑模式，查询仓库信息
                 val repoDb = AppModel.dbContainer.repoRepository

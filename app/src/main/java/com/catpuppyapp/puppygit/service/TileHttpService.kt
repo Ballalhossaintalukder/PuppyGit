@@ -9,7 +9,7 @@ import android.os.Build
 import android.service.quicksettings.Tile
 import android.service.quicksettings.TileService
 import androidx.core.content.ContextCompat
-import com.catpuppyapp.puppygit.utils.AppModel
+import com.catpuppyapp.puppygit.constants.IntentCons
 import com.catpuppyapp.puppygit.utils.ContextUtil
 import com.catpuppyapp.puppygit.utils.MyLog
 import com.catpuppyapp.puppygit.utils.receiverFlags
@@ -21,8 +21,8 @@ private const val TAG = "TileHttpService"
 class TileHttpService: TileService() {
     companion object {
         //加个包名，避免冲突
-        const val ACTION_UPDATE = AppModel.appPackageName +".UPDATE_TILE"
-        const val INTENT_EXTRA_KEY_NEW_STATE = "newState"
+        val ACTION_UPDATE = IntentCons.Action.UPDATE_TILE
+        const val INTENT_EXTRA_KEY_NEW_STATE = IntentCons.ExtrasKey.newState
 
         fun sendUpdateTileRequest(appContext: Context, newState:Boolean) {
             val intent = Intent(ACTION_UPDATE)

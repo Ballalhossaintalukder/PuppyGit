@@ -9,14 +9,12 @@ import androidx.compose.material.icons.automirrored.filled.Redo
 import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
-import androidx.compose.material.icons.filled.CheckBox
-import androidx.compose.material.icons.filled.CheckBoxOutlineBlank
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableIntState
@@ -24,7 +22,6 @@ import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -32,6 +29,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import com.catpuppyapp.puppygit.compose.FontSizeAdjuster
 import com.catpuppyapp.puppygit.compose.LongPressAbleIconBtn
+import com.catpuppyapp.puppygit.compose.SimpleCheckBox
 import com.catpuppyapp.puppygit.constants.PageRequest
 import com.catpuppyapp.puppygit.dev.dev_EnableUnTestedFeature
 import com.catpuppyapp.puppygit.dev.editorEnableLineSelecteModeFromMenuTestPassed
@@ -80,6 +78,7 @@ fun EditorPageActions(
     editorPageRequest:MutableState<String>,
     editorPageSearchMode:MutableState<Boolean>,
     editorPageMergeMode:MutableState<Boolean>,
+    editorPagePatchMode:MutableState<Boolean>,
     readOnlyMode:MutableState<Boolean>,
     editorSearchKeyword:String,
     isSubPageMode:Boolean,
@@ -139,6 +138,14 @@ fun EditorPageActions(
             editorPageRequest.value = PageRequest.editorPreviewPageGoForward
         }
 
+        LongPressAbleIconBtn(
+            enabled = true,
+            tooltipText = stringResource(R.string.refresh),
+            icon = Icons.Filled.Refresh,
+        ) {
+            editorPageRequest.value = PageRequest.editor_RequireRefreshPreviewPage
+        }
+
         return  //返回，以免显示菜单项
     }else if(editorPageSearchMode.value) {
         LongPressAbleIconBtn(
@@ -191,9 +198,10 @@ fun EditorPageActions(
 
     if(enableMenuItem) {
         if(showUndoRedo.value) {
+            val enableUndo = remember(undoStack.undoStackIsEmpty()) { undoStack.undoStackIsEmpty().not() }
             val undoStr = stringResource(R.string.undo)
             LongPressAbleIconBtn(
-                enabled = undoStack.undoStackIsEmpty().not(),
+                enabled = enableUndo,
                 tooltipText = undoStr,
                 icon = Icons.AutoMirrored.Filled.Undo,
                 iconContentDesc = undoStr,
@@ -208,9 +216,10 @@ fun EditorPageActions(
                 editorPageRequest.value = PageRequest.requestUndo
             }
 
+            val enableRedo = remember(undoStack.redoStackIsEmpty()) { undoStack.redoStackIsEmpty().not() }
             val redoStr = stringResource(R.string.redo)
             LongPressAbleIconBtn(
-                enabled = undoStack.redoStackIsEmpty().not(),
+                enabled = enableRedo,
                 tooltipText = redoStr,
                 icon = Icons.AutoMirrored.Filled.Redo,
                 iconContentDesc = redoStr,
@@ -373,10 +382,7 @@ fun EditorPageActions(
                     enabled = enableMenuItem,
                     text = { Text(stringResource(R.string.merge_mode)) },
                     trailingIcon = {
-                        Icon(
-                            imageVector = if(editorPageMergeMode.value) Icons.Filled.CheckBox else Icons.Filled.CheckBoxOutlineBlank,
-                            contentDescription = null
-                        )
+                        SimpleCheckBox(editorPageMergeMode.value)
                     },
                     onClick = {
                         editorPageMergeMode.value = !editorPageMergeMode.value
@@ -388,15 +394,32 @@ fun EditorPageActions(
             }
 
             DropdownMenuItem(
+                enabled = enableMenuItem,
+                text = { Text(stringResource(R.string.patch_mode)) },
+                trailingIcon = {
+                    SimpleCheckBox(editorPagePatchMode.value)
+                },
+                onClick = {
+                    val newValue = !editorPagePatchMode.value
+                    editorPagePatchMode.value = newValue
+
+                    //更新配置文件
+                    SettingsUtil.update {
+                        it.editor.patchModeOn = newValue
+                    }
+
+                    closeMenu()
+                }
+
+            )
+
+            DropdownMenuItem(
                 //非readOnly目录才允许开启或关闭readonly状态，否则强制启用readonly状态且不允许关闭
 //                enabled = enableMenuItem && !FsUtils.isReadOnlyDir(editorPageShowingFilePath.value),
                 enabled = enableMenuItem,
                 text = { Text(stringResource(R.string.read_only)) },
                 trailingIcon = {
-                    Icon(
-                        imageVector = if(readOnlyMode.value) Icons.Filled.CheckBox else Icons.Filled.CheckBoxOutlineBlank,
-                        contentDescription = null
-                    )
+                    SimpleCheckBox(readOnlyMode.value)
                 },
                 onClick = {
                     //如果是从非readonly mode切换到readonly mode，则执行一次保存，然后再切换readonly mode
@@ -413,10 +436,7 @@ fun EditorPageActions(
                 enabled = enableMenuItem,
                 text = { Text(stringResource(R.string.show_undo_redo)) },
                 trailingIcon = {
-                    Icon(
-                        imageVector = if(showUndoRedo.value) Icons.Filled.CheckBox else Icons.Filled.CheckBoxOutlineBlank,
-                        contentDescription = null
-                    )
+                    SimpleCheckBox(showUndoRedo.value)
                 },
                 onClick = {
                     val newValue = !showUndoRedo.value
@@ -481,10 +501,7 @@ fun EditorPageActions(
                     enabled = enableMenuItem,
                     text = { Text(stringResource(R.string.show_line_num)) },
                     trailingIcon = {
-                        Icon(
-                            imageVector = if(showLineNum.value) Icons.Filled.CheckBox else Icons.Filled.CheckBoxOutlineBlank,
-                            contentDescription = null
-                        )
+                        SimpleCheckBox(showLineNum.value)
                     },
                     onClick = {
                         closeMenu()
@@ -508,10 +525,7 @@ fun EditorPageActions(
                     enabled = enableMenuItem,
                     text = { Text(stringResource(R.string.select_mode)) },
                     trailingIcon = {
-                        Icon(
-                            imageVector = if(selectModeOn) Icons.Filled.CheckBox else Icons.Filled.CheckBoxOutlineBlank,
-                            contentDescription = null
-                        )
+                        SimpleCheckBox(selectModeOn)
                     },
                     onClick = {
                         closeMenu()

@@ -56,7 +56,6 @@ fun IndexScreenTitle(
     }
 
     Column(modifier = Modifier
-        .widthIn(min = MyStyleKt.Title.clickableTitleMinWidth)
         .combinedClickable(
             onDoubleClick = {
                 defaultTitleDoubleClick(scope, changeListPageItemListState, lastPosition)
@@ -68,8 +67,7 @@ fun IndexScreenTitle(
         ) { // onClick
             showTitleInfoDialog.value = true
         }
-        //外面的标题宽180.dp，这里的比外面的宽点，因为这个页面顶栏actions少
-        .widthIn(max = 200.dp)
+        .widthIn(min = MyStyleKt.Title.clickableTitleMinWidth)
     ) {
         ScrollableRow {
 

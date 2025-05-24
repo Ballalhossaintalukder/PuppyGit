@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.FilterAlt
+import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.DropdownMenu
@@ -71,6 +72,14 @@ fun RepoPageActions(
     }
 
     LongPressAbleIconBtn(
+        tooltipText = stringResource(R.string.credential_manager),
+        icon = Icons.Filled.Key,
+        iconContentDesc = stringResource(R.string.credential_manager),
+    ) {
+        navController.navigate(Cons.nav_CredentialManagerScreen+"/${Cons.dbInvalidNonEmptyId}")
+    }
+
+    LongPressAbleIconBtn(
         tooltipText = stringResource(R.string.clone),
         icon = Icons.Filled.Add,
         iconContentDesc = stringResource(id = R.string.clone),
@@ -102,15 +111,18 @@ fun RepoPageActions(
             expanded = dropDownMenuExpendState.value,
             onDismissRequest = { closeMenu() }
         ) {
-            if(AppModel.devModeOn && proFeatureEnabled(importRepoTestPassed)) {
-                DropdownMenuItem(
-                    text = { Text(DevFeature.appendDevPrefix(stringResource(R.string.import_repo))) },
-                    onClick = {
-                        closeMenu()
-                        showImportRepoDialog.value = true
-                    }
-                )
-            }
+            //之前觉得这里的功能和文件管理页面的导入仓库重复就设为开发者功能了，
+            // 但至少有过两个用户问怎么导入本地仓库，他们都觉得导入应该在仓库顶栏，索性加回来了
+//            if(AppModel.devModeOn && proFeatureEnabled(importRepoTestPassed)) {
+            DropdownMenuItem(
+//                text = { Text(DevFeature.appendDevPrefix(stringResource(R.string.import_repo))) },
+                text = { Text(stringResource(R.string.import_repo)) },
+                onClick = {
+                    closeMenu()
+                    showImportRepoDialog.value = true
+                }
+            )
+//            }
 
             DropdownMenuItem(
                 text = { Text(stringResource(R.string.user_info)) },
@@ -119,13 +131,15 @@ fun RepoPageActions(
                     showGlobalUsernameAndEmailDialog.value=true
                 }
             )
-            DropdownMenuItem(
-                text = { Text(stringResource(R.string.credential_manager)) },
-                onClick = {
-                    closeMenu()
-                    navController.navigate(Cons.nav_CredentialManagerScreen+"/${Cons.dbInvalidNonEmptyId}")
-                }
-            )
+
+//            DropdownMenuItem(
+//                text = { Text(stringResource(R.string.credential_manager)) },
+//                onClick = {
+//                    closeMenu()
+//                    navController.navigate(Cons.nav_CredentialManagerScreen+"/${Cons.dbInvalidNonEmptyId}")
+//                }
+//            )
+
         }
     }
 }

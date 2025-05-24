@@ -49,6 +49,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import com.catpuppyapp.puppygit.compose.ConfirmDialog3
 import com.catpuppyapp.puppygit.compose.FilterTextField
 import com.catpuppyapp.puppygit.compose.GoToTopAndGoToBottomFab
@@ -61,7 +63,6 @@ import com.catpuppyapp.puppygit.constants.IntentCons
 import com.catpuppyapp.puppygit.constants.PageRequest
 import com.catpuppyapp.puppygit.constants.SingleSendHandleMethod
 import com.catpuppyapp.puppygit.data.entity.RepoEntity
-import com.catpuppyapp.puppygit.dev.bug_Editor_undoStackLostAfterRotateScreen_Fixed
 import com.catpuppyapp.puppygit.dto.FileItemDto
 import com.catpuppyapp.puppygit.dto.FileSimpleDto
 import com.catpuppyapp.puppygit.dto.UndoStack
@@ -92,6 +93,7 @@ import com.catpuppyapp.puppygit.screen.content.homescreen.scaffold.title.Scrolla
 import com.catpuppyapp.puppygit.screen.content.homescreen.scaffold.title.SimpleTitle
 import com.catpuppyapp.puppygit.screen.functions.ChangeListFunctions
 import com.catpuppyapp.puppygit.screen.functions.getInitTextEditorState
+import com.catpuppyapp.puppygit.screen.shared.EditorPreviewNavStack
 import com.catpuppyapp.puppygit.screen.shared.FileChooserType
 import com.catpuppyapp.puppygit.screen.shared.FilePath
 import com.catpuppyapp.puppygit.screen.shared.IntentHandler
@@ -101,23 +103,27 @@ import com.catpuppyapp.puppygit.settings.SettingsUtil
 import com.catpuppyapp.puppygit.style.MyStyleKt
 import com.catpuppyapp.puppygit.utils.AppModel
 import com.catpuppyapp.puppygit.utils.FsUtils
+import com.catpuppyapp.puppygit.utils.Libgit2Helper
 import com.catpuppyapp.puppygit.utils.Msg
 import com.catpuppyapp.puppygit.utils.MyLog
-import com.catpuppyapp.puppygit.utils.PrefMan
 import com.catpuppyapp.puppygit.utils.UIHelper
+import com.catpuppyapp.puppygit.utils.cache.Cache
 import com.catpuppyapp.puppygit.utils.changeStateTriggerRefreshPage
 import com.catpuppyapp.puppygit.utils.doJobThenOffLoading
 import com.catpuppyapp.puppygit.utils.generateRandomString
+import com.catpuppyapp.puppygit.utils.pref.PrefMan
 import com.catpuppyapp.puppygit.utils.saf.SafUtil
+import com.catpuppyapp.puppygit.utils.state.mutableCustomBoxOf
 import com.catpuppyapp.puppygit.utils.state.mutableCustomStateListOf
 import com.catpuppyapp.puppygit.utils.state.mutableCustomStateOf
 import com.github.git24j.core.Repository.StateT
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.sync.Mutex
 
 
 private const val TAG = "HomeScreen"
-private const val stateKeyTag = "HomeScreen"
+private const val stateKeyTag = TAG
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -173,10 +179,10 @@ fun HomeScreen(
     }
 //    val changeListCurRepo = rememberSaveable{ mutableStateOf(RepoEntity()) }
     val changeListCurRepo = mutableCustomStateOf(keyTag = stateKeyTag, keyName = "changeListCurRepo", initValue = RepoEntity(id=""))  //id=空，表示无效仓库
-    val changeListIsShowRepoList = rememberSaveable { mutableStateOf(false)}
-    val changeListShowRepoList = {
-        changeListIsShowRepoList.value=true
-    }
+//    val changeListIsShowRepoList = rememberSaveable { mutableStateOf(false)}
+//    val changeListShowRepoList = { changeListIsShowRepoList.value=true }
+    // 此变量仅在回调使用，与页面是否重新渲染无关，所以不需要用state
+    val changeListCachedEditorPath = mutableCustomBoxOf(stateKeyTag, "changeListCachedEditorPath") { "" }
     val changeListIsFileSelectionMode = rememberSaveable { mutableStateOf(false)}
     val changeListPageNoRepo = rememberSaveable { mutableStateOf(false)}
     val changeListPageHasNoConflictItems = rememberSaveable { mutableStateOf(false)}
@@ -363,6 +369,9 @@ fun HomeScreen(
     val filesFilterListState = rememberLazyListState()
     val repoFilterListState = rememberLazyListState()
 
+
+    val editorPreviewFileDto = mutableCustomStateOf(stateKeyTag, "editorPreviewFileDto") { FileSimpleDto() }
+
     //当前展示的文件的canonicalPath
     val editorPageShowingFilePath = rememberSaveable { mutableStateOf(FilePath("")) }
 
@@ -425,14 +434,14 @@ fun HomeScreen(
         updatePreviewPath_Internal(newPath)
         editorPreviewPathChanged.value = generateRandomString()
     }
-    val editorPreviewNavStack = mutableCustomStateOf(stateKeyTag, "editorPreviewNavStack") { SharedState.editorPreviewNavStack }
+    val editorPreviewNavStack = mutableCustomStateOf(stateKeyTag, "editorPreviewNavStack") { EditorPreviewNavStack("") }
 
     val editorQuitPreviewMode = {
-        AppModel.editorPreviewModeOnWhenDestroy.value = false
-
         editorBasePath.value = ""
         editorMdText.value = ""
         editorIsPreviewModeOn.value = false
+
+        editorPageRequestFromParent.value = PageRequest.reloadIfChanged
     }
 
     val editorInitPreviewMode = {
@@ -514,9 +523,12 @@ fun HomeScreen(
     val loadingText = rememberSaveable { mutableStateOf(initLoadingText)}
 
     val editorPageIsLoading = rememberSaveable { mutableStateOf(false)}
-    if(editorPageIsLoading.value) {
-        LoadingDialog(loadingText.value)
-    }
+    val editorPagePreviewLoading = rememberSaveable { mutableStateOf(false) }
+
+    //初始值不用忽略，因为打开文件后默认focusing line idx为null，所以这个值是否忽略并没意义
+    //这个值不能用state，不然修改state后会重组，然后又触发聚焦，就没意义了
+    val editorIgnoreFocusOnce = mutableCustomBoxOf(stateKeyTag, "editorIgnoreFocusOnce") { false }
+
     val editorPageLoadingOn = {msg:String ->
         loadingText.value = msg
         editorPageIsLoading.value=true
@@ -539,6 +551,7 @@ fun HomeScreen(
     val editorPageSearchMode = rememberSaveable{mutableStateOf(false)}
     val editorPageSearchKeyword = mutableCustomStateOf(keyTag = stateKeyTag, keyName = "editorPageSearchKeyword", TextFieldValue(""))
     val editorPageMergeMode = rememberSaveable{mutableStateOf(false)}
+    val editorPagePatchMode = rememberSaveable(settingsSnapshot.value.editor.patchModeOn) { mutableStateOf(settingsSnapshot.value.editor.patchModeOn) }
     val editorReadOnlyMode = rememberSaveable{mutableStateOf(false)}
 
     val editorShowLineNum = rememberSaveable{mutableStateOf(settingsSnapshot.value.editor.showLineNum)}
@@ -552,14 +565,9 @@ fun HomeScreen(
     val editorShowUndoRedo = rememberSaveable{mutableStateOf(settingsSnapshot.value.editor.showUndoRedo)}
 //    val editorUndoStack = remember(editorPageShowingFilePath.value){ derivedStateOf { UndoStack(filePath = editorPageShowingFilePath.value.ioPath) } }
 //    val editorUndoStack = remember { SharedState.editorUndoStack }
-    val editorUndoStack = remember(editorPageShowingFilePath.value.ioPath) {
-        if(bug_Editor_undoStackLostAfterRotateScreen_Fixed) {
-            SharedState.editorUndoStack
-        }else {
-            mutableStateOf(UndoStack(editorPageShowingFilePath.value.ioPath))
-        }
-    }
+    val editorUndoStack = mutableCustomStateOf(stateKeyTag, "editorUndoStack") { UndoStack("") }
 
+    val editorLoadLock = mutableCustomBoxOf(stateKeyTag, "editorLoadLock") { Mutex() }.value
 
     //给Files页面点击打开文件用的
     //第2个参数是期望值，只有当文件路径不属于app内置禁止edit的目录时才会使用那个值，否则强制开启readonly模式
@@ -778,15 +786,41 @@ fun HomeScreen(
 //        Icons.Filled.Subscriptions
     )
 
-    val refreshPageList = listOf(
-        refreshRepoPage@{ changeStateTriggerRefreshPage(needRefreshRepoPage) },
-        refreshFilesPage@{ changeStateTriggerRefreshPage(needRefreshFilesPage) },
-        refreshEditorPage@{ editorPageShowingFileIsReady.value=false; changeStateTriggerRefreshPage(needRefreshEditorPage) },
-        refreshChangeListPage@{changeListRequireRefreshFromParentPage(changeListCurRepo.value)},
-        refreshServicePage@{ refreshServicePage() },
-        refreshAutomationPage@{ refreshAutomationPage() },
-        refreshSettingsPage@{ refreshSettingsPage() },
-        refreshAboutPage@{}, //About页面静态的，不需要刷新
+    // 抽屉条目点击回调
+    val drawerItemOnClick = listOf(
+        clickRepoPage@{ changeStateTriggerRefreshPage(needRefreshRepoPage) },
+        clickFilesPage@{ changeStateTriggerRefreshPage(needRefreshFilesPage) },
+        clickEditorPage@{ editorPageShowingFileIsReady.value=false; changeStateTriggerRefreshPage(needRefreshEditorPage) },
+        clickChangeListPage@{
+            doJobThenOffLoading {
+                // 取出editor正在编辑的文件路径，如果有关联的仓库，切换到cl页面时会定位到对应仓库
+                val editorShowingPath = editorPageShowingFilePath.value.ioPath
+                val editorPageShowingFilePath = Unit  // avoid mistake using
+                val oldChangeListCachedEditorPath = changeListCachedEditorPath.value
+                changeListCachedEditorPath.value = editorShowingPath
+                val changeListCachedEditorPath = Unit
+
+
+                //后面cached路径和当前路径是否相等的判断是为了实现同一路径仅跳转一次的机制，避免跳转了一次，非用户期望，用户手动切换仓库后，再立刻cl页面，返回后再跳转
+                if(editorShowingPath.isNotBlank() && oldChangeListCachedEditorPath != editorShowingPath) {
+                    Libgit2Helper.findRepoByPath(editorShowingPath)?.use { repo ->
+                        val repoPath = Libgit2Helper.getRepoWorkdirNoEndsWithSlash(repo)
+                        // 仓库不ready不会在cl页面显示，所以设`onlyReturnReadyRepo`为true；在cl页面会重新查询仓库底层信息，所以这里不需要查，所以设`requireSyncRepoInfoWithGit`为false
+                        val repoFromDb = AppModel.dbContainer.repoRepository.getByFullSavePath(repoPath, onlyReturnReadyRepo = true, requireSyncRepoInfoWithGit = false)
+                        repoFromDb?.let { changeListCurRepo.value = it }
+                    }
+                }
+
+                // 刷新ChangeList页面
+                changeListRequireRefreshFromParentPage(changeListCurRepo.value)
+            }
+
+            Unit
+        },
+        clickServicePage@{ refreshServicePage() },
+        clickAutomationPage@{ refreshAutomationPage() },
+        clickSettingsPage@{ refreshSettingsPage() },
+        clickAboutPage@{}, //About页面静态的，不需要刷新
 //        {},  //Subscription页面
     )
 
@@ -836,7 +870,7 @@ fun HomeScreen(
                     drawTextList = drawTextList,
                     drawIdList = drawIdList,
                     drawIconList = drawIconList,
-                    refreshPageList = refreshPageList,
+                    drawerItemOnClick = drawerItemOnClick,
                     showExit = true,
                     filesPageKeepFilterResultOnce = filesPageKeepFilterResultOnce,
 
@@ -856,6 +890,19 @@ fun HomeScreen(
         val aboutLastPosition = rememberSaveable { mutableStateOf(0) }
         val serviceLastPosition = rememberSaveable { mutableStateOf(0) }
         val automationLastPosition = rememberSaveable { mutableStateOf(0) }
+
+        val filesErrLastPosition = rememberSaveable { mutableStateOf(0) }
+        val changeListErrLastPosition = rememberSaveable { mutableStateOf(0) }
+
+        val filesPageErrScrollState = rememberScrollState()
+        val filesPageOpenDirErr = rememberSaveable { mutableStateOf("") }
+        val filesPageGetErr = { filesPageOpenDirErr.value }
+        val filesPageSetErr = { errMsg:String -> filesPageOpenDirErr.value = errMsg }
+        val filesPageHasErr = { filesPageOpenDirErr.value.isNotBlank() }
+
+
+        val changeListErrScrollState = rememberScrollState()
+        val changeListHasErr = rememberSaveable { mutableStateOf(false) }
 
 
         Scaffold(
@@ -898,6 +945,7 @@ fun HomeScreen(
                             )
                         } else if (currentHomeScreen.intValue == Cons.selectedItem_Editor) {
                             EditorTitle(
+                                patchModeOn = editorPagePatchMode.value,
                                 previewNavStack = editorPreviewNavStack.value,
                                 previewingPath = editorPreviewPath,
                                 isPreviewModeOn = editorIsPreviewModeOn.value,
@@ -1055,6 +1103,7 @@ fun HomeScreen(
                                 editorPageRequest = editorPageRequestFromParent,
                                 editorPageSearchMode=editorPageSearchMode,
                                 editorPageMergeMode=editorPageMergeMode,
+                                editorPagePatchMode=editorPagePatchMode,
                                 readOnlyMode = editorReadOnlyMode,
                                 editorSearchKeyword = editorPageSearchKeyword.value.text,
                                 isSubPageMode = false,
@@ -1122,15 +1171,24 @@ fun HomeScreen(
                         editorPageRequestFromParent.value = PageRequest.requireSave
                     }
                 }else if(currentHomeScreen.intValue == Cons.selectedItem_ChangeList && changelistPageScrolled.value) {
-                    GoToTopAndGoToBottomFab(
-                        filterModeOn = changeListPageFilterModeOn.value,
-                        scope = scope,
-                        filterListState = changelistFilterListState,
-                        listState = changeListPageItemListState,
-                        filterListLastPosition = changeListFilterLastPosition,
-                        listLastPosition = changeListLastPosition,
-                        showFab = changelistPageScrolled
-                    )
+                    if(changeListHasErr.value) {
+                        GoToTopAndGoToBottomFab(
+                            scope = scope,
+                            listState = changeListErrScrollState,
+                            listLastPosition = changeListErrLastPosition,
+                            showFab = changelistPageScrolled
+                        )
+                    }else {
+                        GoToTopAndGoToBottomFab(
+                            filterModeOn = changeListPageFilterModeOn.value,
+                            scope = scope,
+                            filterListState = changelistFilterListState,
+                            listState = changeListPageItemListState,
+                            filterListLastPosition = changeListFilterLastPosition,
+                            listLastPosition = changeListLastPosition,
+                            showFab = changelistPageScrolled
+                        )
+                    }
 
                 }else if(currentHomeScreen.intValue == Cons.selectedItem_Repos && repoPageScrolled.value) {
                     GoToTopAndGoToBottomFab(
@@ -1144,15 +1202,24 @@ fun HomeScreen(
                     )
 
                 }else if(currentHomeScreen.intValue == Cons.selectedItem_Files && filesPageScrolled.value) {
-                    GoToTopAndGoToBottomFab(
-                        filterModeOn = filesPageSimpleFilterOn.value,
-                        scope = scope,
-                        filterListState = filesFilterListState,
-                        listState = filesPageListState.value,
-                        filterListLastPosition = fileListFilterLastPosition,
-                        listLastPosition = filesLastPosition,
-                        showFab = filesPageScrolled
-                    )
+                    if(filesPageHasErr()) {
+                        GoToTopAndGoToBottomFab(
+                            scope = scope,
+                            listState = filesPageErrScrollState,
+                            listLastPosition = filesErrLastPosition,
+                            showFab = filesPageScrolled
+                        )
+                    }else {
+                        GoToTopAndGoToBottomFab(
+                            filterModeOn = filesPageSimpleFilterOn.value,
+                            scope = scope,
+                            filterListState = filesFilterListState,
+                            listState = filesPageListState.value,
+                            filterListLastPosition = fileListFilterLastPosition,
+                            listLastPosition = filesLastPosition,
+                            showFab = filesPageScrolled
+                        )
+                    }
                 }else if(currentHomeScreen.intValue == Cons.selectedItem_Automation && automationPageScrolled.value) {
                     GoToTopAndGoToBottomFab(
                         scope = scope,
@@ -1163,9 +1230,19 @@ fun HomeScreen(
                 }
             }
         ) { contentPadding ->
+            if(editorPageIsLoading.value || editorPagePreviewLoading.value) {
+                LoadingDialog(
+                    // edit mode可能会设loading text，例如正在保存之类的；preview直接显示个普通的loading文案就行
+                    if(editorPageIsLoading.value) loadingText.value else stringResource(R.string.loading)
+                )
+            }
+
             if(currentHomeScreen.intValue == Cons.selectedItem_Repos) {
 //                changeStateTriggerRefreshPage(needRefreshRepoPage)
                 RepoInnerPage(
+//                    stateKeyTag = Cache.combineKeys(stateKeyTag, "RepoInnerPage"),
+                    stateKeyTag = stateKeyTag,
+
                     requireInnerEditorOpenFile = requireInnerEditorOpenFile,
                     lastSearchKeyword=reposLastSearchKeyword,
                     searchToken=reposSearchToken,
@@ -1211,6 +1288,15 @@ fun HomeScreen(
             else if(currentHomeScreen.intValue== Cons.selectedItem_Files) {
 //                changeStateTriggerRefreshPage(needRefreshFilesPage)
                 FilesInnerPage(
+//                    stateKeyTag = Cache.combineKeys(stateKeyTag, "FilesInnerPage"),
+                    stateKeyTag = stateKeyTag,
+
+                    errScrollState = filesPageErrScrollState,
+                    getErr = filesPageGetErr,
+                    setErr = filesPageSetErr,
+                    hasErr = filesPageHasErr,
+
+
                     naviUp = {},
                     updateSelectedPath = {},
                     isFileChooser = false,
@@ -1262,6 +1348,11 @@ fun HomeScreen(
 //                changeStateTriggerRefreshPage(needRefreshEditorPage)
 
                 EditorInnerPage(
+//                    stateKeyTag = Cache.combineKeys(stateKeyTag, "EditorInnerPage"),
+                    stateKeyTag = stateKeyTag,
+                    ignoreFocusOnce = editorIgnoreFocusOnce,
+                    previewLoading = editorPagePreviewLoading,
+                    editorPreviewFileDto = editorPreviewFileDto,
                     requireEditorScrollToPreviewCurPos = requireEditorScrollToPreviewCurPos,
                     requirePreviewScrollToEditorCurPos = requirePreviewScrollToEditorCurPos,
                     previewPageScrolled = editorPreviewPageScrolled,
@@ -1310,6 +1401,7 @@ fun HomeScreen(
                     editorSearchKeyword = editorPageSearchKeyword,
                     readOnlyMode = editorReadOnlyMode,
                     editorMergeMode = editorPageMergeMode,
+                    editorPatchMode = editorPagePatchMode,
                     editorShowLineNum=editorShowLineNum,
                     editorLineNumFontSize=editorLineNumFontSize,
                     editorFontSize=editorFontSize,
@@ -1319,7 +1411,8 @@ fun HomeScreen(
                     editorLastSavedFontSize = editorLastSavedFontSize,
                     openDrawer = openDrawer,
                     editorOpenFileErr = editorOpenFileErr,
-                    undoStack = editorUndoStack
+                    undoStack = editorUndoStack.value,
+                    loadLock = editorLoadLock
 
                 )
 
@@ -1331,6 +1424,12 @@ fun HomeScreen(
 
                 //从抽屉菜单打开的changelist是对比worktree和index的文件，所以from是worktree
                 ChangeListInnerPage(
+//                    stateKeyTag = Cache.combineKeys(stateKeyTag, "ChangeListInnerPage"),
+                    stateKeyTag = stateKeyTag,
+
+                    errScrollState = changeListErrScrollState,
+                    hasError = changeListHasErr,
+
                     lastSearchKeyword=changeListLastSearchKeyword,
                     searchToken=changeListSearchToken,
                     searching=changeListSearching,
@@ -1393,6 +1492,9 @@ fun HomeScreen(
 //                }
             }else if(currentHomeScreen.intValue == Cons.selectedItem_Settings) {
                 SettingsInnerPage(
+//                    stateKeyTag = Cache.combineKeys(stateKeyTag, "SettingsInnerPage"),
+                    stateKeyTag = stateKeyTag,
+
                     contentPadding = contentPadding,
                     needRefreshPage = needRefreshSettingsPage,
                     openDrawer = openDrawer,
@@ -1408,6 +1510,9 @@ fun HomeScreen(
                 SubscriptionPage(contentPadding = contentPadding, needRefresh = subscriptionPageNeedRefresh, openDrawer = openDrawer)
             }else if(currentHomeScreen.intValue == Cons.selectedItem_Service) {
                 ServiceInnerPage(
+//                    stateKeyTag = Cache.combineKeys(stateKeyTag, "ServiceInnerPage"),
+                    stateKeyTag = stateKeyTag,
+
                     contentPadding = contentPadding,
                     needRefreshPage = needRefreshServicePage,
                     openDrawer = openDrawer,
@@ -1416,6 +1521,9 @@ fun HomeScreen(
                 )
             }else if(currentHomeScreen.intValue == Cons.selectedItem_Automation) {
                 AutomationInnerPage(
+//                    stateKeyTag = Cache.combineKeys(stateKeyTag, "AutomationInnerPage"),
+                    stateKeyTag = stateKeyTag,
+
                     contentPadding = contentPadding,
                     needRefreshPage = needRefreshAutomationPage,
                     listState = automationListState,
@@ -1654,6 +1762,15 @@ fun HomeScreen(
 
         }
     }
+
+
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        //回到主页了，好，把所有其他子页面的状态变量全他妈清掉
+        doJobThenOffLoading {
+            Cache.clearAllSubPagesStates()
+        }
+    }
+
 
 }
 

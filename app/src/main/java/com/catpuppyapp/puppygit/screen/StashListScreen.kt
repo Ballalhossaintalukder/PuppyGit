@@ -52,11 +52,13 @@ import com.catpuppyapp.puppygit.compose.ConfirmDialog
 import com.catpuppyapp.puppygit.compose.ConfirmDialog2
 import com.catpuppyapp.puppygit.compose.CopyableDialog
 import com.catpuppyapp.puppygit.compose.FilterTextField
+import com.catpuppyapp.puppygit.compose.FullScreenScrollableColumn
 import com.catpuppyapp.puppygit.compose.GoToTopAndGoToBottomFab
 import com.catpuppyapp.puppygit.compose.LoadingDialog
 import com.catpuppyapp.puppygit.compose.LongPressAbleIconBtn
 import com.catpuppyapp.puppygit.compose.MyLazyColumn
 import com.catpuppyapp.puppygit.compose.PageCenterIconButton
+import com.catpuppyapp.puppygit.compose.PullToRefreshBox
 import com.catpuppyapp.puppygit.compose.RepoInfoDialog
 import com.catpuppyapp.puppygit.compose.ScrollableColumn
 import com.catpuppyapp.puppygit.compose.ScrollableRow
@@ -70,6 +72,7 @@ import com.catpuppyapp.puppygit.screen.functions.defaultTitleDoubleClick
 import com.catpuppyapp.puppygit.screen.functions.filterModeActuallyEnabled
 import com.catpuppyapp.puppygit.screen.functions.filterTheList
 import com.catpuppyapp.puppygit.screen.functions.triggerReFilter
+import com.catpuppyapp.puppygit.screen.shared.SharedState
 import com.catpuppyapp.puppygit.settings.SettingsUtil
 import com.catpuppyapp.puppygit.style.MyStyleKt
 import com.catpuppyapp.puppygit.ui.theme.Theme
@@ -77,6 +80,7 @@ import com.catpuppyapp.puppygit.utils.AppModel
 import com.catpuppyapp.puppygit.utils.Libgit2Helper
 import com.catpuppyapp.puppygit.utils.Msg
 import com.catpuppyapp.puppygit.utils.MyLog
+import com.catpuppyapp.puppygit.utils.cache.Cache
 import com.catpuppyapp.puppygit.utils.changeStateTriggerRefreshPage
 import com.catpuppyapp.puppygit.utils.createAndInsertError
 import com.catpuppyapp.puppygit.utils.doJobThenOffLoading
@@ -85,8 +89,6 @@ import com.catpuppyapp.puppygit.utils.state.mutableCustomStateOf
 import com.github.git24j.core.Repository
 
 private const val TAG = "StashListScreen"
-private const val stateKeyTag = "StashListScreen"
-
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun StashListScreen(
@@ -94,6 +96,7 @@ fun StashListScreen(
     naviUp: () -> Boolean,
 ) {
 
+    val stateKeyTag = Cache.getSubPageKey(TAG)
 
     // softkeyboard show/hidden relate start
 
@@ -475,6 +478,22 @@ fun StashListScreen(
     // username and email end
 
 
+    val isInitLoading = rememberSaveable { mutableStateOf(SharedState.defaultLoadingValue) }
+    val initLoadingOn = { msg:String ->
+        isInitLoading.value = true
+    }
+    val initLoadingOff = {
+        isInitLoading.value = false
+    }
+
+    BackHandler {
+        if(filterModeOn.value) {
+            filterModeOn.value = false
+        } else {
+            naviUp()
+        }
+    }
+
     Scaffold(
         modifier = Modifier.nestedScroll(homeTopBarScrollBehavior.nestedScrollConnection),
         topBar = {
@@ -588,120 +607,128 @@ fun StashListScreen(
             }
         }
     ) { contentPadding ->
-        if (loading.value) {
+        PullToRefreshBox(
+            contentPadding = contentPadding,
+            onRefresh = { changeStateTriggerRefreshPage(needRefresh) }
+        ) {
+
+            if (loading.value) {
 //            LoadingText(text = loadingText.value, contentPadding = contentPadding)
-            LoadingDialog(text = loadingText.value)
-        }
-
-        if(showBottomSheet.value) {
-            // index@shortOid, e.g. 0@abc1234
-            val sheetTitle = ""+curObjInPage.value.index+"@"+Libgit2Helper.getShortOidStrByFull(curObjInPage.value.stashId.toString())
-            BottomSheet(showBottomSheet, sheetState, sheetTitle) {
-                //merge into current 实际上是和HEAD进行合并，产生一个新的提交
-                //x 对当前分支禁用这个选项，只有其他分支才能用
-                BottomSheetItem(sheetState, showBottomSheet, stringResource(R.string.pop),
-                ){
-                    //弹出确认框，如果确定，执行merge，否则不执行
-                    showPopDialog.value = true
-                }
-                BottomSheetItem(sheetState, showBottomSheet, stringResource(R.string.apply),
-                ){
-                    showApplyDialog.value = true
-                }
-                BottomSheetItem(sheetState, showBottomSheet, stringResource(R.string.delete), textColor = MyStyleKt.TextColor.danger(),
-                ){
-                    showDelDialog.value = true
-                }
-
+                LoadingDialog(text = loadingText.value)
             }
-        }
 
-        if(list.value.isEmpty()) {
-            PageCenterIconButton(
-                contentPadding = contentPadding,
-                onClick = {
-                    doTaskOrShowSetUsernameAndEmailDialog(curRepo.value) {
-                        showCreateDialog.value = true
+            if(showBottomSheet.value) {
+                // index@shortOid, e.g. 0@abc1234
+                val sheetTitle = ""+curObjInPage.value.index+"@"+Libgit2Helper.getShortOidStrByFull(curObjInPage.value.stashId.toString())
+                BottomSheet(showBottomSheet, sheetState, sheetTitle) {
+                    //merge into current 实际上是和HEAD进行合并，产生一个新的提交
+                    //x 对当前分支禁用这个选项，只有其他分支才能用
+                    BottomSheetItem(sheetState, showBottomSheet, stringResource(R.string.pop),
+                    ){
+                        //弹出确认框，如果确定，执行merge，否则不执行
+                        showPopDialog.value = true
                     }
-                },
-                icon = Icons.Filled.Add,
-                iconDesc = stringResource(R.string.create),
-                text = stringResource(R.string.create),
-            )
-        }else {
-            //根据关键字过滤条目
-            val keyword = filterKeyword.value.text.lowercase()  //关键字
-            val enableFilter = filterModeActuallyEnabled(filterModeOn.value, keyword)
+                    BottomSheetItem(sheetState, showBottomSheet, stringResource(R.string.apply),
+                    ){
+                        showApplyDialog.value = true
+                    }
+                    BottomSheetItem(sheetState, showBottomSheet, stringResource(R.string.delete), textColor = MyStyleKt.TextColor.danger(),
+                    ){
+                        showDelDialog.value = true
+                    }
 
-            val lastNeedRefresh = rememberSaveable { mutableStateOf("") }
-            val list = filterTheList(
-                needRefresh = filterResultNeedRefresh.value,
-                lastNeedRefresh = lastNeedRefresh,
-                enableFilter = enableFilter,
-                keyword = keyword,
-                lastKeyword = lastKeyword,
-                searching = searching,
-                token = token,
-                activityContext = activityContext,
-                filterList = filterList.value,
-                list = list.value,
-                resetSearchVars = resetSearchVars,
-                match = { idx:Int, it: StashDto ->
-                    it.index.toString().lowercase().contains(keyword)
-                            || it.stashId.toString().lowercase().contains(keyword)
-                            || it.msg.lowercase().contains(keyword)
                 }
-            )
+            }
+
+            if(list.value.isEmpty()) {
+                if(isInitLoading.value) {
+                    FullScreenScrollableColumn(contentPadding) {
+                        Text(text = stringResource(R.string.loading))
+                    }
+                }else {
+                    PageCenterIconButton(
+                        contentPadding = contentPadding,
+                        onClick = {
+                            doTaskOrShowSetUsernameAndEmailDialog(curRepo.value) {
+                                showCreateDialog.value = true
+                            }
+                        },
+                        icon = Icons.Filled.Add,
+                        iconDesc = stringResource(R.string.create),
+                        text = stringResource(R.string.create),
+                    )
+                }
+            }else {
+                //根据关键字过滤条目
+                val keyword = filterKeyword.value.text.lowercase()  //关键字
+                val enableFilter = filterModeActuallyEnabled(filterModeOn.value, keyword)
+
+                val lastNeedRefresh = rememberSaveable { mutableStateOf("") }
+                val list = filterTheList(
+                    needRefresh = filterResultNeedRefresh.value,
+                    lastNeedRefresh = lastNeedRefresh,
+                    enableFilter = enableFilter,
+                    keyword = keyword,
+                    lastKeyword = lastKeyword,
+                    searching = searching,
+                    token = token,
+                    activityContext = activityContext,
+                    filterList = filterList.value,
+                    list = list.value,
+                    resetSearchVars = resetSearchVars,
+                    match = { idx:Int, it: StashDto ->
+                        it.index.toString().lowercase().contains(keyword)
+                                || it.stashId.toString().lowercase().contains(keyword)
+                                || it.msg.lowercase().contains(keyword)
+                    }
+                )
 
 
-            val listState = if(enableFilter) filterListState else listState
+                val listState = if(enableFilter) filterListState else listState
 //        if(enableFilter) {  //更新filter列表state
 //            filterListState.value = listState
 //        }
-            //更新是否启用filter
-            enableFilterState.value = enableFilter
+                //更新是否启用filter
+                enableFilterState.value = enableFilter
 
 
-            MyLazyColumn(
-                contentPadding = contentPadding,
-                list = list,
-                listState = listState,
-                requireForEachWithIndex = true,
-                requirePaddingAtBottom = true,
-                forEachCb = {},
-            ){idx, it->
-                //长按会更新curObjInPage为被长按的条目
-                StashItem(repoId, showBottomSheet, curObjInPage, idx, lastClickedItemKey, it) {  //onClick
-                    val suffix = "\n\n"
-                    val sb = StringBuilder()
-                    sb.append(activityContext.getString(R.string.index)).append(": ").append(it.index).append(suffix)
-                    sb.append(activityContext.getString(R.string.stash_id)).append(": ").append(it.stashId).append(suffix)
-                    sb.append(activityContext.getString(R.string.msg)).append(": ").append(it.msg).append(suffix)
+                MyLazyColumn(
+                    contentPadding = contentPadding,
+                    list = list,
+                    listState = listState,
+                    requireForEachWithIndex = true,
+                    requirePaddingAtBottom = true,
+                    forEachCb = {},
+                ){idx, it->
+                    //长按会更新curObjInPage为被长按的条目
+                    StashItem(repoId, showBottomSheet, curObjInPage, idx, lastClickedItemKey, it) {  //onClick
+                        val suffix = "\n\n"
+                        val sb = StringBuilder()
+                        sb.append(activityContext.getString(R.string.index)).append(": ").append(it.index).append(suffix)
+                        sb.append(activityContext.getString(R.string.stash_id)).append(": ").append(it.stashId).append(suffix)
+                        sb.append(activityContext.getString(R.string.msg)).append(": ").append(it.msg).append(suffix)
 
 
-                    detailsString.value = sb.removeSuffix(suffix).toString()
-                    showDetailsDialog.value = true
+                        detailsString.value = sb.removeSuffix(suffix).toString()
+                        showDetailsDialog.value = true
+                    }
+
+                    HorizontalDivider()
                 }
 
-                HorizontalDivider()
             }
-
         }
+
 
     }
 
-    BackHandler {
-        if(filterModeOn.value) {
-            filterModeOn.value = false
-        } else {
-            naviUp()
-        }
-    }
 
     //compose创建时的副作用
     LaunchedEffect(needRefresh.value) {
         try {
-            doJobThenOffLoading(loadingOn = loadingOn, loadingOff = loadingOff, loadingText = activityContext.getString(R.string.loading)) {
+//            doJobThenOffLoading(loadingOn = loadingOn, loadingOff = loadingOff, loadingText = activityContext.getString(R.string.loading)) {
+            doJobThenOffLoading(initLoadingOn, initLoadingOff) {
+
                 list.value.clear()  //先清一下list，然后可能添加也可能不添加
 
                 if(!repoId.isNullOrBlank()) {

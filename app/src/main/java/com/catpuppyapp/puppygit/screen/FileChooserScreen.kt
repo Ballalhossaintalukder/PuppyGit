@@ -3,6 +3,7 @@ package com.catpuppyapp.puppygit.screen
 import android.net.Uri
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
@@ -40,13 +41,13 @@ import com.catpuppyapp.puppygit.settings.SettingsUtil
 import com.catpuppyapp.puppygit.utils.AppModel
 import com.catpuppyapp.puppygit.utils.FsUtils
 import com.catpuppyapp.puppygit.utils.Msg
+import com.catpuppyapp.puppygit.utils.cache.Cache
 import com.catpuppyapp.puppygit.utils.changeStateTriggerRefreshPage
 import com.catpuppyapp.puppygit.utils.state.mutableCustomStateListOf
 import com.catpuppyapp.puppygit.utils.state.mutableCustomStateOf
 import java.io.File
 
 private const val TAG = "FileChooserScreen"
-private const val stateKeyTag = "FileChooserScreen"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -54,6 +55,7 @@ fun FileChooserScreen(
     type: FileChooserType,
     naviUp: () -> Unit
 ) {
+    val stateKeyTag = Cache.getSubPageKey(TAG)
 
     val isFileChooser = remember { true }
 
@@ -211,6 +213,12 @@ fun FileChooserScreen(
     val requireInnerEditorOpenFile = {filepath:String, expectReadOnly:Boolean ->}
     //无用变量，结束
 
+    val filesPageErrScrollState = rememberScrollState()
+    val filesErrLastPosition = rememberSaveable { mutableStateOf(0) }
+    val filesPageOpenDirErr = rememberSaveable { mutableStateOf("") }
+    val filesPageGetErr = { filesPageOpenDirErr.value }
+    val filesPageSetErr = { errMsg:String -> filesPageOpenDirErr.value = errMsg }
+    val filesPageHasErr = { filesPageOpenDirErr.value.isNotBlank() }
 
     Scaffold(
         modifier = Modifier.nestedScroll(homeTopBarScrollBehavior.nestedScrollConnection),
@@ -281,21 +289,37 @@ fun FileChooserScreen(
         },
         floatingActionButton = {
             if(filesPageScrolled.value) {
-                GoToTopAndGoToBottomFab(
-                    filterModeOn = filesPageSimpleFilterOn.value,
-                    scope = scope,
-                    filterListState = filesFilterListState,
-                    listState = filesPageListState.value,
-                    filterListLastPosition = fileListFilterLastPosition,
-                    listLastPosition = filesLastPosition,
-                    showFab = filesPageScrolled
-                )
+                if(filesPageHasErr()) {
+                    GoToTopAndGoToBottomFab(
+                        scope = scope,
+                        listState = filesPageErrScrollState,
+                        listLastPosition = filesErrLastPosition,
+                        showFab = filesPageScrolled
+                    )
+                }else {
+                    GoToTopAndGoToBottomFab(
+                        filterModeOn = filesPageSimpleFilterOn.value,
+                        scope = scope,
+                        filterListState = filesFilterListState,
+                        listState = filesPageListState.value,
+                        filterListLastPosition = fileListFilterLastPosition,
+                        listLastPosition = filesLastPosition,
+                        showFab = filesPageScrolled
+                    )
+                }
             }
         }
     ) { contentPadding ->
 
-//                changeStateTriggerRefreshPage(needRefreshFilesPage)
         FilesInnerPage(
+//            stateKeyTag = Cache.combineKeys(stateKeyTag, "FilesInnerPage"),
+            stateKeyTag = stateKeyTag,
+
+            errScrollState = filesPageErrScrollState,
+            getErr = filesPageGetErr,
+            setErr = filesPageSetErr,
+            hasErr = filesPageHasErr,
+
             naviUp = naviUp,
             updateSelectedPath = updateSelectedPath,
             isFileChooser = isFileChooser,

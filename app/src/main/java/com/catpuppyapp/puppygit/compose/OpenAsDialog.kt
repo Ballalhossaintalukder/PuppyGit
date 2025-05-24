@@ -84,7 +84,7 @@ fun OpenAsDialog(
         ) {
             Column(modifier = Modifier
                 .fillMaxWidth()
-                .padding(10.dp)
+                .padding(10.dp)  //这个padding可以有，而且就应该在滚动修饰符上面，不然文字靠近弹窗边框，难看
                 .verticalScroll(rememberScrollState())
                 ,
             ) {

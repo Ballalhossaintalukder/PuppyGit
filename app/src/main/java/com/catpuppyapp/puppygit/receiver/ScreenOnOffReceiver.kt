@@ -54,10 +54,11 @@ class ScreenOnOffReceiver : BroadcastReceiver() {
                     val settings = SettingsUtil.getSettingsSnapshot()
                     val repoList = AutomationUtil.getRepos(settings.automation, lastPackage)
                     if(!repoList.isNullOrEmpty()) {
+                        val pushDelayInSec = settings.automation.pushDelayInSec
                         // do push, one package may bind multi repos, start a coroutine do push for them
-                        val pushDelayInMillSec = settings.automation.pushDelayInSec * 1000L
                         //负数将禁用push
-                        if (pushDelayInMillSec >= 0L) {
+                        if (pushDelayInSec >= 0L) {
+                            val pushDelayInMillSec = pushDelayInSec * 1000L
                             //大于0，等待超过延迟时间后再执行操作；若等于0，则不检查，直接跳过这段，执行后面的push
                             if (pushDelayInMillSec > 0L) {
                                 val startAt = System.currentTimeMillis()
@@ -75,6 +76,8 @@ class ScreenOnOffReceiver : BroadcastReceiver() {
                             }
 
                             AutomationService.pushRepoList(sessionId = "ScrOffAutoPush_"+generateRandomString(), settings, repoList)
+                        }else {
+                            MyLog.d(TAG, "push delay less than 0, push canceled")
                         }
                     }
 

@@ -41,8 +41,7 @@ import com.catpuppyapp.puppygit.utils.doJobThenOffLoading
 import com.github.git24j.core.Oid
 import com.github.git24j.core.Repository
 
-private val TAG = "CheckoutDialog"
-private val stateKeyTag = "CheckoutDialog"
+private const val TAG = "CheckoutDialog"
 
 
 @Composable
@@ -284,6 +283,7 @@ fun CheckoutDialog(
                             Row {
                                 DefaultPaddingText(
                                     text = stringResource(R.string.will_overwrite_if_branch_already_exists),
+                                    color = MyStyleKt.TextColor.danger(),
                                 )
                             }
 

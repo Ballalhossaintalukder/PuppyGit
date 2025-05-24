@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -21,6 +22,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.catpuppyapp.puppygit.play.pro.R
 import com.catpuppyapp.puppygit.data.entity.ErrorEntity
+import com.catpuppyapp.puppygit.style.MyStyleKt
 import com.catpuppyapp.puppygit.ui.theme.CommitListSwitchColor
 import com.catpuppyapp.puppygit.utils.AppModel
 import com.catpuppyapp.puppygit.utils.UIHelper
@@ -38,6 +40,7 @@ fun ErrorItem(
     onClick:()->Unit
 ) {
     val haptic = LocalHapticFeedback.current
+    val defaultFontWeight = remember { MyStyleKt.TextItem.defaultFontWeight() }
 
     Column(
         //0.9f 占父元素宽度的百分之90
@@ -85,7 +88,7 @@ fun ErrorItem(
             Text(text = curObj.id,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                fontWeight = FontWeight.Light
+                fontWeight = defaultFontWeight
 
             )
         }
@@ -98,7 +101,7 @@ fun ErrorItem(
             Text(text = curObj.date,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                fontWeight = FontWeight.Light
+                fontWeight = defaultFontWeight
 
             )
         }
@@ -111,7 +114,7 @@ fun ErrorItem(
             Text(text = curObj.msg,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                fontWeight = FontWeight.Light
+                fontWeight = defaultFontWeight
 
             )
         }

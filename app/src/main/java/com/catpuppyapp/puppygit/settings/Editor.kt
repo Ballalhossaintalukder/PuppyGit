@@ -55,4 +55,9 @@ data class Editor (
      */
     var recentFilesLimit:Int = 20,
 
+    /**
+     * 是否开启补丁模式，若开启，编辑器会高亮显示+和-开头的行
+     */
+    var patchModeOn:Boolean = false,
+
 )

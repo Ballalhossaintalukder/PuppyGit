@@ -1,5 +1,6 @@
 package com.catpuppyapp.puppygit.screen.content.homescreen.innerpage
 
+import android.content.Context
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.clickable
@@ -36,8 +37,10 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import com.catpuppyapp.puppygit.compose.ClearMasterPasswordDialog
 import com.catpuppyapp.puppygit.compose.ClickableText
 import com.catpuppyapp.puppygit.compose.ConfirmDialog2
 import com.catpuppyapp.puppygit.compose.ConfirmDialog3
@@ -55,6 +58,8 @@ import com.catpuppyapp.puppygit.compose.SingleSelectList
 import com.catpuppyapp.puppygit.compose.SoftkeyboardVisibleListener
 import com.catpuppyapp.puppygit.compose.SpacerRow
 import com.catpuppyapp.puppygit.constants.Cons
+import com.catpuppyapp.puppygit.dev.DevFeature
+import com.catpuppyapp.puppygit.dev.DevItem
 import com.catpuppyapp.puppygit.play.pro.R
 import com.catpuppyapp.puppygit.settings.SettingsCons
 import com.catpuppyapp.puppygit.settings.SettingsUtil
@@ -69,10 +74,10 @@ import com.catpuppyapp.puppygit.utils.LanguageUtil
 import com.catpuppyapp.puppygit.utils.Lg2HomeUtils
 import com.catpuppyapp.puppygit.utils.Msg
 import com.catpuppyapp.puppygit.utils.MyLog
-import com.catpuppyapp.puppygit.utils.PrefMan
-import com.catpuppyapp.puppygit.utils.PrefUtil
 import com.catpuppyapp.puppygit.utils.StrListUtil
 import com.catpuppyapp.puppygit.utils.UIHelper
+import com.catpuppyapp.puppygit.utils.baseVerticalScrollablePageModifier
+import com.catpuppyapp.puppygit.utils.cache.Cache
 import com.catpuppyapp.puppygit.utils.doJobThenOffLoading
 import com.catpuppyapp.puppygit.utils.encrypt.MasterPassUtil
 import com.catpuppyapp.puppygit.utils.fileopenhistory.FileOpenHistoryMan
@@ -80,17 +85,20 @@ import com.catpuppyapp.puppygit.utils.formatMinutesToUtc
 import com.catpuppyapp.puppygit.utils.getInvalidTimeZoneOffsetErrMsg
 import com.catpuppyapp.puppygit.utils.getValidTimeZoneOffsetRangeInMinutes
 import com.catpuppyapp.puppygit.utils.isValidOffsetInMinutes
+import com.catpuppyapp.puppygit.utils.pref.PrefMan
+import com.catpuppyapp.puppygit.utils.pref.PrefUtil
 import com.catpuppyapp.puppygit.utils.replaceStringResList
 import com.catpuppyapp.puppygit.utils.snapshot.SnapshotUtil
 import com.catpuppyapp.puppygit.utils.state.mutableCustomStateListOf
 import com.catpuppyapp.puppygit.utils.state.mutableCustomStateOf
 import com.catpuppyapp.puppygit.utils.storagepaths.StoragePathsMan
 
-private const val stateKeyTag = "SettingsInnerPage"
 private const val TAG = "SettingsInnerPage"
 
 @Composable
 fun SettingsInnerPage(
+    stateKeyTag:String,
+
     contentPadding: PaddingValues,
     needRefreshPage:MutableState<String>,
     openDrawer:()->Unit,
@@ -99,6 +107,7 @@ fun SettingsInnerPage(
     goToFilesPage:(path:String)->Unit,
 
 ){
+    val stateKeyTag = Cache.getComponentKey(stateKeyTag, TAG)
 
     // softkeyboard show/hidden relate start
 
@@ -236,6 +245,13 @@ fun SettingsInnerPage(
     val cleanFileOpenHistory = rememberSaveable { mutableStateOf(false) }
 
     val allowUnknownHosts = rememberSaveable { mutableStateOf(settingsState.value.sshSetting.allowUnknownHosts) }
+
+    //这几个本身就是state，不需要remember
+//    val dev_singleDiffOn = rememberSaveable { DevFeature.singleDiff.state }
+//    val dev_showMatchedAllAtDiff = rememberSaveable { DevFeature.showMatchedAllAtDiff.state }
+//    val dev_showRandomLaunchingText = rememberSaveable { DevFeature.showRandomLaunchingText.state }
+//    val dev_legacyChangeListLoadMethod = rememberSaveable { DevFeature.legacyChangeListLoadMethod.state }
+
 //    val showResetKnownHostsDialog = rememberSaveable { mutableStateOf(false) }
     val showForgetHostKeysDialog = rememberSaveable { mutableStateOf(false) }
     if(showForgetHostKeysDialog.value) {
@@ -275,7 +291,7 @@ fun SettingsInnerPage(
                 ScrollableColumn {
                     Text(stringResource(R.string.below_credential_password_update_failed))
                     Spacer(Modifier.height(10.dp))
-                    Text(updateMasterPassFailedListStr.value)
+                    Text(updateMasterPassFailedListStr.value, fontWeight = FontWeight.ExtraBold)
                 }
             },
             onCancel = { showFailedUpdateMasterPasswordsCredentialList.value = false }
@@ -490,7 +506,18 @@ fun SettingsInnerPage(
 
     val showSetMasterPasswordDialog = rememberSaveable { mutableStateOf(false) }
     if (showSetMasterPasswordDialog.value)  {
-        val requireOldPass = AppModel.requireMasterPassword()
+        // 这个废弃了，无论用户是否在启动时手动验证过主密码，在这再请求输入旧密码都是合理的
+//        val requireOldPass = AppModel.requireMasterPassword()
+
+        //最初，主密码每次启动都得输入，所以能打开app就代表主密码已验证，
+        // 所以这里可能无需旧密码就能设置新密码，但后来，
+        // 为了方便，改成了记住主密码经过编码后的值并和保存的hash验证，
+        // 所以启动不再请求主密码，这意味着打开app不再代表手动输入过主密码，
+        // 所以，修改主密码时若存在旧密码则应强制验证旧密码，
+        // 代码实现上就把以前的逻辑 “若存在并已缓存旧密码就不需要用户再输入” 反转下，变成 “若存在主密码，则强制用户重新输入” 就行，
+        // 或者“如果启用了主密码则必须输入旧密码”，也行。
+        val requireOldPass = masterPassEnabled.value  //若设置了主密码，则需要验证旧密码才能设新的
+
         ConfirmDialog2(
             title = stringResource(R.string.set_master_password),
             requireShowTextCompose = true,
@@ -501,18 +528,17 @@ fun SettingsInnerPage(
                         PasswordTextFiled(oldMasterPassword, oldMasterPasswordVisible, stringResource(R.string.old_password), errMsg = oldMasterPasswordErrMsg)
                     }
 
-                    Spacer(Modifier.height(15.dp))
-
                     // new password
-                    PasswordTextFiled(newMasterPassword, newMasterPasswordVisible, stringResource(R.string.new_password), errMsg = newMasterPasswordErrMsg, paddingValues = PaddingValues(start = 10.dp, end = 10.dp, top = 10.dp, bottom = 2.dp))
-                    Row(modifier = Modifier.padding(horizontal = 10.dp)) {
-                        Text(stringResource(R.string.leave_new_password_empty_if_dont_want_to_use_master_password), color = MyStyleKt.TextColor.highlighting_green)
-                    }
+                    PasswordTextFiled(newMasterPassword, newMasterPasswordVisible, stringResource(R.string.new_password), errMsg = newMasterPasswordErrMsg)
 
-                    if(newMasterPassword.value.isNotEmpty()) {
-                        Spacer(Modifier.height(10.dp))
-                        Row(modifier = Modifier.padding(horizontal = 10.dp)) {
-                            Text(stringResource(R.string.please_make_sure_you_can_remember_your_master_password), color = MyStyleKt.TextColor.danger())
+                    MySelectionContainer {
+                        Column {
+                            DefaultPaddingText(stringResource(R.string.leave_new_password_empty_if_dont_want_to_use_master_password), color = MyStyleKt.TextColor.highlighting_green)
+
+                            if(newMasterPassword.value.isNotEmpty()) {
+                                Spacer(Modifier.height(10.dp))
+                                DefaultPaddingText(stringResource(R.string.please_make_sure_you_can_remember_your_master_password), color = MyStyleKt.TextColor.danger())
+                            }
                         }
                     }
                 }
@@ -522,8 +548,7 @@ fun SettingsInnerPage(
         ) {
             doJobThenOffLoading job@{
                 try {
-                    //一般来说不会需要用户在这输入密码的，在启动app的时候就输过了
-                    val oldPass  = if(requireOldPass) {
+                    val oldPass  = if(requireOldPass) {  //使用用户输入的主密码验证
                         if(oldMasterPassword.value.isEmpty()){
                             oldMasterPasswordErrMsg.value = activityContext.getString(R.string.require_old_password)
                             return@job
@@ -535,7 +560,7 @@ fun SettingsInnerPage(
                         }
 
                         oldMasterPassword.value
-                    }else {
+                    }else {  //使用缓存的用户主密码验证（最初为首次启动时由用户手动输入，后来改成解码保存在本地的用户主密码而不再需要手动输入）
                         AppModel.masterPassword.value
                     }
 
@@ -568,7 +593,7 @@ fun SettingsInnerPage(
                     val failedList = credentialDb.updateMasterPassword(oldPass, newPass)
 
                     //解密加密结束，最起码没抛异常，再保存
-                    MasterPassUtil.save(AppModel.realAppContext, newPass)
+                    val newSettings = MasterPassUtil.save(AppModel.realAppContext, newPass)
 
 
                     if(failedList.isEmpty()) { //全部解密然后加密成功
@@ -589,16 +614,37 @@ fun SettingsInnerPage(
 
                     //更新下主密码状态，让用户知道更新成功了
                     masterPassEnabled.value = AppModel.masterPasswordEnabled()
-                    masterPassStatus.value = if(masterPassEnabled.value) activityContext.getString(R.string.updated) else activityContext.getString(R.string.disabled)
+                    //若最新状态为启用，则检查是否请求旧密码，若请求，则是更新了密码，否则是创建了新密码；若状态为禁用，则代表已禁用主密码
+                    masterPassStatus.value = activityContext.getString(if(masterPassEnabled.value) { if(requireOldPass) R.string.updated else R.string.enabled } else R.string.disabled)
+
+                    //更新当前页面的settings state，不然不切换页面或退出app会无法验证旧密码
+                    settingsState.value = newSettings
 
                 }catch (e:Exception) {
-                    Msg.requireShowLongDuration(e.localizedMessage ?:"err")
+                    Msg.requireShowLongDuration("err: "+e.localizedMessage)
                     MyLog.e(TAG, "SetMasterPasswordDialog err: ${e.stackTraceToString()}")
                 }
             }
         }
     }
 
+
+    val showClearMasterPasswordDialog = rememberSaveable { mutableStateOf(false) }
+    if(showClearMasterPasswordDialog.value) {
+        ClearMasterPasswordDialog(
+            onCancel = {showClearMasterPasswordDialog.value = false},
+            onOk = {
+                showClearMasterPasswordDialog.value = false
+
+                //把master pass状态设为禁用
+                masterPassEnabled.value = false
+                masterPassStatus.value = activityContext.getString(R.string.disabled)
+
+                //提示成功
+                Msg.requireShow(activityContext.getString(R.string.success))
+            }
+        )
+    }
 
 //    val showForgetMasterPasswordDialog = rememberSaveable { mutableStateOf(false) }
 
@@ -737,19 +783,17 @@ fun SettingsInnerPage(
     BackHandler(enabled = isBackHandlerEnable.value, onBack = {backHandlerOnBack()})
     //back handler block end
 
-    val itemFontSize = 20.sp
-    val itemDescFontSize = 15.sp
-    val switcherIconSize = 60.dp
-    val selectorWidth = MyStyleKt.DropDownMenu.minWidth.dp
+    val itemFontSize = MyStyleKt.SettingsItem.itemFontSize
+    val itemDescFontSize = MyStyleKt.SettingsItem.itemDescFontSize
+    val switcherIconSize = MyStyleKt.SettingsItem.switcherIconSize
+    val selectorWidth = MyStyleKt.SettingsItem.selectorWidth
 
-    val itemLeftWidthForSwitcher = .8f
-    val itemLeftWidthForSelector = .6f
+    val itemLeftWidthForSwitcher = MyStyleKt.SettingsItem.itemLeftWidthForSwitcher
+    val itemLeftWidthForSelector = MyStyleKt.SettingsItem.itemLeftWidthForSelector
 
     Column(
         modifier = Modifier
-            .padding(contentPadding)
-            .fillMaxSize()
-            .verticalScroll(listState)
+            .baseVerticalScrollablePageModifier(contentPadding, listState)
     ) {
         SettingsTitle(stringResource(R.string.general))
 
@@ -1171,6 +1215,19 @@ fun SettingsInnerPage(
             }
         }
 
+        //如果有主密码，显示个忘记密码，点击弹窗询问是否清空密码
+        if(masterPassEnabled.value) {
+            SettingsContent(onClick = {
+                //显示弹窗
+                showClearMasterPasswordDialog.value = true
+            }) {
+                Column {
+                    Text(stringResource(R.string.i_forgot_my_master_password), fontSize = itemFontSize)
+                }
+            }
+        }
+
+
 //        SettingsContent(onClick = {
 //            oldMasterPassword.value = ""
 //            newMasterPassword.value = ""
@@ -1190,6 +1247,62 @@ fun SettingsInnerPage(
                 Text(stringResource(R.string.manage_storage), fontSize = itemFontSize)
                 Text(stringResource(R.string.if_you_want_to_clone_repo_into_external_storage_this_permission_is_required), fontSize = itemDescFontSize, fontWeight = FontWeight.Light)
             }
+        }
+
+        //一些用来测试的功能
+        if(devModeOn.value) {
+            SettingsTitle("Dev Zone")
+
+            // single diff
+            DevBooleanSettingsItem(
+                item = DevFeature.singleDiff,
+                context = activityContext,
+                itemLeftWidthForSwitcher = itemLeftWidthForSwitcher,
+                itemFontSize = itemFontSize,
+                itemDescFontSize = itemDescFontSize,
+                switcherIconSize = switcherIconSize,
+            )
+
+            // line menu item, matched all and no-matched all
+            DevBooleanSettingsItem(
+                item = DevFeature.showMatchedAllAtDiff,
+                context = activityContext,
+                itemLeftWidthForSwitcher = itemLeftWidthForSwitcher,
+                itemFontSize = itemFontSize,
+                itemDescFontSize = itemDescFontSize,
+                switcherIconSize = switcherIconSize,
+            )
+
+            // show random launching text when app loading
+            DevBooleanSettingsItem(
+                item = DevFeature.showRandomLaunchingText,
+                context = activityContext,
+                itemLeftWidthForSwitcher = itemLeftWidthForSwitcher,
+                itemFontSize = itemFontSize,
+                itemDescFontSize = itemDescFontSize,
+                switcherIconSize = switcherIconSize,
+            )
+
+            // legacy change list load method
+            DevBooleanSettingsItem(
+                item = DevFeature.legacyChangeListLoadMethod,
+                context = activityContext,
+                itemLeftWidthForSwitcher = itemLeftWidthForSwitcher,
+                itemFontSize = itemFontSize,
+                itemDescFontSize = itemDescFontSize,
+                switcherIconSize = switcherIconSize,
+            )
+
+
+            // crash the app
+            SettingsContent(onClick = {
+                throw RuntimeException("App Crashed For Test Purpose")
+            }) {
+                Column {
+                    Text("Crash App", fontSize = itemFontSize)
+                }
+            }
+
         }
 
         SpacerRow()
@@ -1216,3 +1329,40 @@ fun SettingsInnerPage(
 
 }
 
+@Composable
+private fun DevBooleanSettingsItem(
+    item: DevItem<Boolean>,
+    context: Context,
+    itemLeftWidthForSwitcher: Float,
+    itemFontSize: TextUnit,
+    itemDescFontSize: TextUnit,
+    switcherIconSize: Dp,
+) {
+    SettingsContent(
+        onClick = {
+            item.update(!item.state.value, context)
+        }
+    ) {
+        val itemEnabled = item.state.value
+
+        Column(modifier = Modifier.fillMaxWidth(itemLeftWidthForSwitcher)) {
+            Text(item.text, fontSize = itemFontSize)
+
+            // desc
+            item.desc.let {
+                if(it.isNotBlank()) {
+                    Text(it, fontSize = itemDescFontSize, fontWeight = FontWeight.Light)
+                }
+            }
+
+        }
+
+        Icon(
+            modifier = Modifier.size(switcherIconSize),
+            imageVector = UIHelper.getIconForSwitcher(itemEnabled),
+            contentDescription = if(itemEnabled) stringResource(R.string.enable) else stringResource(R.string.disable),
+            tint = UIHelper.getColorForSwitcher(itemEnabled),
+
+        )
+    }
+}

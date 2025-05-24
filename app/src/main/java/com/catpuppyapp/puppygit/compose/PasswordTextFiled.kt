@@ -66,14 +66,12 @@ fun PasswordTextFiled(
         isError = errMsg.value.isNotEmpty(),
         supportingText = {
             if(errMsg.value.isNotEmpty()) {
-                MySelectionContainer {
-                    Text(
-                        modifier = Modifier.fillMaxWidth(),
-                        text = errMsg.value,
-                        color = MaterialTheme.colorScheme.error
-                    )
-                }
-
+                //错误信息拷贝不了，不用加选择拷贝容器，一点错误信息就聚焦到输入框了
+                Text(
+                    modifier = Modifier.fillMaxWidth(),
+                    text = errMsg.value,
+                    color = MaterialTheme.colorScheme.error
+                )
             }
         },
         visualTransformation = if (passwordVisible.value) VisualTransformation.None else PasswordVisualTransformation(),

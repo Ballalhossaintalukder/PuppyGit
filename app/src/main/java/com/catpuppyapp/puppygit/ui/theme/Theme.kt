@@ -1,6 +1,5 @@
 package com.catpuppyapp.puppygit.ui.theme
 
-import android.app.Activity
 import android.content.Context
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -22,7 +21,10 @@ import com.catpuppyapp.puppygit.play.pro.findActivity
 object Theme {
     val Orange = Color(0xFFFF5722)
     val darkLightBlue = Color(0xDF456464)
-
+    val mdGreen = Color(0xFF13831C)
+    val mdRed = Color(0xFFAD2A2A)
+    val Gray1 = Color(0xFF8C8C8C)
+    val Gray2 = Color(0xFF7C7C7C)
 
 
     const val auto = 0

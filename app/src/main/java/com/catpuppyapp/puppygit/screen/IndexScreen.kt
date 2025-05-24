@@ -1,6 +1,7 @@
 package com.catpuppyapp.puppygit.screen
 
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
@@ -33,12 +34,12 @@ import com.catpuppyapp.puppygit.screen.functions.ChangeListFunctions
 import com.catpuppyapp.puppygit.screen.shared.SharedState
 import com.catpuppyapp.puppygit.settings.SettingsUtil
 import com.catpuppyapp.puppygit.utils.AppModel
+import com.catpuppyapp.puppygit.utils.cache.Cache
 import com.catpuppyapp.puppygit.utils.state.mutableCustomStateListOf
 import com.catpuppyapp.puppygit.utils.state.mutableCustomStateOf
 import com.github.git24j.core.Repository
 
-private val TAG = "IndexScreen"
-private val stateKeyTag = "IndexScreen"
+private const val TAG = "IndexScreen"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -53,6 +54,7 @@ fun IndexScreen(
     naviUp: () -> Unit
 ) {
 
+    val stateKeyTag = Cache.getSubPageKey(TAG)
 
     val navController = AppModel.navController
     val homeTopBarScrollBehavior = AppModel.homeTopBarScrollBehavior
@@ -109,6 +111,10 @@ fun IndexScreen(
 
     val swap =rememberSaveable { mutableStateOf(false)}
 
+    val changeListErrScrollState = rememberScrollState()
+    val changeListHasErr = rememberSaveable { mutableStateOf(false) }
+    val changeListErrLastPosition = rememberSaveable { mutableStateOf(0) }
+
 //    val editorPageRequireOpenFilePath = rememberSaveable{ mutableStateOf("") } // canonicalPath
 ////    val needRefreshFilesPage = rememberSaveable { mutableStateOf(false) }
 //    val needRefreshFilesPage = rememberSaveable { mutableStateOf("") }
@@ -128,7 +134,7 @@ fun IndexScreen(
 //    val changeListRequirePush = rememberSaveable { mutableStateOf(false) }
     val requireDoActFromParent = rememberSaveable { mutableStateOf(false)}
     val requireDoActFromParentShowTextWhenDoingAct = rememberSaveable { mutableStateOf("")}
-    val enableAction = rememberSaveable { mutableStateOf( true)}
+    val enableAction = rememberSaveable { mutableStateOf(true)}
     val repoState = rememberSaveable{mutableIntStateOf(Repository.StateT.NONE.bit)}  //初始状态是NONE，后面会在ChangeListInnerPage检查并更新状态，只要一创建innerpage或刷新（重新执行init），就会更新此状态
     val fromTo = Cons.gitDiffFromHeadToIndex
     val changeListPageItemList = mutableCustomStateListOf(keyTag = stateKeyTag, keyName = "changeListPageItemList", initValue = listOf<StatusTypeEntrySaver>())
@@ -210,15 +216,24 @@ fun IndexScreen(
         },
         floatingActionButton = {
             if(changelistPageScrolled.value) {
-                GoToTopAndGoToBottomFab(
-                    filterModeOn = changeListPageFilterModeOn.value,
-                    scope = scope,
-                    filterListState = changelistFilterListState,
-                    listState = changeListPageItemListState,
-                    filterListLastPosition = filterLastPosition,
-                    listLastPosition = lastPosition,
-                    showFab = changelistPageScrolled
-                )
+                if(changeListHasErr.value) {
+                    GoToTopAndGoToBottomFab(
+                        scope = scope,
+                        listState = changeListErrScrollState,
+                        listLastPosition = changeListErrLastPosition,
+                        showFab = changelistPageScrolled
+                    )
+                }else {
+                    GoToTopAndGoToBottomFab(
+                        filterModeOn = changeListPageFilterModeOn.value,
+                        scope = scope,
+                        filterListState = changelistFilterListState,
+                        listState = changeListPageItemListState,
+                        filterListLastPosition = filterLastPosition,
+                        listLastPosition = lastPosition,
+                        showFab = changelistPageScrolled
+                    )
+                }
 
             }
         }
@@ -227,6 +242,12 @@ fun IndexScreen(
 //        val commitParentList = remember { mutableStateListOf<String>() }
 
         ChangeListInnerPage(
+//            stateKeyTag = Cache.combineKeys(stateKeyTag, "ChangeListInnerPage"),
+            stateKeyTag = stateKeyTag,
+
+            errScrollState = changeListErrScrollState,
+            hasError = changeListHasErr,
+
             lastSearchKeyword=changeListLastSearchKeyword,
             searchToken=changeListSearchToken,
             searching=changeListSearching,

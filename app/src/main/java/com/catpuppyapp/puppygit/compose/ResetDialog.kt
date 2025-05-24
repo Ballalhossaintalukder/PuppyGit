@@ -1,6 +1,5 @@
 package com.catpuppyapp.puppygit.compose
 
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -27,7 +26,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.catpuppyapp.puppygit.play.pro.R
 import com.catpuppyapp.puppygit.style.MyStyleKt
-import com.catpuppyapp.puppygit.utils.AppModel
 import com.catpuppyapp.puppygit.utils.Libgit2Helper
 import com.catpuppyapp.puppygit.utils.Msg
 import com.catpuppyapp.puppygit.utils.createAndInsertError
@@ -62,7 +60,7 @@ fun ResetDialog(
 
     AlertDialog(
         title = {
-            Text(text = stringResource(id = R.string.reset))
+            DialogTitle(stringResource(R.string.reset))
         },
         text = {
             ScrollableColumn {

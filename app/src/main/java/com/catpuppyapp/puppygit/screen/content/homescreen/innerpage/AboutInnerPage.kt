@@ -1,15 +1,16 @@
 package com.catpuppyapp.puppygit.screen.content.homescreen.innerpage
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.verticalScroll
@@ -18,17 +19,19 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.catpuppyapp.puppygit.compose.AppIcon
+import com.catpuppyapp.puppygit.compose.AppIconMonoChrome
 import com.catpuppyapp.puppygit.compose.ClickableText
 import com.catpuppyapp.puppygit.compose.SpacerRow
 import com.catpuppyapp.puppygit.play.pro.R
@@ -36,7 +39,8 @@ import com.catpuppyapp.puppygit.style.MyStyleKt
 import com.catpuppyapp.puppygit.utils.ActivityUtil
 import com.catpuppyapp.puppygit.utils.AppModel
 import com.catpuppyapp.puppygit.utils.ComposeHelper
-import com.catpuppyapp.puppygit.utils.Msg
+import com.catpuppyapp.puppygit.utils.UIHelper
+import com.catpuppyapp.puppygit.utils.baseVerticalScrollablePageModifier
 
 
 const val authorMail = "luckyclover33xx@gmail.com"
@@ -84,14 +88,13 @@ fun AboutInnerPage(
     val activityContext = LocalContext.current
     val exitApp = AppModel.exitApp;
 
-    val appIcon = AppModel.getAppIcon(activityContext)
 
-    val clipboardManager = LocalClipboardManager.current
+//    val clipboardManager = LocalClipboardManager.current
 
-    val copy={text:String ->
-        clipboardManager.setText(AnnotatedString(text))
-        Msg.requireShow(activityContext.getString(R.string.copied))
-    }
+//    val copy={text:String ->
+//        clipboardManager.setText(AnnotatedString(text))
+//        Msg.requireShow(activityContext.getString(R.string.copied))
+//    }
 
     //back handler block start
     val isBackHandlerEnable = rememberSaveable { mutableStateOf(true)}
@@ -100,19 +103,44 @@ fun AboutInnerPage(
     BackHandler(enabled = isBackHandlerEnable.value, onBack = {backHandlerOnBack()})
     //back handler block end
 
+    val appLogoEasterEggOn = rememberSaveable { mutableStateOf(false) }
+    val appLogoEasterEggIconColor = remember { mutableStateOf(Color.Magenta) }
 
     Column(
         modifier = Modifier
-            .padding(contentPadding)
-            .padding(top = 10.dp)
-            .fillMaxSize()
-            .verticalScroll(listState)
+            .baseVerticalScrollablePageModifier(contentPadding, listState)
+            .padding(10.dp)
         ,
         horizontalAlignment = Alignment.CenterHorizontally,
+
+        //垂直应从上到下，不需要居中
 //        verticalArrangement = Arrangement.Center
-    ){
+    ) {
         //图标，app名，contact
-        Image(bitmap = appIcon, contentDescription = stringResource(id = R.string.app_icon))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center,
+        ) {
+            Box(
+                modifier = Modifier.clickable {
+                    //若启用则换颜色；否则启用。
+                    if(appLogoEasterEggOn.value) {
+                        appLogoEasterEggIconColor.value = UIHelper.getRandomColor()
+                    }else {
+                        appLogoEasterEggOn.value = true
+                    }
+                }
+            ) {
+                if(appLogoEasterEggOn.value) {
+                    AppIconMonoChrome(tint = appLogoEasterEggIconColor.value)
+                }else {
+                    AppIcon()
+                }
+            }
+
+        }
+
         Column(modifier = Modifier.padding(10.dp)
 
             ,
@@ -226,7 +254,7 @@ fun AboutInnerPage(
         ) {
 //            Text(text = stringResource(R.string.contact_author)+":")
             ClickableText(
-                text = stringResource(R.string.donate),
+                text = "💖"+stringResource(R.string.donate)+"💖",
                 modifier = MyStyleKt.ClickableText.modifierNoPadding.clickable {
 //                    copy(authorMail)
                     ActivityUtil.openUrl(activityContext, donateLink)

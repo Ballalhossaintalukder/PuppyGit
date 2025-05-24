@@ -1,10 +1,14 @@
 package com.catpuppyapp.puppygit.compose
 
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableState
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -17,9 +21,6 @@ import com.github.git24j.core.Repository
 import java.io.File
 
 
-private const val TAG = "ApplyPatchDialog"
-private const val stateKeyTag = "ApplyPatchDialog"
-
 
 @Composable
 fun ApplyPatchDialog(
@@ -28,6 +29,7 @@ fun ApplyPatchDialog(
     checkOnly:MutableState<Boolean>,
     patchFileFullPath:String,
     repoList:List<RepoEntity>,
+    loadingRepoList: Boolean,
     onCancel: () -> Unit,
     onErrCallback:suspend (err:Exception, selectedRepoId:String)->Unit,
     onFinallyCallback:()->Unit,
@@ -35,71 +37,43 @@ fun ApplyPatchDialog(
 ) {
 
     ConfirmDialog2(
-        okBtnEnabled = repoList.isNotEmpty() && selectedRepo.value.id.isNotBlank(),
+        okBtnEnabled = loadingRepoList.not() && repoList.isNotEmpty() && selectedRepo.value.id.isNotBlank(),
         title = stringResource(R.string.apply_patch),
         requireShowTextCompose = true,
         textCompose = {
             ScrollableColumn {
-                Text(text = stringResource(R.string.select_target_repo)+":")
-                Spacer(modifier = Modifier.height(10.dp))
+                if(loadingRepoList || repoList.isEmpty()) {  //正在加载仓库列表，或者加载完了，但仓库列表为空
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(stringResource(if(loadingRepoList) R.string.loading else R.string.repo_list_is_empty))
+                    }
+                } else {  //加载仓库列表完毕，并且列表非空
+                    Text(text = stringResource(R.string.select_target_repo)+":")
+                    Spacer(modifier = Modifier.height(10.dp))
 
-                SingleSelectList(optionsList = repoList,
-                    menuItemSelected = {idx, value -> value.id == selectedRepo.value.id},
-                    menuItemOnClick = {idx, value -> selectedRepo.value = value},
-                    menuItemFormatter = {idx, value -> value?.repoName ?: ""},
-                    selectedOptionIndex = null,
-                    selectedOptionValue = selectedRepo.value
-                )
+                    SingleSelectList(optionsList = repoList,
+                        menuItemSelected = {idx, value -> value.id == selectedRepo.value.id},
+                        menuItemOnClick = {idx, value -> selectedRepo.value = value},
+                        menuItemFormatter = {idx, value -> value?.repoName ?: ""},
+                        selectedOptionIndex = null,
+                        selectedOptionValue = selectedRepo.value
+                    )
 
-                Spacer(modifier = Modifier.height(10.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
 
-                MyCheckBox(stringResource(R.string.check_only), checkOnly)
-                if(checkOnly.value) {
-                    DefaultPaddingText(stringResource(R.string.apply_patch_check_note))
+                    MyCheckBox(stringResource(R.string.check_only), checkOnly)
+                    if(checkOnly.value) {
+                        DefaultPaddingText(stringResource(R.string.apply_patch_check_note))
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
                 }
-                Spacer(modifier = Modifier.height(10.dp))
-
-//
-//                MyLazyColumn(
-//                    modifier = Modifier.heightIn(max=150.dp),
-//                    requireUseParamModifier = true,
-//                    contentPadding = PaddingValues(0.dp),
-//                    list = repoList.value,
-//                    listState = StateUtil.getRememberLazyListState(),
-//                    requireForEachWithIndex = true,
-//                    requirePaddingAtBottom =false
-//                ) {k, it ->
-//                    Row(
-//                        Modifier
-//                            .fillMaxWidth()
-//                            .heightIn(min = MyStyleKt.RadioOptions.minHeight)
-//
-//                            .selectable(
-//                                selected = it.id == selectedRepo.value.id,
-//                                onClick = {
-//                                    //更新选择值
-//                                    selectedRepo.value = it
-//                                },
-//                                role = Role.RadioButton
-//                            )
-//                            .padding(horizontal = 10.dp),
-//                        verticalAlignment = Alignment.CenterVertically
-//                    ) {
-//                        RadioButton(
-//                            selected = it.id == selectedRepo.value.id,
-//                            onClick = null // null recommended for accessibility with screenreaders
-//                        )
-//                        Text(
-//                            text = it.repoName,
-//                            style = MaterialTheme.typography.bodyLarge,
-//                            modifier = Modifier.padding(start = 10.dp)
-//                        )
-//                    }
-//
-//                }
-
             }
         },
+        okBtnText = stringResource(R.string.apply),
         onCancel = { onCancel() }
     ) {  // onOK
 

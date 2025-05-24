@@ -39,7 +39,7 @@ fun AddItemBar(height: Dp = 100.dp, onClick:() -> Unit) {
         }
         Row {
             Text(text = stringResource(id = R.string.add_an_app),
-                style = MyStyleKt.ClickableText.style,
+                style = MyStyleKt.ClickableText.getStyle(),
                 color = MyStyleKt.ClickableText.color,
                 fontSize = MyStyleKt.TextSize.default
             )

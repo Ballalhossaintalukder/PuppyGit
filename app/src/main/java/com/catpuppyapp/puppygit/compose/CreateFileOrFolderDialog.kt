@@ -63,7 +63,7 @@ fun CreateFileOrFolderDialog(
 
     AlertDialog(
         title = {
-            Text(stringResource(R.string.create))
+            DialogTitle(stringResource(R.string.create))
         },
         text = {
             ScrollableColumn {
@@ -152,15 +152,17 @@ fun CreateFileOrFolderDialog(
             }
         },
         confirmButton = {
+            val enabled = fileName.value.isNotEmpty() && !hasErr()
+
             TextButton(
-                enabled = fileName.value.isNotEmpty() && !hasErr(),
+                enabled = enabled,
                 onClick = {
                     doCreate()
                 },
             ) {
                 Text(
                     text = okBtnText,
-                    color = okTextColor,
+                    color = if(enabled) okTextColor else Color.Unspecified,
                 )
             }
         },

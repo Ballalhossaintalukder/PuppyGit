@@ -9,19 +9,16 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.TextUnit
-import androidx.compose.ui.unit.sp
 import com.catpuppyapp.puppygit.style.MyStyleKt
 
 @Composable
-fun ClickableText(text:String, onClick:(()->Unit)?) {
-    Text(
+fun SingleLineClickableText(
+    text:String,
+    onClick:(()->Unit)?
+) {
+    ClickableText(
         text = text,
         maxLines = 1,
-        overflow = TextOverflow.Ellipsis,
-        fontWeight = FontWeight.Light,
-        style = MyStyleKt.ClickableText.style,
-        color = MyStyleKt.ClickableText.color,
-        fontSize = 16.sp,
         modifier = if(onClick == null) {
             Modifier
         } else {
@@ -36,10 +33,10 @@ fun ClickableText(
     text:String,
     maxLines:Int = Int.MAX_VALUE,
     overflow: TextOverflow = TextOverflow.Ellipsis,
-    fontWeight: FontWeight? = null,
-    style:TextStyle = MyStyleKt.ClickableText.style,
+    fontWeight: FontWeight? = MyStyleKt.TextItem.defaultFontWeight(),
+    style:TextStyle = MyStyleKt.ClickableText.getStyle(),
     color:Color = MyStyleKt.ClickableText.color,
-    fontSize:TextUnit = 16.sp,
+    fontSize:TextUnit = MyStyleKt.ClickableText.fontSize,
     modifier: Modifier
 ) {
     Text(

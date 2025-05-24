@@ -37,8 +37,7 @@ import com.catpuppyapp.puppygit.utils.doJobThenOffLoading
 import com.catpuppyapp.puppygit.utils.replaceStringResList
 import com.github.git24j.core.Repository
 
-private val TAG = "SetBranchForRemoteDialog"
-private val stateKeyTag = "SetBranchForRemoteDialog"
+private const val TAG = "SetBranchForRemoteDialog"
 
 @Composable
 fun SetBranchForRemoteDialog(
@@ -58,7 +57,7 @@ fun SetBranchForRemoteDialog(
 
     AlertDialog(
         title = {
-            Text(text = activityContext.getString(R.string.set_branch_mode))
+            DialogTitle(activityContext.getString(R.string.set_branch_mode))
         },
         text = {
             ScrollableColumn {
@@ -154,8 +153,9 @@ fun SetBranchForRemoteDialog(
         confirmButton = {
             TextButton(
                 enabled = isAll.value || branchCsvStr.value.isNotBlank(),
-                onClick = { onOk(remoteName, isAll.value, branchCsvStr.value) }) {
-                Text(text = activityContext.getString(R.string.save))
+                onClick = { onOk(remoteName, isAll.value, branchCsvStr.value) }
+            ) {
+                Text(text = stringResource(R.string.save))
             }
         }
     )

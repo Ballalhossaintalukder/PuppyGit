@@ -177,7 +177,7 @@ private fun BottomSheetTitle(title:String) {
                 text = title,
                 textAlign = TextAlign.Center,
 
-                fontSize = 15.sp,
+                fontSize = MyStyleKt.Title.firstLineFontSizeSmall,
                 color = Color.Gray,
 
                 )

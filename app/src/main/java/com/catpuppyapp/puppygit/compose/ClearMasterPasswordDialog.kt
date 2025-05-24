@@ -4,10 +4,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.stringResource
 import com.catpuppyapp.puppygit.play.pro.R
-import com.catpuppyapp.puppygit.settings.SettingsUtil
 import com.catpuppyapp.puppygit.style.MyStyleKt
-import com.catpuppyapp.puppygit.utils.AppModel
 import com.catpuppyapp.puppygit.utils.doJobThenOffLoading
+import com.catpuppyapp.puppygit.utils.encrypt.MasterPassUtil
 
 @Composable
 fun ClearMasterPasswordDialog(
@@ -29,12 +28,7 @@ fun ClearMasterPasswordDialog(
         onCancel = onCancel
     ) {
         doJobThenOffLoading {
-            SettingsUtil.update {
-                it.masterPasswordHash = ""
-            }
-
-            AppModel.masterPassword.value = ""
-
+            MasterPassUtil.clear()
             onOk()
         }
     }

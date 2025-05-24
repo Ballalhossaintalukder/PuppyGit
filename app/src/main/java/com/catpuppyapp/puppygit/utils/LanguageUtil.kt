@@ -3,6 +3,7 @@ package com.catpuppyapp.puppygit.utils
 import android.content.Context
 import com.catpuppyapp.puppygit.constants.LangCode
 import com.catpuppyapp.puppygit.play.pro.R
+import com.catpuppyapp.puppygit.utils.pref.PrefMan
 
 
 object LanguageUtil {
@@ -80,7 +81,7 @@ object LanguageUtil {
     }
 
     /**
-     * e.g. input zh-rCN return Pair("zh", "CN")
+     * e.g. input "zh-rCN" return Pair("zh", "CN")
      */
     fun splitLanguageCode(languageCode:String):Pair<String,String> {
         val codes = languageCode.split("-r")

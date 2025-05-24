@@ -106,7 +106,9 @@ val bug_Editor_GoToColumnCantHideKeyboard_Fixed = false // editor，启动时或
 val bug_Editor_WrongUpdateEditColumnIdx_Fixed = false
 
 //旋转屏幕，editor的undo stack会被清空，如果不清，会导致undo功能失效并且undo后编辑器的内容无法编辑，原因不明
-val bug_Editor_undoStackLostAfterRotateScreen_Fixed = false
+// 无所谓了，这个redoStack怎么弄好像都有bug，不需要此变量了，不过保留此变量以提醒我这个bug还存在
+// 20250428: 已经解决，改 AndroidManifest.xml 加属性让Activity在旋转屏幕后不重建就行了，妈的原来这么简单
+//val bug_Editor_undoStackLostAfterRotateScreen_Fixed = true
 
 
 /**

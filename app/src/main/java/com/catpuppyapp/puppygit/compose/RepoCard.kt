@@ -7,41 +7,55 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Notes
+import androidx.compose.material.icons.filled.AccessTime
+import androidx.compose.material.icons.filled.Commit
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.EditNote
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Replay
+import androidx.compose.material.icons.filled.WarningAmber
+import androidx.compose.material.icons.outlined.Folder
+import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableIntState
 import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.catpuppyapp.puppygit.constants.Cons
 import com.catpuppyapp.puppygit.constants.PageRequest
 import com.catpuppyapp.puppygit.data.entity.RepoEntity
 import com.catpuppyapp.puppygit.play.pro.R
+import com.catpuppyapp.puppygit.screen.functions.goToCommitListScreen
 import com.catpuppyapp.puppygit.style.MyStyleKt
 import com.catpuppyapp.puppygit.ui.theme.Theme
 import com.catpuppyapp.puppygit.utils.AppModel
@@ -49,15 +63,19 @@ import com.catpuppyapp.puppygit.utils.FsUtils
 import com.catpuppyapp.puppygit.utils.Libgit2Helper
 import com.catpuppyapp.puppygit.utils.Msg
 import com.catpuppyapp.puppygit.utils.UIHelper
-import com.catpuppyapp.puppygit.utils.cache.Cache
+import com.catpuppyapp.puppygit.utils.copyAndShowCopied
 import com.catpuppyapp.puppygit.utils.dbIntToBool
 import com.catpuppyapp.puppygit.utils.doJobThenOffLoading
 import com.catpuppyapp.puppygit.utils.getFormatTimeFromSec
 import com.catpuppyapp.puppygit.utils.state.CustomStateSaveable
+import com.catpuppyapp.puppygit.utils.state.mutableCustomStateOf
 import com.github.git24j.core.Repository
 import kotlinx.coroutines.delay
 
 
+/**
+ * 注意：除了比较重要的关于仓库状态的那行以外，其他都用尽量 outlined 那种图标，这样一看卡片，注意力就会首先看到状态
+ */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun RepoCard(
@@ -96,7 +114,9 @@ fun RepoCard(
 
 
     val cardColor = UIHelper.defaultCardColor()
-    val highlightColor = if(inDarkTheme) Color(0xFF9D9C9C) else Color(0xFFFFFFFF)
+    val highlightColor = remember(inDarkTheme) {if(inDarkTheme) Color(0xFF9D9C9C) else Color(0xFFFFFFFF)}
+
+    val defaultFontWeight = remember { MyStyleKt.TextItem.defaultFontWeight() }
 
     val clipboardManager = LocalClipboardManager.current
     val viewDialogText = rememberSaveable { mutableStateOf("") }
@@ -213,14 +233,21 @@ fun RepoCard(
                         Row(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(text = stringResource(R.string.state) + ": ")
+//                            Text(text = stringResource(R.string.state) + ": ")
+
+                            InLineIcon(
+                                icon = Icons.Filled.Info,
+                                tooltipText = stringResource(R.string.state)
+                            )
+
                             Text(
                                 //如果是detached，显示分支号，否则显示“本地分支:远程分支”
                                 text = repoDto.getRepoStateStr(activityContext),  //状态为null显示错误，否则显示状态
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
-                                fontWeight = FontWeight.Light,
-                                modifier = MyStyleKt.NormalText.modifier,
+                                fontWeight = defaultFontWeight,
+                                modifier = MyStyleKt.ClickableText.modifier,
+
                             )
                         }
                     }
@@ -229,13 +256,19 @@ fun RepoCard(
                         Row(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(text = stringResource(R.string.repo_label_branch) + ": ")
+//                            Text(text = stringResource(R.string.repo_label_branch) + ": ")
+
+                            InLineIcon(
+                                icon = ImageVector.vectorResource(R.drawable.branch),
+                                tooltipText = stringResource(R.string.repo_label_branch)
+                            )
+
                             ClickableText (
                                 //如果是detached，显示分支号，否则显示“本地分支:远程分支”
-                                text = if(repoStatusGood) {if(dbIntToBool(repoDto.isDetached)) repoDto.lastCommitHash+"("+ stringResource(R.string.detached)+")" else repoDto.branch+":"+repoDto.upstreamBranch} else "",
+                                text = if(repoStatusGood) {if(dbIntToBool(repoDto.isDetached)) repoDto.lastCommitHashShort+"("+ stringResource(R.string.detached)+")" else repoDto.branch+":"+repoDto.upstreamBranch} else "",
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
-                                fontWeight = FontWeight.Light,
+                                fontWeight = defaultFontWeight,
                                 modifier = MyStyleKt.ClickableText.modifier.clickable(enabled = repoStatusGood) {
                                     navController.navigate(Cons.nav_BranchListScreen + "/" + repoDto.id)
                                 },
@@ -248,13 +281,17 @@ fun RepoCard(
                     Row(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(text = stringResource(R.string.repo_label_last_update_time) + ": ")
+//                        Text(text = stringResource(R.string.repo_label_last_update_time) + ": ")
+                        InLineIcon(
+                            icon = Icons.Filled.AccessTime,
+                            tooltipText = stringResource(R.string.repo_label_last_update_time)
+                        )
                         Text(
                             text = getFormatTimeFromSec(repoDto.lastUpdateTime),
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
-                            modifier = MyStyleKt.NormalText.modifier,
-                            fontWeight = FontWeight.Light
+                            modifier = MyStyleKt.ClickableText.modifier,
+                            fontWeight = defaultFontWeight
 
 
                         )
@@ -264,21 +301,33 @@ fun RepoCard(
                         Row(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(text = stringResource(R.string.repo_label_last_commit) + ": ")
+//                            Text(text = stringResource(R.string.repo_label_last_commit) + ": ")
+
+                            InLineIcon(
+                                icon = Icons.Filled.Commit,
+                                tooltipText = stringResource(R.string.repo_label_last_commit)
+                            )
                             ClickableText (
-                                text = if(repoStatusGood) repoDto.lastCommitHash else "",
+                                text = if(repoStatusGood) repoDto.lastCommitHashShort ?: "" else "",
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
-                                modifier = MyStyleKt.ClickableText.modifier.clickable(enabled = repoStatusGood) {
+                                modifier = MyStyleKt.ClickableText.modifier.combinedClickable(
+                                    enabled = repoStatusGood,
+                                    onLongClick = {
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        copyAndShowCopied(activityContext, clipboardManager, repoDto.lastCommitHash)
+                                    }
+                                ) {
                                     //打开当前仓库的提交记录页面，话说，那个树形怎么搞？可以先不搞树形，以后再弄
-                                    Cache.set(Cache.Key.commitList_fullOidKey, "")  //这里不需要传分支名，会通过HEAD解析当前分支
-                                    Cache.set(Cache.Key.commitList_shortBranchNameKey, "")
-                                    val useFullOid = "0"
-                                    val isHEAD= "1"
-                                    //注：如果fullOidKey传null，会变成字符串 "null"，然后查不出东西，返回空字符串，与其在导航组件取值时做处理，不如直接传空字符串，不做处理其实也行，只要“null“作为cache key取不出东西就行，但要是不做处理万一字符串"null"作为cache key能查出东西，就歇菜了，总之，走正常流程取得有效cache key，cache value传空字符串，即可
-                                    navController.navigate(Cons.nav_CommitListScreen + "/" + repoDto.id + "/" + useFullOid + "/" + isHEAD)
+                                    goToCommitListScreen(
+                                        repoId = repoDto.id,
+                                        fullOid = "",  //这里不需要传分支名，会通过HEAD解析当前分支
+                                        shortBranchName = "",
+                                        useFullOid = false,
+                                        isHEAD = true
+                                    )
                                 },
-                                fontWeight = FontWeight.Light
+                                fontWeight = defaultFontWeight
 
                             )
                         }
@@ -289,9 +338,12 @@ fun RepoCard(
                     Row(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(text = stringResource(R.string.repo_label_status) + ": ")
+//                        Text(text = stringResource(R.string.repo_label_status) + ": ")
 
-
+                        InLineIcon(
+                            icon = Icons.Filled.Info,
+                            tooltipText = stringResource(R.string.repo_label_status)
+                        )
                         //如果不写入数据库的临时中间状态 pushing/pulling 之类的 不为空，显示中间状态，否则显示写入数据库的持久状态
                         val tmpStatus = repoDto.tmpStatus
                         if(repoErr || repoNotReady || tmpStatus.isNotBlank() || repoDto.workStatus == Cons.dbRepoWorkStatusUpToDate) {  //不可点击的状态
@@ -302,8 +354,8 @@ fun RepoCard(
                                 text = text,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
-                                modifier = MyStyleKt.NormalText.modifier,
-                                fontWeight = FontWeight.Light,
+                                modifier = MyStyleKt.ClickableText.modifier,
+                                fontWeight = defaultFontWeight,
                                 //出错，红色；已是最新，绿色；"加载中..."之类的非点击临时状态，默认颜色。
                                 color = if(nullNormalTrueUpToDateFalseError == null) Color.Unspecified else if(nullNormalTrueUpToDateFalseError == true) MyStyleKt.TextColor.highlighting_green else MyStyleKt.TextColor.error(),
 
@@ -326,6 +378,9 @@ fun RepoCard(
                                             stringResource(R.string.repo_status_need_pull)
                                         } else if (repoDto.workStatus == Cons.dbRepoWorkStatusNeedPush) {
                                             stringResource(R.string.repo_status_need_push)
+                                        }else if (repoDto.workStatus == Cons.dbRepoWorkStatusNoHEAD) {
+                                            //便于用户理解，不提示no head，提示no commit
+                                            stringResource(R.string.no_commit)
                                         } else {
                                             ""  // 未克隆仓库可能会抵达这里
                                         }
@@ -335,7 +390,7 @@ fun RepoCard(
                                 modifier = MyStyleKt.ClickableText.modifier.clickable(enabled = repoStatusGood) {
                                     workStatusOnclick(repoDto, repoDto.workStatus)  //让父级页面自己写callback吧，省得传参
                                 },
-                                fontWeight = FontWeight.Light
+                                fontWeight = defaultFontWeight
 
                             )
                         }
@@ -344,7 +399,11 @@ fun RepoCard(
                     Row(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(text = stringResource(R.string.storage) + ": ")
+//                        Text(text = stringResource(R.string.storage) + ": ")
+                        InLineIcon(
+                            icon = Icons.Outlined.Folder,
+                            tooltipText = stringResource(R.string.storage)
+                        )
                         ClickableText (
                             text = FsUtils.getPathWithInternalOrExternalPrefix(fullPath = repoDto.fullSavePath),
                             maxLines = 1,
@@ -358,7 +417,7 @@ fun RepoCard(
                             ) {  // on click
                                 goToFilesPage(repoDto.fullSavePath)
                             },
-                            fontWeight = FontWeight.Light
+                            fontWeight = defaultFontWeight
 
                         )
                     }
@@ -372,12 +431,16 @@ fun RepoCard(
                             //错误信息不用检测仓库状态，因为显示错误信息只需要数据库中有对应条目即可，而正常情况下，如果有有效的错误信息，必然有数据库条目
                             val hasUncheckedErr = repoDto.latestUncheckedErrMsg.isNotBlank()
 
-                            Text(text = stringResource(R.string.repo_label_error) + ": ")
+//                            Text(text = stringResource(R.string.repo_label_error) + ": ")
+                            InLineIcon(
+                                icon = Icons.Filled.WarningAmber,
+                                tooltipText = stringResource(R.string.repo_label_error)
+                            )
                             ClickableText (
                                 text = if (hasUncheckedErr) repoDto.latestUncheckedErrMsg else stringResource(R.string.repo_err_no_err_or_all_checked),
                                 maxLines = 1,
                                 color = if (hasUncheckedErr) MyStyleKt.ClickableText.errColor else MyStyleKt.ClickableText.color,
-                                fontWeight = FontWeight.Light,
+                                fontWeight = defaultFontWeight,
                                 modifier = MyStyleKt.ClickableText.modifier.combinedClickable(
                                     onLongClick = {
                                         //只有当错误信息不为空时才显示弹窗
@@ -418,7 +481,11 @@ fun RepoCard(
                         Row(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(text = stringResource(R.string.other) + ": ")
+//                            Text(text = stringResource(R.string.other) + ": ")
+                            InLineIcon(
+                                icon = Icons.AutoMirrored.Filled.Notes,
+                                tooltipText = stringResource(R.string.other)
+                            )
                             Text(
                                 text = repoDto.getOther(),
                                 maxLines = 1,
@@ -433,7 +500,9 @@ fun RepoCard(
 //                                pageRequest.value = PageRequest.showOther
 //                            },
 
-                                fontWeight = FontWeight.Light
+                                fontWeight = defaultFontWeight,
+                                modifier = MyStyleKt.ClickableText.modifier,
+
 
                             )
                         }
@@ -444,7 +513,11 @@ fun RepoCard(
                         Row(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(text = stringResource(R.string.parent_repo) + ": ")
+//                            Text(text = stringResource(R.string.parent_repo) + ": ")
+                            InLineIcon(
+                                icon = Icons.Outlined.Home,
+                                tooltipText = stringResource(R.string.parent_repo)
+                            )
                             ClickableText(
                                 text = repoDto.parentRepoName,
                                 maxLines = 1,
@@ -452,7 +525,7 @@ fun RepoCard(
                                     setCurRepo()
                                     pageRequest.value = PageRequest.goParent
                                 },
-                                fontWeight = FontWeight.Light
+                                fontWeight = defaultFontWeight
 
                             )
                         }
@@ -461,6 +534,10 @@ fun RepoCard(
 
                 }
             }else {  // err repo card
+                val iconSize = remember {28.dp}
+                //按下图标，显示出的半透明阴影的size，通常是icon尺寸+8就行
+                val iconPressedSize = remember {36.dp}
+
                 Column(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalAlignment = Alignment.CenterHorizontally,
@@ -483,58 +560,35 @@ fun RepoCard(
                         )
                     }
 
-                    Spacer(Modifier.height(10.dp))
-//
-//                Row(
-//                    modifier = Modifier.height(lineHeight.dp),
-//
-//                ) {
-//                    Text(text=stringResource(R.string.copy_msg),
-//                        style = MyStyleKt.ClickableText.style,
-//                        color = MyStyleKt.ClickableText.color,
-//                        fontWeight = FontWeight.Light,
-//                        modifier = MyStyleKt.ClickableText.modifier.clickable(onClick = {
-//                            copyErrMsg(repoDto.createErrMsg)
-//                        }),
-//                    )
-//                }
-
-                    Row(
-                        modifier = Modifier.height(lineHeight),
-
-                        ) {
-                        ClickableText (
-                            text = stringResource(R.string.retry),
-                            fontWeight = FontWeight.Light,
-                            modifier = MyStyleKt.ClickableText.modifier.clickable { doCloneSingle(repoDto) },
-                        )
-                    }
+//                    Spacer(Modifier.height(10.dp))
 
 
 
-                    Row(
-                        modifier = Modifier.height(lineHeight),
+                    ScrollableRow(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 20.dp),
+                        horizontalArrangement = Arrangement.SpaceEvenly
+                    ) {
+                        InLineIcon(
+                            icon = Icons.Filled.Delete,
+                            tooltipText = stringResource(R.string.del_repo),
+                            iconModifier = Modifier.size(iconSize),
+                            pressedCircleSize = iconPressedSize,
+                        ) { requireDelRepo(repoDto) }
 
-                        ) {
-                        ClickableText (
-                            text=stringResource(R.string.edit_repo),
-                            fontWeight = FontWeight.Light,
-                            modifier = MyStyleKt.ClickableText.modifier.clickable(onClick = {
-                                navController.navigate(Cons.nav_CloneScreen+"/"+repoDto.id)
-                            }),
-                        )
-                    }
-                    Row(
-                        modifier = Modifier.height(lineHeight),
+                        InLineIcon(
+                            icon = Icons.Filled.Replay,
+                            tooltipText = stringResource(R.string.retry),
+                            iconModifier = Modifier.size(iconSize),
+                            pressedCircleSize = iconPressedSize,
+                        ) { doCloneSingle(repoDto) }
 
-                        ) {
-                        ClickableText (
-                            text=stringResource(R.string.del_repo),
-                            fontWeight = FontWeight.Light,
-                            modifier = MyStyleKt.ClickableText.modifier.clickable(onClick = {
-                                requireDelRepo(repoDto)
-                            }),
-                        )
+                        InLineIcon(
+                            icon = Icons.Filled.EditNote,
+                            tooltipText = stringResource(R.string.edit_repo),
+                            iconModifier = Modifier.size(iconSize),
+                            pressedCircleSize = iconPressedSize,
+                        ) { navController.navigate(Cons.nav_CloneScreen+"/"+repoDto.id) }
+
                     }
                 }
             }
@@ -596,13 +650,48 @@ private fun RepoTitle(
                 horizontalArrangement = Arrangement.End,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(
+                SimpleCheckBox(
+                    enabled = itemSelected,
                     modifier = Modifier.size(25.dp),
-                    imageVector = UIHelper.getCheckBoxByState(itemSelected),
-                    contentDescription = null,
                 )
             }
         }
 
     }
+}
+
+@Preview
+@Composable
+private fun Preview() {
+    val repo = mutableCustomStateOf("test", "test", RepoEntity(
+        id="abc", repoName = "test", branch = "main", upstreamBranch = "origin/main", lastCommitHash = "a312345",
+    ).apply {
+        gitRepoState = Repository.StateT.NONE
+        fullSavePath = "test/workdir"
+        workStatus = Cons.dbRepoWorkStatusUpToDate
+    })
+    val context = LocalContext.current
+    AppModel.init_forPreview()
+    RepoCard(
+        itemWidth=392F,
+        requireFillMaxWidth=false,
+        showBottomSheet=remember {mutableStateOf(false)},
+        curRepo= repo,
+        curRepoIndex=remember { mutableIntStateOf(0) },
+        repoDto=repo.value,
+        repoDtoIndex=0,
+        itemSelected=false,
+        titleOnClick={},
+        goToFilesPage={},
+        //如果和curRepoIndex的值匹配则会高亮显示当前条目，用来跳转时实现闪烁一下目标条目的效果，但在preview时只会高亮，然后就不灭了，一直维持高亮状态。。。
+        requireBlinkIdx=remember { mutableIntStateOf(-1) },
+        pageRequest=remember { mutableStateOf("") },
+        isSelectionMode=false,
+        onClick={},
+        onLongClick={},
+        copyErrMsg={},
+        requireDelRepo={},
+        doCloneSingle={},
+        workStatusOnclick={p1,p2->},
+    )
 }

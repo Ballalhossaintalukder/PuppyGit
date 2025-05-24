@@ -85,7 +85,7 @@ fun SetUpstreamDialog(
 
     AlertDialog(
         title = {
-            Text(stringResource(R.string.set_upstream_title))
+            DialogTitle(stringResource(R.string.set_upstream_title))
         },
         text = {
             ScrollableColumn {

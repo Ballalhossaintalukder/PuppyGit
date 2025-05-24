@@ -28,6 +28,7 @@ enum class StateRequestType {
     indexToWorkTree_CommitAll,
 
     /**
+     * 从diff页面返回到changelist(index to worktree)，请求执行提交所有
      * 仅提交index修改
      */
     headToIndex_CommitAll,

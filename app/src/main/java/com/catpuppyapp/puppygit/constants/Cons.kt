@@ -139,7 +139,7 @@ object Cons {
 
     //一个无效的非空id。应用场景：有时候页面根据导航url中的id是否为空来决定是否启用某些功能，但url中如果传空字符串会出现"//"这样的字符串导致导航出错，可以用缓存key解决，但那样还要查缓存或者检查key是否有效，不如直接创建一个无效的导航id
     //为避免导航出错，这里不应该有 / 之类的字符
-    const val dbInvalidNonEmptyId = "xyz"  //无效id的长度比默认生成的uuid短，且包含非hex字符，且不包含会导致url解析出错的字符，就够了，没必要弄很长
+    const val dbInvalidNonEmptyId = "xyz"  //无效id的长度比默认生成的随机id短，且不包含会导致url解析出错的字符，就够了，没必要弄很长
 
     //代表布尔值
     const val dbCommonFalse=0;
@@ -179,6 +179,7 @@ object Cons {
     const val dbRepoWorkStatusNeedSync=7  //本地和远程ahead和behind输出不都是0，需要同步
     const val dbRepoWorkStatusRebasing=8  // need rebase continue or abort
     const val dbRepoWorkStatusCherrypicking=9  // need cherrypick continue or abort
+    const val dbRepoWorkStatusNoHEAD=10 //仓库有效，但没创建任何提交，这时需要创建文件并提交以使仓库正常工作，创建了仓库但没创建任何文件任何提交任何分支，就会是这个状态
 
 
     //            注意，workStatus超过50就代表错误了
@@ -236,9 +237,8 @@ object Cons {
     //可替换remote和branch为你期望的值
     const val gitFetchRefSpecRemoteAndBranchReplacer = "+refs/heads/$gitBranchPlaceholder:refs/remotes/$gitRemotePlaceholder/$gitBranchPlaceholder"
 
-    val gitShortCommitHashRangeStart = 0
-    val gitShortCommitHashRangeEndInclusive = 6
-    val gitShortCommitHashRange = IntRange(start=gitShortCommitHashRangeStart, endInclusive=gitShortCommitHashRangeEndInclusive)  //0到6，共7位，git默认7位，但jetbrains的ide短CommitHash是8位，我本来用的8位，但git默认是7位，所以，想了想，我还是用7位吧
+
+    val gitShortCommitHashRange = IntRange(start=0, endInclusive=6)  //0到6，共7位，git默认7位，但jetbrains的ide短CommitHash是8位，我本来用的8位，但git默认是7位，所以，想了想，我还是用7位吧
 
     const val gitWellKnownSshUserName = "git"
     //git 相关变量结束
