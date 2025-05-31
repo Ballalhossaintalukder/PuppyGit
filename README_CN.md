@@ -4,6 +4,8 @@
 # 小狗Git
 小狗Git 是一个安卓Git客户端，免费开源无广告
 
+### 小狗Git是有史以来第1个支持提交历史记录图形化的安卓git客户端
+
 ## 作者
 小狗Git由catpuppyapp的Bandeapart1964倾情奉献
 
@@ -56,15 +58,11 @@ Tasker可通过Http请求调用小狗Git执行操作，演示视频： <a href="
 
 
 ## 截图
-<div>
-<img src="screenshots/cl.png" width=150 />
-<img src="screenshots/drawer.png"  width=150 />
-<img src="screenshots/editor.png" width=150 />
-<img src="screenshots/repos.png"  width=150  />
-</div>
+![release_screenshot](./image-assets/screenshots/ppgit_tablet_and_phone_small_size.jpg)
 
 
-## 特性
+
+## 功能
 - 下载（fetch）
 - 合并
 - 拉取

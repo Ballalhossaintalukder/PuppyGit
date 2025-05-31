@@ -41,8 +41,7 @@ import com.catpuppyapp.puppygit.utils.doJobThenOffLoading
 import com.github.git24j.core.Oid
 import com.github.git24j.core.Repository
 
-private val TAG = "CheckoutDialog"
-private val stateKeyTag = "CheckoutDialog"
+private const val TAG = "CheckoutDialog"
 
 
 @Composable
@@ -284,6 +283,7 @@ fun CheckoutDialog(
                             Row {
                                 DefaultPaddingText(
                                     text = stringResource(R.string.will_overwrite_if_branch_already_exists),
+                                    color = MyStyleKt.TextColor.danger(),
                                 )
                             }
 
@@ -557,13 +557,13 @@ fun CheckoutDialog(
                 }
 
                 //显示通知
-                Msg.requireShowLongDuration("err:" + e.localizedMessage)
+                Msg.requireShowLongDuration("err: " + e.localizedMessage)
                 val refName = if(shortName.isNotBlank() && shortName==curCommitOidOrRefName) shortName else "$shortName($curCommitOidOrRefName)"
                 //给用户看的错误
                 //"checkout main(abcdef1) err" or "checkout abcef12 err"
-                createAndInsertError(repoId, "checkout '" + refName + "' err:" + e.localizedMessage)
+                createAndInsertError(repoId, "checkout '" + refName + "' err: " + e.localizedMessage)
                 //给开发者debug看的错误
-                MyLog.e(TAG, "checkout '" + refName + "' err:" + e.stackTraceToString())
+                MyLog.e(TAG, "checkout '" + refName + "' err: " + e.stackTraceToString())
             }
         }
     }

@@ -318,7 +318,7 @@ fun CreateTagDialog(
                 val errMsg = "create tag '${tagName.value}' err: ${e.localizedMessage}"
                 Msg.requireShowLongDuration(errMsg)
                 createAndInsertError(curRepo.id, errMsg)
-                MyLog.e(TAG, "#onOk err:$errMsg\n${e.stackTraceToString()}")
+                MyLog.e(TAG, "#onOk err: $errMsg\n${e.stackTraceToString()}")
             }
         }
 

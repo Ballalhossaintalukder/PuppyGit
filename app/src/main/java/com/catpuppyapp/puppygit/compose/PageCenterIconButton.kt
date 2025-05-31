@@ -6,11 +6,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -29,17 +25,7 @@ fun PageCenterIconButton(
     elseContent: @Composable ()->Unit = {},  // condition为false显示此内容
     content: @Composable () ->Unit,  // condition为true显示此内容
 ) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(contentPadding)
-            .verticalScroll(rememberScrollState())
-
-        ,
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally,
-
-    ) {
+    FullScreenScrollableColumn(contentPadding) {
         if(condition) {
             //interactionSource和indication的作用是隐藏按下时的背景半透明那个按压效果，很难看，所以隐藏
             Column(modifier = Modifier.clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
@@ -66,6 +52,7 @@ fun PageCenterIconButton(
     text:String,
     elseContent: @Composable () -> Unit = {},  //这参数别放最后，避免和另一个重载版本的content搞混
     condition: Boolean = true,
+    attachContent: @Composable () -> Unit = {},
 ) {
     // condition为true显示图标和文字，否则显示其他内容
     PageCenterIconButton(contentPadding = contentPadding, condition = condition, elseContent = elseContent, onClick = onClick) {
@@ -81,10 +68,12 @@ fun PageCenterIconButton(
         Row {
             Text(
                 text = text,
-                style = MyStyleKt.ClickableText.style,
+                style = MyStyleKt.ClickableText.getStyle(),
                 color = MyStyleKt.ClickableText.color,
                 fontSize = MyStyleKt.TextSize.default
             )
         }
+
+        attachContent()
     }
 }

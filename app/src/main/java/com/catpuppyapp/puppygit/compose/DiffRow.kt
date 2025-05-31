@@ -19,7 +19,7 @@ import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.ClipboardManager
@@ -46,34 +46,43 @@ import com.catpuppyapp.puppygit.git.CompareLinePairResult
 import com.catpuppyapp.puppygit.git.PuppyLine
 import com.catpuppyapp.puppygit.play.pro.R
 import com.catpuppyapp.puppygit.screen.functions.getClipboardText
+import com.catpuppyapp.puppygit.screen.functions.openFileWithInnerSubPageEditor
 import com.catpuppyapp.puppygit.screen.shared.FilePath
 import com.catpuppyapp.puppygit.settings.AppSettings
 import com.catpuppyapp.puppygit.style.MyStyleKt
 import com.catpuppyapp.puppygit.ui.theme.Theme
-import com.catpuppyapp.puppygit.utils.AppModel
 import com.catpuppyapp.puppygit.utils.FsUtils
 import com.catpuppyapp.puppygit.utils.Libgit2Helper
 import com.catpuppyapp.puppygit.utils.Msg
+import com.catpuppyapp.puppygit.utils.addTopPaddingIfIsFirstLine
 import com.catpuppyapp.puppygit.utils.cache.Cache
 import com.catpuppyapp.puppygit.utils.compare.result.IndexStringPart
 import com.catpuppyapp.puppygit.utils.createAndInsertError
 import com.catpuppyapp.puppygit.utils.doJobThenOffLoading
+import com.catpuppyapp.puppygit.utils.paddingLineNumber
 import com.catpuppyapp.puppygit.utils.replaceStringResList
-import com.catpuppyapp.puppygit.utils.state.CustomStateMapSaveable
-import com.catpuppyapp.puppygit.utils.state.CustomStateSaveable
+import com.catpuppyapp.puppygit.utils.state.mutableCustomStateOf
 import com.github.git24j.core.Diff
 
 
+private const val TAG = "DiffRow"
+
 /**
+ * 注意：这个组件会在LazyColumn的item里使用，所以不能用rememberSaveable，
+ * 否则有概率崩溃，报 "java.lang.ClassCastException" ，是个bug，参见：https://issuetracker.google.com/issues/181880855
+ *
+ *
  * @param stringPartList 如果用不到，可传null或使用默认值（null）
  */
 @Composable
 fun DiffRow (
+    stateKeyTag:String,
     index:Int,
     line:PuppyLine,
+    lineNumExpectLength:Int,
     stringPartList:List<IndexStringPart>? = null,
     fileFullPath:String,
-    isFileAndExist:Boolean,
+    enableLineEditActions:Boolean,
     clipboardManager: ClipboardManager,
     loadingOn:(String)->Unit,
     loadingOff:()->Unit,
@@ -83,11 +92,12 @@ fun DiffRow (
     showOriginType:Boolean,
     fontSize:Int,
     lineNumSize:Int,
-    comparePairBuffer:CustomStateSaveable<CompareLinePair>,
+    getComparePairBuffer:() -> CompareLinePair,
+    setComparePairBuffer: (CompareLinePair) -> Unit,
 //    comparePair:CustomStateSaveable<CompareLinePair>,
     betterCompare:Boolean,
-    reForEachDiffContent:()->Unit,
-    indexStringPartListMap:CustomStateMapSaveable<String, CompareLinePairResult>,
+//    reForEachDiffContent:()->Unit,  //这变量没什么用了，但暂且保留位置以免日后有用。之所以没用了是因为现在修改 pair buffer后就会拷贝元素更新list，附带刷新效果了
+    indexStringPartListMap:MutableMap<String, CompareLinePairResult>,
     enableSelectCompare: Boolean,
     matchByWords:Boolean,
     settings:AppSettings,
@@ -95,29 +105,34 @@ fun DiffRow (
     activityContext:Context
 
 ) {
+    val stateKeyTag = Cache.getComponentKey(stateKeyTag, TAG)
+
     // disable for EOF, the EOF showing sometimes false-added
     // 禁用EOF点击菜单，EOF有时候假添加，就是明明没有eof，但显示新增了eof，可能是libgit2 bug
     val isNotEof = line.lineNum != LineNum.EOF.LINE_NUM
-    val enableLineActions = isFileAndExist && isNotEof
+    // line edit 选项，对eof禁用（不过 拷贝 还是启用的）
+    val enableLineEditActions = enableLineEditActions && isNotEof
     val enableSelectCompare = enableSelectCompare && isNotEof
-    val lineClickable = enableLineActions || enableSelectCompare
+    val enableLineCopy = true
+    val lineClickable = enableLineCopy || enableLineEditActions || enableSelectCompare
 
 
-    val showEditLineDialog = rememberSaveable { mutableStateOf(false) }
-    val showRestoreLineDialog = rememberSaveable { mutableStateOf(false) }
+    //不能用默认的rememberSaveable，但能用重写了saver的
+    val showEditLineDialog = mutableCustomStateOf(keyTag = stateKeyTag, keyName = "showEditLineDialog") { false }
+    val showRestoreLineDialog = mutableCustomStateOf(keyTag = stateKeyTag, keyName = "showRestoreLineDialog") { false }
 
 //    println("diffrow: $stringPartList")
 
     val view = LocalView.current
     val density = LocalDensity.current
 
-    val isKeyboardVisible = rememberSaveable { mutableStateOf(false) }
+    val isKeyboardVisible = remember { mutableStateOf(false) }
     //indicate keyboard covered component
-    val isKeyboardCoveredComponent = rememberSaveable { mutableStateOf(false) }
+    val isKeyboardCoveredComponent = remember { mutableStateOf(false) }
     // which component expect adjust heghit or padding when softkeyboard shown
-    val componentHeight = rememberSaveable { mutableIntStateOf(0) }
+    val componentHeight = remember { mutableIntStateOf(0) }
     // the padding value when softkeyboard shown
-    val keyboardPaddingDp = rememberSaveable { mutableIntStateOf(0) }
+    val keyboardPaddingDp = remember { mutableIntStateOf(0) }
 
     // this code gen by chat-gpt, wow
     // except: this code may not work when use use a float keyboard or softkeyboard with single-hand mode
@@ -145,12 +160,13 @@ fun DiffRow (
     val inDarkTheme = Theme.inDarkTheme
     //libgit2会把连续行整合到一起，这里用getLines()获取拆分后的行
 //                    puppyLineBase.getLines().forEach { line ->
-    val color = Libgit2Helper.getDiffLineBgColor(line, inDarkTheme)
+    val bgColor = Libgit2Helper.getDiffLineBgColor(line, inDarkTheme)
     val textColor = Libgit2Helper.getDiffLineTextColor(line, inDarkTheme)
 //                        val lineTypeStr = getDiffLineTypeStr(line)
-    val lineNumColor = if (inDarkTheme) MyStyleKt.TextColor.lineNum_forDiffInDarkTheme else MyStyleKt.TextColor.lineNum_forDiffInLightTheme
+    val lineNumColor = MyStyleKt.TextColor.lineNumColorForDiff(inDarkTheme)
 
-    val lineNum = if(line.lineNum== LineNum.EOF.LINE_NUM) LineNum.EOF.TEXT else line.lineNum.toString()
+    val lineNum = paddingLineNumber(if(line.lineNum == LineNum.EOF.LINE_NUM) LineNum.EOF.TEXT else line.lineNum.toString(), lineNumExpectLength)
+
 //    var prefix = ""
     val content = line.content
     //我发现明明新旧都没末尾行，但是originType却是添加了末尾行 '>'， 很奇怪，所以把行相关的背景颜色改了，文字颜色一律灰色，另外，因为patch输出会包含 no new line at end 之类的东西，所以不需要我再特意添加那句话了
@@ -178,13 +194,14 @@ fun DiffRow (
     }
 
 
-    val lineContentOfEditLineDialog = rememberSaveable { mutableStateOf("") }
-    val lineNumOfEditLineDialog = rememberSaveable { mutableStateOf(LineNum.invalidButNotEof) }  // this is line number not index, should start from 1
-    val lineNumStrOfEditLineDialog = rememberSaveable { mutableStateOf("") }  // this is line number not index, should start from 1
+    val lineContentOfEditLineDialog = mutableCustomStateOf(keyTag = stateKeyTag, keyName = "lineContentOfEditLineDialog") { "" }
+    val lineNumOfEditLineDialog = mutableCustomStateOf(keyTag = stateKeyTag, keyName = "lineNumOfEditLineDialog") { LineNum.invalidButNotEof }  // this is line number not index, should start from 1
+    val lineNumStrOfEditLineDialog = mutableCustomStateOf(keyTag = stateKeyTag, keyName = "lineNumStrOfEditLineDialog") { "" }  // this is line number not index, should start from 1
 
-    val truePrependFalseAppendNullReplace = rememberSaveable { mutableStateOf<Boolean?>(null) }
-    val showDelLineDialog = rememberSaveable { mutableStateOf(false) }
-    val trueRestoreFalseReplace = rememberSaveable { mutableStateOf(false) }
+    //因为自定义存储器会把数据存到mutableState里，所以Cache里存的实际不是null，因此可以存null值
+    val truePrependFalseAppendNullReplace = mutableCustomStateOf<Boolean?>(keyTag = stateKeyTag, keyName = "truePrependFalseAppendNullReplace") { null }
+    val showDelLineDialog = mutableCustomStateOf(keyTag = stateKeyTag, keyName = "showDelLineDialog") { false }
+    val trueRestoreFalseReplace = mutableCustomStateOf(keyTag = stateKeyTag, keyName = "trueRestoreFalseReplace") { false }
 
     val initEditLineDialog = {content:String, lineNum:Int, prependOrApendOrReplace:Boolean? ->
         if(lineNum == LineNum.invalidButNotEof){
@@ -263,6 +280,7 @@ fun DiffRow (
                 }
             },
             okBtnText = stringResource(R.string.save),
+            cancelTextColor = MyStyleKt.TextColor.danger(),
             onCancel = {showEditLineDialog.value = false}
         ) {
             showEditLineDialog.value = false
@@ -402,6 +420,8 @@ fun DiffRow (
                 }
             },
             okBtnText = if(trueRestoreFalseReplace.value) stringResource(R.string.restore) else stringResource(R.string.replace),
+            cancelTextColor = MyStyleKt.TextColor.danger(),
+
             onCancel = {showRestoreLineDialog.value = false}
         ) {
             showRestoreLineDialog.value = false
@@ -440,7 +460,7 @@ fun DiffRow (
         }
     }
 
-    val expandedMenu = rememberSaveable { mutableStateOf(false) }
+    val expandedMenu = mutableCustomStateOf(keyTag = stateKeyTag, keyName = "expandedMenu") { false }
 
 
     //用来实现设置行为no matched和all matched
@@ -463,20 +483,20 @@ fun DiffRow (
             newcp.compare(
                 betterCompare = betterCompare,
                 matchByWords = matchByWords,
-                map = indexStringPartListMap.value
+                map = indexStringPartListMap
             )
 
-            comparePairBuffer.value = CompareLinePair()
+            setComparePairBuffer(CompareLinePair())
 
-            reForEachDiffContent()
+//            reForEachDiffContent()
         }
     }
 
     val compareToClipboard = label@{ content:String, line:PuppyLine, trueContentToClipboardFalseClipboardToContent:Boolean ->
-        if(content.isEmpty()) {
-            Msg.requireShowLongDuration(activityContext.getString(R.string.can_t_compare_empty_line))
-            return@label
-        }
+//        if(content.isEmpty()) {
+//            Msg.requireShowLongDuration(activityContext.getString(R.string.can_t_compare_empty_line))
+//            return@label
+//        }
 
         if(line.originType == Diff.Line.OriginType.CONTEXT.toString()) {
             // context line no color, compare clipboard to it show nothing, nonsense
@@ -485,7 +505,7 @@ fun DiffRow (
         }
 
         val clipboardText = getClipboardText(clipboardManager)
-        if(clipboardText.isNullOrEmpty()) {
+        if(clipboardText == null) {
             Msg.requireShowLongDuration(activityContext.getString(R.string.clipboard_is_empty))
             return@label
         }
@@ -522,12 +542,13 @@ fun DiffRow (
             newcp.compare(
                 betterCompare = betterCompare,
                 matchByWords = matchByWords,
-                map = indexStringPartListMap.value
+                map = indexStringPartListMap
             )
 
-            comparePairBuffer.value = CompareLinePair()
+            //和剪贴板比较不需要清空compare pair
+//            setComparePairBuffer(CompareLinePair())
 
-            reForEachDiffContent()
+//            reForEachDiffContent()
         }
 
     }
@@ -547,16 +568,27 @@ fun DiffRow (
 //    prefix = prefix.removeSuffix(Cons.lineBreak)
 //    content = content.removeSuffix(Cons.lineBreak)
 
-    //首行加顶部padding，其余不加，按行分组时，首行若是一对 add/del，两个都会加顶部padding，但看起来感觉并不难受，所以不用改，就这样吧
-    val linePadding = if(index == 0) PaddingValues(top = 5.dp, end = 5.dp) else PaddingValues(end = 5.dp)
+
+
 
     Row(
         modifier = Modifier
+            .then(
+                if (lineClickable) {
+                    Modifier.clickable { expandedMenu.value = true }
+                } else {
+                    Modifier
+                }
+            )
             .fillMaxWidth()
             //如果是经过compare的添加或删除行，背景半透明，然后真修改的内容用不透明，这样就能突出真修改的内容
             //alpha值越大越不透明
-            .background(if (useStringPartList) color.copy(alpha = 0.4f) else color)
-            .padding(linePadding)
+            .background(if (useStringPartList) Libgit2Helper.getMatchedTextBgColorForDiff(inDarkTheme, line) else bgColor)
+            .padding(end = 5.dp)
+
+            //首行加顶部padding，其余不加
+            // x 已经解决，给每个行计算了虚拟的索引，然后就解决了）按行分组时，首行若是一对 add/del，两个都会加顶部padding，但看起来感觉并不难受，所以不用改，就这样吧
+            .addTopPaddingIfIsFirstLine(index)
 //            .background(color)
 //                            .clickable {
 //
@@ -575,22 +607,23 @@ fun DiffRow (
             color = lineNumColor,
             fontSize = lineNumSize.sp,
             fontFamily = FontFamily.Monospace, // 使用系统自带的等宽字体，不然那个+和-不等宽，看着难受
-            modifier = Modifier.clickable {
-                Cache.set(Cache.Key.subPageEditor_filePathKey, fileFullPath)
-                //if jump line is EOF, should go to last line of file, but didn't know the line num, so set line num to a enough big number
-                val goToLine = if(lineNum == LineNum.EOF.TEXT) LineNum.EOF.LINE_NUM else lineNum
-                val initMergeMode = "0"  //能进diff页面说明没冲突，所以mergemode设为0
-                val initReadOnly = "0"  //app内置目录下的文件不可能在diff页面显示，所以在这把readonly设为0即可
-
-                AppModel.subEditorPreviewModeOnWhenDestroy.value = false
-
-                navController.navigate(Cons.nav_SubPageEditor +"/$goToLine"+"/$initMergeMode"+"/$initReadOnly")
-            }
+            modifier = Modifier
+//                .background(MyStyleKt.TextColor.lineNumBgColor(inDarkTheme))
+                .clickable {
+                    openFileWithInnerSubPageEditor(
+                        context = activityContext,
+                        filePath = fileFullPath,
+                        mergeMode = false,
+                        readOnly = false,
+                        //if jump line is EOF, should go to last line of file, but didn't know the line num, so set line num to a enough big number
+                        goToLine = if(lineNum == LineNum.EOF.TEXT) LineNum.EOF.LINE_NUM else line.lineNum
+                    )
+                }
 
                 //这个和changeType加行号(prefix)左边的padding构成完整每行左右padding
                 //如果有前缀，padding小点，否则大点
                 //这个放到clickable后面，这样点击padding区域也可触发onClick
-            .padding(start = (if(prefix.isNotEmpty()) 2.dp else 5.dp))
+                .padding(start = (if(prefix.isNotEmpty()) 2.dp else 5.dp))
 
         )
 
@@ -607,7 +640,7 @@ fun DiffRow (
                         val textNoLineSeparator = if(idx == lastIndex) text.removeSuffix(Cons.lineBreak) else text
 
                         if(it.modified) {  //为修改的内容设置高亮颜色
-                            withStyle(style = SpanStyle(background = color)) {
+                            withStyle(style = SpanStyle(background = bgColor)) {
                                 append(textNoLineSeparator)
                             }
                         }else {  //没修改的内容不用设置颜色，直接用默认的背景色即可
@@ -621,15 +654,8 @@ fun DiffRow (
                 softWrap = true,
                 fontSize = fontSize.sp,
 
-                modifier= Modifier
-                    .fillMaxWidth()
-                    .then(
-                        if (lineClickable) {
-                            Modifier.clickable { expandedMenu.value = true }
-                        } else {
-                            Modifier
-                        }
-                    )
+
+
             )
         }else {
             //文本内容
@@ -639,15 +665,8 @@ fun DiffRow (
                 overflow = TextOverflow.Visible,
                 softWrap = true,
                 fontSize = fontSize.sp,
-                modifier= Modifier
-                    .fillMaxWidth()
-                    .then(
-                        if (lineClickable) {
-                            Modifier.clickable { expandedMenu.value = true }
-                        } else {
-                            Modifier
-                        }
-                    )
+
+
             )
 
         }
@@ -668,7 +687,7 @@ fun DiffRow (
                         onClick ={}
                     )
 
-                    if(enableLineActions) {
+                    if(enableLineEditActions) {
 
                         // EOFNL status maybe wrong, before Edit or Del, must check it actually exists or is not, when edit line num is EOF and EOFNL is not exists, then prepend a LineBreak before users input
                         //编辑或删除前，如果行号是EOF，必须检查EOF NL是否实际存在，如果EOFNL不存在，则先添加一个空行，再写入用户的实际内容，如果执行删除EOF且文件末尾无空行，则不执行任何删除；
@@ -727,28 +746,28 @@ fun DiffRow (
 
 
                     if(enableSelectCompare) {
-                        if(content.isNotEmpty()) {
-                            val cp = comparePairBuffer.value
-                            val line1ready = cp.line1ReadyForCompare()
-                            DropdownMenuItem(
-                                // disable compare for same line number
-                                enabled = content.isNotEmpty() && line.key != cp.line1Key,
-                                text = { Text(
-                                    if(line1ready) replaceStringResList(stringResource(R.string.compare_to_origintype_linenum), listOf(cp.line1OriginType + cp.line1Num))
-                                    else { stringResource(R.string.select_compare) }
-                                )},
-                                onClick = label@{
-                                    expandedMenu.value = false
+                        val cp = getComparePairBuffer()
+                        val line1ready = cp.line1ReadyForCompare()
+                        //这里不需要判断content.isNotEmpty()，因为只有eof才空，而eof会禁用此菜单项，所以只要显示此菜单项，就必定非eof非空字符串
+                        DropdownMenuItem(
+                            // disable compare for same line number
+                            enabled = line.key != cp.line1Key,
+                            text = { Text(
+                                if(line1ready) replaceStringResList(stringResource(R.string.compare_to_origintype_linenum), listOf(cp.line1OriginType + cp.line1Num))
+                                else { stringResource(R.string.select_compare) }
+                            )},
+                            onClick = label@{
+                                expandedMenu.value = false
 
-                                    if(content.isEmpty()) {
-                                        Msg.requireShow(activityContext.getString(R.string.can_t_compare_empty_line))
-                                        return@label
-                                    }
+//                                if(content.isEmpty()) {
+//                                    Msg.requireShow(activityContext.getString(R.string.can_t_compare_empty_line))
+//                                    return@label
+//                                }
 
-                                    if(line1ready) {
+                                if(line1ready) {
 
-                                        // (20241114 change to no check, force re-compare, cause sometimes, maybe "a compare to b" has difference result with "b compare to a")
-                                        // same line num already compared in normal procudure
+                                    // (20241114 change to no check, force re-compare, cause sometimes, maybe "a compare to b" has difference result with "b compare to a")
+                                    // same line num already compared in normal procudure
 //                                    if(line.lineNum == cp.line1Num && (
 //                                                (line.originType == OriginType.ADDITION.toString() && cp.line1OriginType == OriginType.DELETION.toString())
 //                                                        ||  (line.originType == OriginType.DELETION.toString() && cp.line1OriginType == OriginType.ADDITION.toString())
@@ -758,88 +777,91 @@ fun DiffRow (
 //                                        return@label
 //                                    }
 
-                                        // both are CONTEXT
-                                        if(line.originType == Diff.Line.OriginType.CONTEXT.toString() && cp.line1OriginType == line.originType) {
-                                            Msg.requireShow(activityContext.getString(R.string.can_t_compare_both_context_type_lines))
-                                            return@label
-                                        }
-
-                                        cp.line2 = content
-                                        cp.line2Num = line.lineNum
-                                        cp.line2OriginType = line.originType
-                                        cp.line2Key = line.key
-
-                                        Msg.requireShow(activityContext.getString(R.string.comparing))
-
-                                        doJobThenOffLoading {
-                                            cp.compare(
-                                                betterCompare = betterCompare,
-                                                matchByWords = matchByWords,
-                                                map = indexStringPartListMap.value
-                                            )
-
-                                            // clear buffer
-                                            comparePairBuffer.value = CompareLinePair()
-
-                                            // re-render view
-                                            reForEachDiffContent()
-                                        }
-
-                                    }else {
-                                        cp.line1 = content
-                                        cp.line1Num = line.lineNum
-                                        cp.line1OriginType = line.originType
-                                        cp.line1Key = line.key
-                                        Msg.requireShow(replaceStringResList(activityContext.getString(R.string.added_line_for_compare), listOf(line.originType+lineNum)) )
+                                    // both are CONTEXT
+                                    if(line.originType == Diff.Line.OriginType.CONTEXT.toString() && cp.line1OriginType == line.originType) {
+                                        Msg.requireShow(activityContext.getString(R.string.can_t_compare_both_context_type_lines))
+                                        return@label
                                     }
 
+                                    cp.line2 = content
+                                    cp.line2Num = line.lineNum
+                                    cp.line2OriginType = line.originType
+                                    cp.line2Key = line.key
+
+                                    Msg.requireShow(activityContext.getString(R.string.comparing))
+
+                                    doJobThenOffLoading {
+                                        cp.compare(
+                                            betterCompare = betterCompare,
+                                            matchByWords = matchByWords,
+                                            map = indexStringPartListMap
+                                        )
+
+                                        // clear buffer
+                                        setComparePairBuffer(CompareLinePair())
+
+                                        // re-render view
+//                                        reForEachDiffContent()
+                                    }
+
+                                }else {
+                                    cp.line1 = content
+                                    cp.line1Num = line.lineNum
+                                    cp.line1OriginType = line.originType
+                                    cp.line1Key = line.key
+                                    Msg.requireShow(replaceStringResList(activityContext.getString(R.string.added_line_for_compare), listOf(line.originType+lineNum)) )
                                 }
-                            )
+
+                            }
+                        )
 
 
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.compare_to_clipboard)+" ->")},
-                                onClick = {
-                                    expandedMenu.value = false
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.compare_to_clipboard)+" ->")},
+                            onClick = {
+                                expandedMenu.value = false
 
-                                    compareToClipboard(content, line, true)
-                                }
-                            )
+                                compareToClipboard(content, line, true)
+                            }
+                        )
 
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.compare_to_clipboard)+" <-")},
-                                onClick = {
-                                    expandedMenu.value = false
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.compare_to_clipboard)+" <-")},
+                            onClick = {
+                                expandedMenu.value = false
 
-                                    compareToClipboard(content, line, false)
-                                }
-                            )
-                        }
+                                compareToClipboard(content, line, false)
+                            }
+                        )
 
 
-                        if(comparePairBuffer.value.isEmpty().not()) {
+                        if(getComparePairBuffer().isEmpty().not()) {
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.clear_compare))},
                                 onClick = {
                                     expandedMenu.value = false
 
-                                    comparePairBuffer.value = CompareLinePair()
+                                    setComparePairBuffer(CompareLinePair())
                                 }
                             )
                         }
                     }
 
-                    DropdownMenuItem(
-                        text = { Text(stringResource(R.string.copy))},
-                        onClick = {
-                            clipboardManager.setText(AnnotatedString(content))
-                            Msg.requireShow(activityContext.getString(R.string.copied))
+                    if(enableLineCopy) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.copy))},
+                            onClick = {
+                                clipboardManager.setText(AnnotatedString(content))
+                                Msg.requireShow(activityContext.getString(R.string.copied))
 
-                            expandedMenu.value = false
-                        }
-                    )
+                                expandedMenu.value = false
+                            }
+                        )
+                    }
 
-                    if(AppModel.devModeOn) {
+                    //开发者选项，一般用不到
+                    if(DevFeature.showMatchedAllAtDiff.state.value) {
+                        //让选中行变成无匹配的状态的颜色（对空行无效）
                         DropdownMenuItem(
                             text = { Text(DevFeature.setDiffRowToNoMatched)},
                             onClick = {
@@ -850,6 +872,7 @@ fun DiffRow (
                             }
                         )
 
+                        //让选中行变成完全匹配的状态的颜色
                         DropdownMenuItem(
                             text = { Text(DevFeature.setDiffRowToAllMatched)},
                             onClick = {

@@ -108,7 +108,7 @@ abstract class NotifyBase(
         val context = context ?: appContext
 
         val builder = NotificationCompat.Builder(context, channelId)
-            .setSmallIcon(R.drawable.branch) // 替换为您的图标
+            .setSmallIcon(R.drawable.dog_head) // 替换为您的图标
             .setContentTitle(title)
             .setContentText(message)
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)

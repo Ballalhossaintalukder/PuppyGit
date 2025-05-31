@@ -29,7 +29,7 @@ import com.catpuppyapp.puppygit.utils.state.CustomStateSaveable
 @Composable
 fun FilesPageActions(
     isFileChooser:Boolean,
-    showCreateFileOrFolderDialog: MutableState<Boolean>,
+//    showCreateFileOrFolderDialog: MutableState<Boolean>,
     refreshPage: () -> Unit,
     filterOn: () -> Unit,
     filesPageGetFilterMode:()->Int,
@@ -39,7 +39,7 @@ fun FilesPageActions(
     filesPageSimpleFilterKeyWord:CustomStateSaveable<TextFieldValue>
 ) {
 
-    val dropDownMenuExpendState = rememberSaveable { mutableStateOf(false)}
+    val dropDownMenuExpandState = rememberSaveable { mutableStateOf(false) }
 
 
     if(!filesPageSimpleFilterOn.value) { //没filter的常规模式或显示filter结果模式
@@ -78,22 +78,22 @@ fun FilesPageActions(
             iconContentDesc = stringResource(R.string.menu),
             onClick = {
                 //切换菜单展开状态
-                dropDownMenuExpendState.value = !dropDownMenuExpendState.value
+                dropDownMenuExpandState.value = !dropDownMenuExpandState.value
             }
         )
         Row(modifier = Modifier.padding(top = MyStyleKt.TopBar.dropDownMenuTopPaddingSize)) {
             val enableMenuItem = true
             //菜单列表
             DropdownMenu(
-                expanded = dropDownMenuExpendState.value,
-                onDismissRequest = { dropDownMenuExpendState.value = false }
+                expanded = dropDownMenuExpandState.value,
+                onDismissRequest = { dropDownMenuExpandState.value = false }
             ) {
                 DropdownMenuItem(
                     enabled = enableMenuItem,
                     text = { Text(stringResource(R.string.internal_storage)) },
                     onClick = {
                         requestFromParent.value = PageRequest.goToInternalStorage
-                        dropDownMenuExpendState.value = false
+                        dropDownMenuExpandState.value = false
                     }
                 )
                 DropdownMenuItem(
@@ -101,7 +101,7 @@ fun FilesPageActions(
                     text = { Text(stringResource(R.string.external_storage)) },
                     onClick = {
                         requestFromParent.value = PageRequest.goToExternalStorage
-                        dropDownMenuExpendState.value = false
+                        dropDownMenuExpandState.value = false
                     }
                 )
                 if(AppModel.devModeOn) {
@@ -110,7 +110,7 @@ fun FilesPageActions(
                         text = { Text(DevFeature.inner_data_storage) },
                         onClick = {
                             requestFromParent.value = PageRequest.goToInnerDataStorage
-                            dropDownMenuExpendState.value = false
+                            dropDownMenuExpandState.value = false
                         }
                     )
 
@@ -119,7 +119,7 @@ fun FilesPageActions(
                         text = { Text(DevFeature.external_data_storage) },
                         onClick = {
                             requestFromParent.value = PageRequest.goToExternalDataStorage
-                            dropDownMenuExpendState.value = false
+                            dropDownMenuExpandState.value = false
                         }
                     )
                 }
@@ -129,7 +129,7 @@ fun FilesPageActions(
                     text = { Text(stringResource(R.string.copy_full_path)) },
                     onClick = {
                         requestFromParent.value = PageRequest.copyFullPath
-                        dropDownMenuExpendState.value = false
+                        dropDownMenuExpandState.value = false
                     }
                 )
 
@@ -138,7 +138,7 @@ fun FilesPageActions(
                     text = { Text(stringResource(R.string.copy_repo_relative_path)) },
                     onClick = {
                         requestFromParent.value = PageRequest.copyRepoRelativePath
-                        dropDownMenuExpendState.value = false
+                        dropDownMenuExpandState.value = false
                     }
                 )
 
@@ -147,7 +147,7 @@ fun FilesPageActions(
                     text = { Text(stringResource(R.string.go_to)) },
                     onClick = {
                         requestFromParent.value = PageRequest.goToPath
-                        dropDownMenuExpendState.value = false
+                        dropDownMenuExpandState.value = false
                     }
                 )
 
@@ -156,7 +156,7 @@ fun FilesPageActions(
                     text = { Text(stringResource(R.string.view_and_sort)) },
                     onClick = {
                         requestFromParent.value = PageRequest.showViewAndSortMenu
-                        dropDownMenuExpendState.value = false
+                        dropDownMenuExpandState.value = false
                     }
                 )
 
@@ -167,7 +167,7 @@ fun FilesPageActions(
                         text = { Text(stringResource(R.string.import_str)) },
                         onClick = {
                             requestFromParent.value = PageRequest.safImport
-                            dropDownMenuExpendState.value = false
+                            dropDownMenuExpandState.value = false
                         }
                     )
 
@@ -178,7 +178,7 @@ fun FilesPageActions(
                             text = { Text(DevFeature.appendDevPrefix(stringResource(R.string.export))) },
                             onClick = {
                                 requestFromParent.value = PageRequest.safExport
-                                dropDownMenuExpendState.value = false
+                                dropDownMenuExpandState.value = false
                             }
                         )
 
@@ -187,7 +187,7 @@ fun FilesPageActions(
                             text = { Text(DevFeature.safDiff_text) },
                             onClick = {
                                 requestFromParent.value = PageRequest.safDiff
-                                dropDownMenuExpendState.value = false
+                                dropDownMenuExpandState.value = false
                             }
                         )
                     }

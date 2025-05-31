@@ -39,7 +39,7 @@ class RemoteRepositoryImpl(private val dao: RemoteDao) : RemoteRepository {
         try{
             syncRemoteInfoWithGit(remoteFromDb)
         }catch (e:Exception) {
-            MyLog.e(TAG, "#getById err:${e.stackTraceToString()}")
+            MyLog.e(TAG, "#getById err: ${e.stackTraceToString()}")
         }
 
         return remoteFromDb
@@ -66,7 +66,7 @@ class RemoteRepositoryImpl(private val dao: RemoteDao) : RemoteRepository {
         try{
             syncRemoteInfoWithGit(remoteFromDb)
         }catch (e:Exception) {
-            MyLog.e(TAG, "#getByRepoIdAndRemoteName err:${e.stackTraceToString()}")
+            MyLog.e(TAG, "#getByRepoIdAndRemoteName err: ${e.stackTraceToString()}")
         }
 
         //即使同步不了信息，若数据库有，也应返回数据库的对象，要不然用来检查repoId和remoteName的代码就会出错，可能重复插入相同repoId+remoteName

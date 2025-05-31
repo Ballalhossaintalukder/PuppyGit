@@ -281,14 +281,16 @@ class AutomationService: AccessibilityService() {
                             }
 
 
-                            //do pull
-                            val pullIntervalInMillSec = settings.automation.pullIntervalInSec * 1000L
+                            val pullIntervalInSec = settings.automation.pullIntervalInSec
                             //负数将禁用pull
-                            if(pullIntervalInMillSec >= 0L) {
+                            if(pullIntervalInSec >= 0L) {
                                 //离开app后，在一定时间间隔内返回，将不会重复执行pull
                                 val lastLeaveAt = appLeaveTime[packageName] ?: 0L ;
 
+                                //do pull
                                 doJobThenOffLoading pullTask@{
+                                    val pullIntervalInMillSec = pullIntervalInSec * 1000L
+
                                     // pullIntervalInMillSec == 0 代表用户设置的pull间隔为0，无间隔，直接执行
                                     // lastLeaveAt == 0 代表没离开过，初次打开app，这时应该直接执行操作，不用检测间隔
                                     // 减法那个条件是检测时间间隔
@@ -296,6 +298,8 @@ class AutomationService: AccessibilityService() {
                                         pullRepoList(sessionId, settings, repoList)
                                     }
                                 }
+                            }else {
+                                MyLog.d(TAG, "pull interval less than 0, pull canceled")
                             }
                         }else {
                             MyLog.d(TAG, "target packageName '$packageName' opened but no need do pull")
@@ -328,10 +332,11 @@ class AutomationService: AccessibilityService() {
                                     }
 
                                     // do push, one package may bind multi repos, start a coroutine do push for them
-                                    val pushDelayInMillSec = settings.automation.pushDelayInSec * 1000L
+                                    val pushDelayInSec = settings.automation.pushDelayInSec
                                     //负数将禁用push
-                                    if(pushDelayInMillSec >= 0L) {
+                                    if(pushDelayInSec >= 0L) {
                                         doJobThenOffLoading pushTask@{
+                                            val pushDelayInMillSec =  pushDelayInSec * 1000L
                                             var taskCanceled = false
 
                                             //大于0，等待超过延迟时间后再执行操作；若等于0，则不检查，直接跳过这段，执行后面的push
@@ -404,6 +409,8 @@ class AutomationService: AccessibilityService() {
 
                                             }
                                         }
+                                    }else {
+                                        MyLog.d(TAG, "push delay less than 0, push canceled")
                                     }
 
                                 }else {

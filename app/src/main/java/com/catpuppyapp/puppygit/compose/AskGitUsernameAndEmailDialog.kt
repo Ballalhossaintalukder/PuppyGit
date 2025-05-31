@@ -42,7 +42,7 @@ fun AskGitUsernameAndEmailDialog(
 
     AlertDialog(
         title = {
-            Text(title)
+            DialogTitle(title)
         },
         text = {
             ScrollableColumn {

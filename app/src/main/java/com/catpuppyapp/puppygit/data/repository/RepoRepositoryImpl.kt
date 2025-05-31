@@ -386,12 +386,13 @@ class RepoRepositoryImpl(private val dao: RepoDao) : RepoRepository {
         dao.deleteByStorageDirId(storageDirId)
     }
 
-    override suspend fun importRepos(dir: String,
-                                     isReposParent: Boolean,
-                                     repoNamePrefix:String,
-                                     repoNameSuffix:String,
-                                     parentRepoId:String?,
-                                     credentialId:String?,
+    override suspend fun importRepos(
+        dir: String,
+        isReposParent: Boolean,
+        repoNamePrefix:String,
+        repoNameSuffix:String,
+        parentRepoId:String?,
+        credentialId:String?,
 
     ): ImportRepoResult {
         val repos = getAll(updateRepoInfo = false).toMutableList()
@@ -477,12 +478,13 @@ class RepoRepositoryImpl(private val dao: RepoDao) : RepoRepository {
      *  in that case, should pass all repos list to this param;
      *  but if add only 1 repo, needn't this param yet, pass null or ignore is ok
      */
-    private suspend fun importSingleRepo(repo:Repository,
-                                         repoWorkDirPath:String,
-                                         initRepoName:String,
-                                         addRepoToThisListIfSuccess:MutableList<RepoEntity>?=null,
-                                         parentRepoId: String?,
-                                         credentialId:String?,
+    private suspend fun importSingleRepo(
+        repo:Repository,
+        repoWorkDirPath:String,
+        initRepoName:String,
+        addRepoToThisListIfSuccess:MutableList<RepoEntity>?=null,
+        parentRepoId: String?,
+        credentialId:String?,
 
     ):Boolean {
         val funName = "importSingleRepo"
@@ -525,6 +527,8 @@ class RepoRepositoryImpl(private val dao: RepoDao) : RepoRepository {
                 remoteEntity.remoteName = remoteName
                 remoteEntity.repoId = repoEntity.id
 
+                //严格来说应该选两个凭据，一个在fetch时使用，另一个在push时使用，但多数情况fetch/push的url相同，用的凭据也相同，
+                // 所以实现的时候就做成了只能选一个凭据。（导入时选不选凭据其实无所谓，反正之后都可以手动关联）
                 if(credentialId!=null) {
                     remoteEntity.credentialId = credentialId
                     remoteEntity.pushCredentialId = credentialId

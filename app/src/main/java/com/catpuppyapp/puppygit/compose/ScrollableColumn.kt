@@ -7,8 +7,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 
 @Composable
-fun ScrollableColumn(modifier: Modifier=Modifier, content:@Composable ()->Unit) {
-    Column(modifier = modifier.verticalScroll(rememberScrollState())) {
+fun ScrollableColumn(content:@Composable ()->Unit) {
+    Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
         content()
     }
 }

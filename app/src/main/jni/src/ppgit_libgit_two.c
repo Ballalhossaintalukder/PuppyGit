@@ -18,21 +18,26 @@ JNIEXPORT jstring JNICALL J_MAKE_METHOD(LibgitTwo_hello)(JNIEnv *env, jclass typ
 
 
 /*  辅助方法 start */
+//这个需要释放本地引用，最好释放，不释放应该也会自动释放，但自己控制更好，避免自动释放太慢导致变量表占满
 static jclass findClass(JNIEnv *env, const char *name) {
     jclass localClass = (*env)->FindClass(env, name);
     if (!localClass) {
         ALOGE("Failed to find class '%s'", name);
         abort();
     }
-    jclass globalClass = (*env)->NewGlobalRef(env, localClass);
-    (*env)->DeleteLocalRef(env, localClass);
-    if (!globalClass) {
-        ALOGE("Failed to create a global reference for '%s'", name);
-        abort();
-    }
-    return globalClass;
+    return localClass;
+
+    //如果启用，每次调用此方法都会创建全局引用，若不释放，浪费内存，而且全局引用有数量限制，满了再建就报错了
+//    jclass globalClass = (*env)->NewGlobalRef(env, localClass);
+//    (*env)->DeleteLocalRef(env, localClass);
+//    if (!globalClass) {
+//        ALOGE("Failed to create a global reference for '%s'", name);
+//        abort();
+//    }
+//    return globalClass;
 }
 
+//这个不需要释放
 static jfieldID findField(JNIEnv *env, jclass clazz, const char *name, const char *signature) {
     jfieldID field = (*env)->GetFieldID(env, clazz, name, signature);
     if (!field) {
@@ -42,6 +47,7 @@ static jfieldID findField(JNIEnv *env, jclass clazz, const char *name, const cha
     return field;
 }
 
+//这个不需要释放
 static jmethodID findMethod(JNIEnv *env, jclass clazz, const char *name, const char *signature) {
     jmethodID method = (*env)->GetMethodID(env, clazz, name, signature);
     if (!method) {
@@ -80,8 +86,7 @@ static void throwException(JNIEnv *env, jclass exceptionClass, jmethodID constru
 static jclass getLibgitTwoExceptionClass(JNIEnv *env) {
     static jclass exceptionClass = NULL;
     if (!exceptionClass) {
-        exceptionClass = findClass(env,
-                                   "com/catpuppyapp/puppygit/jni/LibGitTwoException");
+        exceptionClass = findClass(env, J_CLZ_PREFIX "LibGitTwoException");
     }
     return exceptionClass;
 }
@@ -320,15 +325,17 @@ void bytesToHexString(const unsigned char *bytes, size_t length, char *hexString
     hexString[length * 2] = '\0'; // 确保字符串以 null 结尾
 }
 
+
 /**
  * see: https://libgit2.org/libgit2/#v1.7.2/type/git_cert_hostkey
  */
 jobject createSshCert(git_cert_hostkey *certHostKey, jstring hostname, JNIEnv *env) {
     // 获取 SshCert 类
-    jclass sshCertClass = (*env)->FindClass(env, J_CLZ_PREFIX "SshCert");
+    jclass sshCertClass = findClass(env, J_CLZ_PREFIX "SshCert");
+
 
     // 获取构造函数
-    jmethodID constructor = (*env)->GetMethodID(env, sshCertClass, "<init>", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V");
+    jmethodID constructor = findMethod(env, sshCertClass, "<init>", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V");
 
     // 每个字节需要2个字符 + 1 个 null 终止符('\0')
     char *md5Str[16*2+1];
@@ -370,6 +377,7 @@ jobject createSshCert(git_cert_hostkey *certHostKey, jstring hostname, JNIEnv *e
             (*env)->NewStringUTF(env, (const char *) hostKeyStr)
     );
 
+    (*env)->DeleteLocalRef(env, sshCertClass);
 
     return sshCertObject;
 }
@@ -387,3 +395,181 @@ JNIEXPORT jobject JNICALL J_MAKE_METHOD(LibgitTwo_jniGetDataOfSshCert)(JNIEnv *e
     }
 
 }
+
+
+JNIEXPORT jint JNICALL J_MAKE_METHOD(LibgitTwo_jniSaveBlobToPath)(JNIEnv *env, jclass callerJavaClass, jlong blobPtr, jstring savePath)
+{
+    git_blob* blob = (git_blob *)blobPtr;
+
+    // 字节流
+    //这blob data不用释放文档说的：“this pointer is owned internally by the object and shall not be free'd” ,
+    // 参见：https://libgit2.org/docs/reference/main/blob/git_blob_rawcontent.html
+    const char* blob_data = git_blob_rawcontent(blob);
+    size_t blob_size = git_blob_rawsize(blob);
+
+    //转换路径为c字符串
+    char* c_savePath = j_copy_of_jstring(env, savePath, true);
+    if(c_savePath == NULL) {
+        free(c_savePath);
+        return -1;
+    }
+
+    //写入文件
+    FILE *output_file = fopen(c_savePath, "wb");
+    fwrite(blob_data, 1, blob_size, output_file);
+
+
+    // clean up
+    fclose(output_file);
+    free(c_savePath);
+
+    return 0;
+}
+
+JNIEXPORT jlongArray JNICALL J_MAKE_METHOD(LibgitTwo_jniGetStatusEntryRawPointers)(JNIEnv *env, jclass obj, jlong statusListPtr) {
+    git_status_list* listPtr = (git_status_list *)statusListPtr;
+    size_t length = git_status_list_entrycount(listPtr);
+
+    // create jlongArray
+    jlongArray resultArray = (*env)->NewLongArray(env, length);
+    if (resultArray == NULL) {
+        return NULL; // mem assign failed
+    }
+
+    jsize jlongSize = sizeof(jlong);
+
+    for(int i=0; i < length; i++) {
+        (*env)->SetLongArrayRegion(env, resultArray, i, jlongSize, git_status_byindex(listPtr, i));
+    }
+
+    // 返回数组
+    return resultArray;
+}
+
+
+
+jobject createStatusEntryDto(
+        JNIEnv *env,
+        jclass statusEntryDtoClass,
+        jmethodID constructor,
+
+        jstring indexToWorkDirOldFilePath,
+        jstring indexToWorkDirNewFilePath,
+        jstring headToIndexOldFilePath,
+        jstring headToIndexNewFilePath,
+
+        jlong indexToWorkDirOldFileSize,
+        jlong indexToWorkDirNewFileSize,
+        jlong headToIndexOldFileSize,
+        jlong headToIndexNewFileSize,
+
+        jint statusFlag
+) {
+
+    // 创建 StatusEntryDto 对象
+    return (*env)->NewObject(
+            env,
+            statusEntryDtoClass,
+            constructor,
+
+            indexToWorkDirOldFilePath,
+            indexToWorkDirNewFilePath,
+            headToIndexOldFilePath,
+            headToIndexNewFilePath,
+
+            indexToWorkDirOldFileSize,
+            indexToWorkDirNewFileSize,
+            headToIndexOldFileSize,
+            headToIndexNewFileSize,
+
+            statusFlag
+    );
+}
+
+jclass statusEntryDtoClassCache = NULL;
+
+JNIEXPORT jobjectArray JNICALL J_MAKE_METHOD(LibgitTwo_jniGetStatusEntries)(JNIEnv *env, jclass obj, jlong statusListPtr) {
+    git_status_list* listPtr = (git_status_list *)statusListPtr;
+    size_t length = git_status_list_entrycount(listPtr);
+
+    // 获取 StatusEntryDto 类的引用
+    jclass statusEntryDtoClass = findClass(env, J_CLZ_PREFIX "StatusEntryDto");
+
+    // 获取构造函数 ID
+    jmethodID constructor = findMethod(env, statusEntryDtoClass, "<init>", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;JJJJI)V");
+
+    // 创建 StatusEntryDto 对象的数组
+    jobjectArray statusEntryDtoArray = (*env)->NewObjectArray(env, length, statusEntryDtoClass, NULL);
+    if (statusEntryDtoArray == NULL) {
+        return NULL; // 数组创建失败
+    }
+
+
+
+
+
+    //填充数组
+    for(int i=0; i < length; i++) {
+        git_status_entry* entry = git_status_byindex(listPtr, i);
+
+        // 如果光查 index to worktree，那head to index就是NULL，反之亦然
+        git_diff_delta * head2IndexDelta = entry->head_to_index;
+        git_diff_delta * index2WorkDirDelta = entry->index_to_workdir;
+
+        jstring index2WorkDirDeltaOldFilePath = NULL;
+        jstring index2WorkDirDeltaNewFilePath = NULL;
+        jlong index2WorkDirDeltaOldFileSize = 0;
+        jlong index2WorkDirDeltaNewFileSize = 0;
+        if(index2WorkDirDelta != NULL) {
+            index2WorkDirDeltaOldFilePath = (*env)->NewStringUTF(env, index2WorkDirDelta->old_file.path);
+            index2WorkDirDeltaNewFilePath = (*env)->NewStringUTF(env, index2WorkDirDelta->new_file.path);
+            index2WorkDirDeltaOldFileSize = index2WorkDirDelta->old_file.size;
+            index2WorkDirDeltaNewFileSize = index2WorkDirDelta->new_file.size;
+        }
+
+        jstring head2IndexDeltaOldFilePath = NULL;
+        jstring head2IndexDeltaNewFilePath = NULL;
+        jlong head2IndexDeltaOldFileSize = 0;
+        jlong head2IndexDeltaNewFileSize = 0;
+        if(head2IndexDelta != NULL) {
+            head2IndexDeltaOldFilePath = (*env)->NewStringUTF(env, head2IndexDelta->old_file.path);
+            head2IndexDeltaNewFilePath = (*env)->NewStringUTF(env, head2IndexDelta->new_file.path);
+            head2IndexDeltaOldFileSize = head2IndexDelta->old_file.size;
+            head2IndexDeltaNewFileSize = head2IndexDelta->new_file.size;
+        }
+
+
+        (*env)->SetObjectArrayElement(
+                env,
+                statusEntryDtoArray,
+                i,
+                createStatusEntryDto(
+                    env,
+                    statusEntryDtoClass,
+                    constructor,
+
+                    index2WorkDirDeltaOldFilePath,
+                    index2WorkDirDeltaNewFilePath,
+                    head2IndexDeltaOldFilePath,
+                    head2IndexDeltaNewFilePath,
+
+                    index2WorkDirDeltaOldFileSize,
+                    index2WorkDirDeltaNewFileSize,
+                    head2IndexDeltaOldFileSize,
+                    head2IndexDeltaNewFileSize,
+
+                    entry->status
+                )
+        );
+
+    }
+
+    (*env)->DeleteLocalRef(env, statusEntryDtoClass);
+
+    //构造器属于method，method和field都不用释放，若释放会报错
+//    (*env)->DeleteLocalRef(env, constructor);
+
+    // 返回数组
+    return statusEntryDtoArray;
+}
+

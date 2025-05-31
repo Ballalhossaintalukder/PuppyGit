@@ -23,21 +23,18 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableIntState
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import com.catpuppyapp.puppygit.style.MyStyleKt
 import com.catpuppyapp.puppygit.utils.UIHelper
 import com.catpuppyapp.puppygit.utils.isGoodIndexForList
-import com.catpuppyapp.puppygit.utils.state.mutableCustomStateOf
 
-private const val stateKeyTag = "SingleSelectList"
 //下拉单选框，不过好像在弹窗使用会崩溃，可能是谷歌bug(20241003 fixed)
 //@OptIn(ExperimentalFoundationApi::class)
 //@Deprecated("may crashed if use this in dialog")  // 20241003 update: new version of jetpack compose are fixed this bug
@@ -66,7 +63,7 @@ fun<T> SingleSelectList(
 ) {
     val expandDropdownMenu = rememberSaveable { mutableStateOf(false) }
 
-    val containerSize = mutableCustomStateOf(stateKeyTag, "containerSize") { IntSize.Zero }
+    val containerSize = remember { mutableStateOf(IntSize.Zero) }
 
     Card(
         //0.9f 占父元素宽度的百分之90

@@ -2,6 +2,7 @@ package com.catpuppyapp.puppygit.compose
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -15,7 +16,6 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.MutableState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -40,10 +40,11 @@ fun LoadMore(
     enableLoadMore:Boolean=true,
     enableAndShowLoadToEnd:Boolean=true,
     loadToEndOnClick:()->Unit={},
-    pageSize:MutableState<Int>,
-    rememberPageSize:MutableState<Boolean>,
-    showSetPageSizeDialog:MutableState<Boolean>,
-    pageSizeForDialog:MutableState<String>,
+//    pageSize:MutableState<Int>,
+//    rememberPageSize:MutableState<Boolean>,
+//    showSetPageSizeDialog:MutableState<Boolean>,
+//    pageSizeForDialog:MutableState<String>,
+    initSetPageSizeDialog:()->Unit,
     btnUpsideText:String?=null, // text at upside of buttons, usually show count of items etc...
     onClick:()->Unit
 ) {
@@ -55,6 +56,8 @@ fun LoadMore(
 
     val buttonHeight = 50
 
+    // 文字的padding，避免太靠近卡片内部边缘
+    val textLineModifier = Modifier.padding(horizontal = 10.dp)
 
 
     Column(modifier= Modifier
@@ -91,38 +94,47 @@ fun LoadMore(
                 )
 
             ) {
-                Row(
+                Box(
                     modifier = Modifier
-                        .fillMaxWidth(.85f)
+                        .fillMaxWidth()
                         .height(buttonHeight.dp)
                     ,
 
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(text = text,
-                        color = if(enableLoadMore) MyStyleKt.TextColor.enable else if(inDarkTheme) MyStyleKt.TextColor.disable_DarkTheme else MyStyleKt.TextColor.disable
-                    )
+                    Row (
+                        modifier = textLineModifier.align(Alignment.Center),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(text = text,
+                            color = if(enableLoadMore) MyStyleKt.TextColor.enable else if(inDarkTheme) MyStyleKt.TextColor.disable_DarkTheme else MyStyleKt.TextColor.disable
+                        )
+                    }
+
+
+                    Row(
+                        modifier = Modifier.align(Alignment.CenterEnd).padding(end = 10.dp),
+                    ) {
+                        LongPressAbleIconBtn(
+                            tooltipText = stringResource(R.string.set_page_size),
+                            icon =  Icons.Filled.Settings,
+                            iconContentDesc = stringResource(R.string.set_page_size),
+                        ) {
+                            initSetPageSizeDialog()
+                        }
+                    }
                 }
 
             }
 
 
-            LongPressAbleIconBtn(
-                tooltipText = stringResource(R.string.set_page_size),
-                icon =  Icons.Filled.Settings,
-                iconContentDesc = stringResource(R.string.set_page_size),
-//                iconModifier = Modifier.fillMaxWidth(.2f),
-//                enabled = currentPage.intValue>1,
-            ) {
-                pageSizeForDialog.value = ""+pageSize.value
-                showSetPageSizeDialog.value = true
-            }
+
 
         }
 
         if(enableAndShowLoadToEnd) {
             Spacer(modifier = Modifier.height(20.dp))
+
 
             Card(
                 //0.9f 占父元素宽度的百分之90
@@ -140,7 +152,7 @@ fun LoadMore(
 
             ) {
                 Row(
-                    modifier = Modifier
+                    modifier = textLineModifier
                         .fillMaxWidth()
                         .height(buttonHeight.dp)
                     ,
@@ -153,6 +165,7 @@ fun LoadMore(
                 }
 
             }
+
         }
 
         Spacer(modifier = Modifier.height(95.dp))

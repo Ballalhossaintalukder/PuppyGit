@@ -48,11 +48,12 @@ import com.catpuppyapp.puppygit.compose.ConfirmDialog2
 import com.catpuppyapp.puppygit.compose.CredentialSelector
 import com.catpuppyapp.puppygit.compose.DomainCredItem
 import com.catpuppyapp.puppygit.compose.FilterTextField
+import com.catpuppyapp.puppygit.compose.FullScreenScrollableColumn
 import com.catpuppyapp.puppygit.compose.GoToTopAndGoToBottomFab
 import com.catpuppyapp.puppygit.compose.InfoDialog
-import com.catpuppyapp.puppygit.compose.LoadingDialog
 import com.catpuppyapp.puppygit.compose.LongPressAbleIconBtn
 import com.catpuppyapp.puppygit.compose.MyLazyColumn
+import com.catpuppyapp.puppygit.compose.PullToRefreshBox
 import com.catpuppyapp.puppygit.compose.ScrollableColumn
 import com.catpuppyapp.puppygit.compose.ScrollableRow
 import com.catpuppyapp.puppygit.constants.Cons
@@ -66,19 +67,20 @@ import com.catpuppyapp.puppygit.screen.functions.defaultTitleDoubleClick
 import com.catpuppyapp.puppygit.screen.functions.filterModeActuallyEnabled
 import com.catpuppyapp.puppygit.screen.functions.filterTheList
 import com.catpuppyapp.puppygit.screen.functions.triggerReFilter
+import com.catpuppyapp.puppygit.screen.shared.SharedState
 import com.catpuppyapp.puppygit.settings.SettingsUtil
 import com.catpuppyapp.puppygit.style.MyStyleKt
 import com.catpuppyapp.puppygit.utils.AppModel
 import com.catpuppyapp.puppygit.utils.Msg
 import com.catpuppyapp.puppygit.utils.MyLog
+import com.catpuppyapp.puppygit.utils.cache.Cache
 import com.catpuppyapp.puppygit.utils.changeStateTriggerRefreshPage
 import com.catpuppyapp.puppygit.utils.doJobThenOffLoading
 import com.catpuppyapp.puppygit.utils.state.mutableCustomStateListOf
 import com.catpuppyapp.puppygit.utils.state.mutableCustomStateOf
 
 
-private val TAG = "DomainCredentialListScreen"
-private val stateKeyTag = "DomainCredentialListScreen"
+private const val TAG = "DomainCredentialListScreen"
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -92,6 +94,7 @@ fun DomainCredentialListScreen(
 
     naviUp: () -> Boolean
 ) {
+    val stateKeyTag = Cache.getSubPageKey(TAG)
 
     val homeTopBarScrollBehavior = AppModel.homeTopBarScrollBehavior
     val navController = AppModel.navController
@@ -105,18 +108,18 @@ fun DomainCredentialListScreen(
     val listState = rememberLazyListState()
     val curCredential = mutableCustomStateOf(keyTag = stateKeyTag, keyName = "curCredential", initValue = DomainCredentialDto())
     val needRefresh = rememberSaveable { mutableStateOf("")}
-    val showLoadingDialog = rememberSaveable { mutableStateOf(true)}
+//    val showLoadingDialog = rememberSaveable { mutableStateOf(SharedState.defaultLadingValue)}
 
     val loadingStrRes = stringResource(R.string.loading)
     val loadingText = rememberSaveable { mutableStateOf( loadingStrRes)}
-    val loadingOn = {text:String ->
-        loadingText.value=text
-        showLoadingDialog.value=true
-    }
-    val loadingOff = {
-        showLoadingDialog.value=false
-        loadingText.value=""
-    }
+//    val loadingOn = {text:String ->
+//        loadingText.value=text
+//        showLoadingDialog.value=true
+//    }
+//    val loadingOff = {
+//        showLoadingDialog.value=false
+//        loadingText.value=""
+//    }
 
     val remote =mutableCustomStateOf(keyTag = stateKeyTag, keyName = "remote", initValue = RemoteEntity(id=""))
     val curRepo =mutableCustomStateOf(keyTag = stateKeyTag, keyName = "curRepo", initValue = RepoEntity(id=""))
@@ -362,6 +365,24 @@ fun DomainCredentialListScreen(
     val filterLastPosition = rememberSaveable { mutableStateOf(0) }
     val lastPosition = rememberSaveable { mutableStateOf(0) }
 
+    BackHandler {
+        if(filterModeOn.value) {
+            filterModeOn.value = false
+        } else {
+            naviUp()
+        }
+    }
+
+
+    val isInitLoading = rememberSaveable { mutableStateOf(SharedState.defaultLoadingValue) }
+    val initLoadingOn = { msg:String ->
+        isInitLoading.value = true
+    }
+    val initLoadingOff = {
+        isInitLoading.value = false
+    }
+
+
     Scaffold(
         modifier = Modifier.nestedScroll(homeTopBarScrollBehavior.nestedScrollConnection),
         topBar = {
@@ -487,86 +508,93 @@ fun DomainCredentialListScreen(
         }
     ) { contentPadding ->
 
-        if(showBottomSheet.value) {
-            BottomSheet(showBottomSheet, sheetState, curCredential.value.domain) {
-                //改成在关联页面有这个功能了，在这就不显示了
-    //            BottomSheetItem(sheetState=sheetState, showBottomSheet=showBottomSheet, text=stringResource(R.string.unlink_all)){
-    //                //显示弹窗，询问将会与所有remotes解除关联，是否确定？
-    //            }
+        PullToRefreshBox(
+            contentPadding = contentPadding,
+            onRefresh = { changeStateTriggerRefreshPage(needRefresh) }
+        ) {
 
-                BottomSheetItem(sheetState=sheetState, showBottomSheet=showBottomSheet, text=stringResource(R.string.delete), textColor = MyStyleKt.TextColor.danger()){
-                    showDeleteDialog.value=true
+            if(showBottomSheet.value) {
+                BottomSheet(showBottomSheet, sheetState, curCredential.value.domain) {
+                    //改成在关联页面有这个功能了，在这就不显示了
+                    //            BottomSheetItem(sheetState=sheetState, showBottomSheet=showBottomSheet, text=stringResource(R.string.unlink_all)){
+                    //                //显示弹窗，询问将会与所有remotes解除关联，是否确定？
+                    //            }
+
+                    BottomSheetItem(sheetState=sheetState, showBottomSheet=showBottomSheet, text=stringResource(R.string.delete), textColor = MyStyleKt.TextColor.danger()){
+                        showDeleteDialog.value=true
+                    }
                 }
+
             }
 
-        }
 
-        if (showLoadingDialog.value) {
-            LoadingDialog(text = loadingText.value)  //这个东西太阴间了，还是用LoadingText吧
-//
-//            LoadingText(text = loadingText.value,contentPadding = contentPadding)
+//            if (showLoadingDialog.value) {
+//                LoadingDialog(text = loadingText.value)  //这个东西太阴间了，还是用LoadingText吧
+//            }
 
-        }else {
 
-            //根据关键字过滤条目
-            val keyword = filterKeyword.value.text.lowercase()  //关键字
-            val enableFilter = filterModeActuallyEnabled(filterModeOn.value, keyword)
 
-            val lastNeedRefresh = rememberSaveable { mutableStateOf("") }
-            val list = filterTheList(
-                needRefresh = filterResultNeedRefresh.value,
-                lastNeedRefresh = lastNeedRefresh,
-                enableFilter = enableFilter,
-                keyword = keyword,
-                lastKeyword = lastKeyword,
-                searching = searching,
-                token = token,
-                activityContext = activityContext,
-                filterList = filterList.value,
-                list = list.value,
-                resetSearchVars = resetSearchVars,
-                match = { idx:Int, it: DomainCredentialDto ->
-                    it.domain.lowercase().contains(keyword) || (it.credName?.lowercase()?.contains(keyword) == true)
+            if(list.value.isEmpty()) {
+                FullScreenScrollableColumn(contentPadding) {
+                    Text(stringResource(if(isInitLoading.value) R.string.loading else R.string.item_list_is_empty))
                 }
-            )
+            }else {
 
-            val listState = if(enableFilter) filterListState else listState
+                //根据关键字过滤条目
+                val keyword = filterKeyword.value.text.lowercase()  //关键字
+                val enableFilter = filterModeActuallyEnabled(filterModeOn.value, keyword)
+
+                val lastNeedRefresh = rememberSaveable { mutableStateOf("") }
+                val list = filterTheList(
+                    needRefresh = filterResultNeedRefresh.value,
+                    lastNeedRefresh = lastNeedRefresh,
+                    enableFilter = enableFilter,
+                    keyword = keyword,
+                    lastKeyword = lastKeyword,
+                    searching = searching,
+                    token = token,
+                    activityContext = activityContext,
+                    filterList = filterList.value,
+                    list = list.value,
+                    resetSearchVars = resetSearchVars,
+                    match = { idx:Int, it: DomainCredentialDto ->
+                        it.domain.lowercase().contains(keyword) || (it.credName?.lowercase()?.contains(keyword) == true)
+                    }
+                )
+
+                val listState = if(enableFilter) filterListState else listState
 //            if(enableFilter) {  //更新filter列表state
 //                filterListState.value = listState
 //            }
-            //更新是否启用filter
-            enableFilterState.value = enableFilter
+                //更新是否启用filter
+                enableFilterState.value = enableFilter
 
-            MyLazyColumn(
-                contentPadding = contentPadding,
-                list = list,
-                listState = listState,
-                requireForEachWithIndex = true,
-                requirePaddingAtBottom = true
-            ) {idx, value->
-                DomainCredItem (showBottomSheet = showBottomSheet, curCredentialState = curCredential, idx = idx, thisItem = value, lastClickedItemKey = lastClickedItemKey) {
-                    initCreateOrEditDialog(
-                        isCreateParam = false,
-                        curDomainNameParam = value.domain,
-                        curDomainCredItemIdParam = value.domainCredId,
-                        curCredentialId=value.credId?:"",
-                        curSshCredentialId=value.sshCredId?:""
-                    )
+                MyLazyColumn(
+                    contentPadding = contentPadding,
+                    list = list,
+                    listState = listState,
+                    requireForEachWithIndex = true,
+                    requirePaddingAtBottom = true
+                ) {idx, value->
+                    DomainCredItem (showBottomSheet = showBottomSheet, curCredentialState = curCredential, idx = idx, thisItem = value, lastClickedItemKey = lastClickedItemKey) {
+                        initCreateOrEditDialog(
+                            isCreateParam = false,
+                            curDomainNameParam = value.domain,
+                            curDomainCredItemIdParam = value.domainCredId,
+                            curCredentialId=value.credId?:"",
+                            curSshCredentialId=value.sshCredId?:""
+                        )
+                    }
+
+                    HorizontalDivider()
+
                 }
-
-                HorizontalDivider()
-
             }
         }
+
     }
 
-    BackHandler {
-        if(filterModeOn.value) {
-            filterModeOn.value = false
-        } else {
-            naviUp()
-        }
-    }
+
 
     //compose创建时的副作用
     LaunchedEffect(needRefresh.value) {
@@ -575,7 +603,9 @@ fun DomainCredentialListScreen(
         // don't use this way to track screen disappearance
         // DisposableEffect is better for this
         try {
-            doJobThenOffLoading(loadingOn = loadingOn, loadingOff = loadingOff, loadingText=activityContext.getString(R.string.loading)) job@{
+//            doJobThenOffLoading(loadingOn = loadingOn, loadingOff = loadingOff, loadingText=activityContext.getString(R.string.loading)) job@{
+            doJobThenOffLoading(initLoadingOn, initLoadingOff) {
+
                 list.value.clear()
                 credentialList.value.clear()
 

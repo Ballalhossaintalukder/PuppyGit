@@ -105,7 +105,7 @@ object SettingsUtil {
                     }
                     errCountLimit--
 
-                    MyLog.e(TAG, "$logTag: write config to settings file err:${e.stackTraceToString()}")
+                    MyLog.e(TAG, "$logTag: write config to settings file err: ${e.stackTraceToString()}")
                 }
             }
 

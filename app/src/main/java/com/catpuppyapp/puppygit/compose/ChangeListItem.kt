@@ -6,10 +6,7 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.MoreVert
@@ -17,7 +14,6 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.IconToggleButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -27,18 +23,14 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
-import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.catpuppyapp.puppygit.constants.Cons
-import com.catpuppyapp.puppygit.dev.proFeatureEnabled
-import com.catpuppyapp.puppygit.dev.treeToTreeBottomBarActAtLeastOneTestPassed
 import com.catpuppyapp.puppygit.git.StatusTypeEntrySaver
 import com.catpuppyapp.puppygit.play.pro.R
 import com.catpuppyapp.puppygit.utils.UIHelper
-import com.catpuppyapp.puppygit.utils.mime.iconRes
 
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -67,6 +59,7 @@ fun ChangeListItem(
 //    val appContext = AppModel.appContext
 //    val haptic = AppModel.haptic
 
+    val activityContext = LocalContext.current
     val itemIsDir = item.itemType == Cons.gitItemTypeDir || item.itemType == Cons.gitItemTypeSubmodule
 
 
@@ -98,15 +91,7 @@ fun ChangeListItem(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Start
     ) {
-        Row(
-            modifier = Modifier
-                .defaultMinSize(minWidth = Dp.Unspecified, minHeight = 50.dp)
-                .padding(5.dp)
-                .fillMaxWidth(.9F),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Start
-
-        ) {
+        ListItemRow{
             //在左侧加个复选框，会影响布局，有缺陷，别用了
 //                                    if(isFileSelectionMode.value) {
 //                                        IconToggleButton(checked = JSONObject(selFilePathListJsonObjStr.value).has(item.name), onCheckedChange = {
@@ -116,7 +101,8 @@ fun ChangeListItem(
 //                                        }
 //                                    }
 
-            IconToggleButton(
+            ListItemToggleButton(
+
 //                enabled = fromTo!=Cons.gitDiffFromTreeToTree,  //diff提交时，禁用点击图标启动长按模式，按钮会变灰色，太难看了，弃用，改成点击后判断是否需要执行操作了，若不需要直接返回
                 checked = isItemInSelected(item),
                 onCheckedChange = cc@{
@@ -124,22 +110,26 @@ fun ChangeListItem(
 //                    }
 
                     // tree to tree页面且底栏功能未测试通过，直接返回，不显示底栏
-                    if(fromTo == Cons.gitDiffFromTreeToTree && !proFeatureEnabled(treeToTreeBottomBarActAtLeastOneTestPassed())) {
-                        return@cc
-                    }
+//                    if(fromTo == Cons.gitDiffFromTreeToTree && !proFeatureEnabled(treeToTreeBottomBarActAtLeastOneTestPassed())) {
+//                        return@cc
+//                    }
 
                     switchItemSelected(item)
 
                 }
             ) {
-                Icon(
-//                    imageVector = Icons.Outlined.InsertDriveFile,
-                    imageVector = if(item.changeType == Cons.gitStatusDeleted) ImageVector.vectorResource(R.drawable.outline_unknown_document_24) else if(itemIsDir) Icons.Filled.Folder else item.getMime().iconRes,
-                    contentDescription = if(item.changeType == Cons.gitStatusDeleted) null else if(itemIsDir) stringResource(R.string.folder_icon) else stringResource(R.string.file_icon)
+                IconOfItem(
+                    fileName = item.fileName,
+                    filePath = item.canonicalPath,
+                    context = activityContext,
+                    //最后的else返回null并不是不显示图片，组件内部会判断若为null则使用mime对应的图标
+                    defaultIconWhenLoadFailed = if(item.changeType == Cons.gitStatusDeleted) ImageVector.vectorResource(R.drawable.outline_unknown_document_24) else if(itemIsDir) Icons.Filled.Folder else null,
+                    contentDescription = if(item.changeType == Cons.gitStatusDeleted) null else if(itemIsDir) stringResource(R.string.folder_icon) else stringResource(R.string.file_icon),
                 )
             }
 
-            Spacer(modifier = Modifier.padding(10.dp))
+            ListItemSpacer()
+
             Column {
                 val changeTypeColor = UIHelper.getChangeTypeColor(item.changeType ?: "")
 
@@ -157,11 +147,11 @@ fun ChangeListItem(
         }
 
         //每个条目都有自己的菜单项，这样有点费资源哈，不过实现起来最简单，如果只用一个菜单项也行，但难点在于把菜单项定位到点菜单按钮的地方
-        val dropDownMenuExpendState = rememberSaveable { mutableStateOf(false) }  // typo: "Expend" should be "Expand"
+        val dropDownMenuExpandState = rememberSaveable { mutableStateOf(false) }  // typo: "Expend" should be "Expand"
 
-        Row {
+        ListItemTrailingIconRow {
             //三点图标
-            IconButton(onClick = { dropDownMenuExpendState.value = true }) {
+            IconButton(onClick = { dropDownMenuExpandState.value = true }) {
                 Icon(
                     imageVector = Icons.Filled.MoreVert,
                     contentDescription = stringResource(R.string.file_or_folder_menu)
@@ -170,8 +160,8 @@ fun ChangeListItem(
 
             //菜单项，open/openAs/showInFiles之类的选项
             DropdownMenu(
-                expanded = dropDownMenuExpendState.value,
-                onDismissRequest = { dropDownMenuExpendState.value = false }
+                expanded = dropDownMenuExpandState.value,
+                onDismissRequest = { dropDownMenuExpandState.value = false }
             ) {
                 for((idx,v) in menuKeyTextList.withIndex()) {
                     if(menuKeyVisibleList.isNotEmpty() && !menuKeyVisibleList[idx](item)) {
@@ -185,7 +175,7 @@ fun ChangeListItem(
                             //调用onClick()
                             menuKeyActList[idx](item)
                             //关闭菜单
-                            dropDownMenuExpendState.value = false
+                            dropDownMenuExpandState.value = false
                         }
                     )
 

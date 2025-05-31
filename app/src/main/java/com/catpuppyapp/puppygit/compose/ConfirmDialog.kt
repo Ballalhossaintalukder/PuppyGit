@@ -33,7 +33,7 @@ fun ConfirmDialog(
             if(requireShowTitleCompose) {
                 titleCompose()
             }else {
-                Text(title)
+                DialogTitle(title)
             }
         },
         text = {
@@ -67,7 +67,7 @@ fun ConfirmDialog(
             ) {
                 Text(
                     text = okBtnText,
-                    color = okTextColor,
+                    color = if(okBtnEnabled) okTextColor else Color.Unspecified,
                 )
             }
         },

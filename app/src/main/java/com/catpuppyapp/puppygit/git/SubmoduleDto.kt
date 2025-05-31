@@ -23,9 +23,12 @@ data class SubmoduleDto (
 
 ) {
     private var otherText:String? = null;
+    private var cachedShortTargetHash:String? = null;
+
+    fun getShortTargetHashCached(): String = cachedShortTargetHash ?: Libgit2Helper.getShortOidStrByFull(targetHash).let { cachedShortTargetHash = it; it }
 
     private fun getClonedText(activityContext:Context):String{
-        return if(cloned) activityContext.getString(R.string.cloned) else activityContext.getString(R.string.not_clone)
+        return activityContext.getString(if(cloned) R.string.cloned else R.string.not_cloned)
     }
 
     fun getStatus(activityContext:Context):String {

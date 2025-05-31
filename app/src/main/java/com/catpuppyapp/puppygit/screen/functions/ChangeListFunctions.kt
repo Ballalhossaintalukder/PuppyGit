@@ -261,7 +261,7 @@ object ChangeListFunctions {
             }
 
             if(ret.hasError()) {  //创建commit失败
-                MyLog.d(TAG, "#doCommit, createCommit failed, has error:"+ret.msg)
+                MyLog.d(TAG, "#doCommit, createCommit failed, has error: "+ret.msg)
 
                 Msg.requireShowLongDuration(ret.msg)
 
@@ -367,7 +367,7 @@ object ChangeListFunctions {
                 //记录到日志
                 //显示提示
                 //保存数据库(给用户看的，消息尽量简单些)
-                showErrAndSaveLog(TAG, "#doFetch() err:"+e.stackTraceToString(), "fetch err:"+e.localizedMessage, requireShowToast, curRepoFromParentPage.id)
+                showErrAndSaveLog(TAG, "#doFetch() err: "+e.stackTraceToString(), "fetch err: "+e.localizedMessage, requireShowToast, curRepoFromParentPage.id)
 
                 return@doFetch false
             }
@@ -492,7 +492,7 @@ object ChangeListFunctions {
             //log
             showErrAndSaveLog(
                 logTag = TAG,
-                logMsg = "#doMerge(trueMergeFalseRebase=$trueMergeFalseRebase) err:"+e.stackTraceToString(),
+                logMsg = "#doMerge(trueMergeFalseRebase=$trueMergeFalseRebase) err: "+e.stackTraceToString(),
                 showMsg = "${if(trueMergeFalseRebase) "merge" else "rebase"} err: "+e.localizedMessage,
                 showMsgMethod = requireShowToast,
                 repoId = curRepoFromParentPage.id,
@@ -512,7 +512,10 @@ object ChangeListFunctions {
         activityContext:Context,
         loadingText:MutableState<String>,
         bottomBarActDoneCallback:(String, RepoEntity)->Unit,
-        dbContainer: AppContainer
+        dbContainer: AppContainer,
+        forcePush_pushWithLease: Boolean = false,
+        forcePush_expectedRefspecForLease:String = "",
+
     ) : Boolean {
         try {
 //            MyLog.d(TAG, "#doPush: start")
@@ -532,9 +535,23 @@ object ChangeListFunctions {
                         return@doPush false
                     }
                 }
+
                 MyLog.d(TAG, "#doPush: upstream.remote="+upstream!!.remote+", upstream.branchFullRefSpec="+upstream!!.branchRefsHeadsFullRefSpec)
 
-                loadingText.value = activityContext.getString(R.string.pushing)
+                //如果是force push with lease，检查下提交是否和期望匹配
+                if(force && forcePush_pushWithLease) {
+                    loadingText.value = activityContext.getString(R.string.checking)
+
+                    Libgit2Helper.forcePushLeaseCheckPassedOrThrow(
+                        repoEntity = curRepoFromParentPage,
+                        repo = repo,
+                        forcePush_expectedRefspecForLease = forcePush_expectedRefspecForLease,
+                        upstream = upstream,
+                    )
+
+                }
+
+                loadingText.value = activityContext.getString(if(force) R.string.force_pushing else R.string.pushing)
 
                 //执行到这里，必定有上游，push
                 val credential = Libgit2Helper.getRemoteCredential(

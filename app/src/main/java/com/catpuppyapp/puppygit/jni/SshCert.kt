@@ -3,9 +3,10 @@ package com.catpuppyapp.puppygit.jni
 import java.util.Base64
 
 
-private val dbStringSplitBy = "#"
+private const val TAG = "SshCert"
 
-private val TAG = "SshCert"
+private const val dbStringSplitBy = "#"
+
 
 data class SshCert(
     var hostname:String="",
