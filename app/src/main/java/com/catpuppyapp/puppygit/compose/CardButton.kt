@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -17,10 +18,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.catpuppyapp.puppygit.style.MyStyleKt
 import com.catpuppyapp.puppygit.ui.theme.Theme
 import com.catpuppyapp.puppygit.utils.UIHelper
 
-
+private const val defaultMinHeight = 50
 
 @Composable
 fun CardButton(
@@ -35,11 +37,10 @@ fun CardButton(
     CardButton(
         modifier = modifier,
         enabled = enabled,
-        buttonHeight = 50,
+        buttonHeight = defaultMinHeight,
         content = {
             Text(
                 text = text,
-                fontWeight = FontWeight.Light,
                 maxLines = 1,
                 softWrap = false,
                 overflow = TextOverflow.Ellipsis,
@@ -92,7 +93,11 @@ fun CardButton(
                         if(buttonHeight != null) {
                             Modifier.height(buttonHeight.dp)
                         }else{
-                            Modifier
+                            //限制最小高度，但最大高度不限，不管内容多长都会完全显示
+                            Modifier.defaultMinSize(minHeight = defaultMinHeight.dp)
+
+                            //固定高度，若内容过长，超过高度，会不显示高度以外的部分
+//                            Modifier.height(defaultMinHeight.dp)
                         }
                     )
                     .padding(5.dp)

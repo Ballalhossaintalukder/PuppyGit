@@ -4,12 +4,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.selection.selectable
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
@@ -18,12 +14,9 @@ import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.catpuppyapp.puppygit.constants.Cons
 import com.catpuppyapp.puppygit.data.entity.RepoEntity
@@ -109,47 +102,26 @@ fun CreateBranchDialog(
     }
     AlertDialog(
         title = {
-            Text(title)
+            DialogTitle(title)
         },
         text = {
             ScrollableColumn {
                 Row(modifier = Modifier.padding(10.dp)) {
                     //Create branch based on: your_cur_branch_name
-                    Text(text = createBranchBasedOn+": ")
+                    Text(text = "$createBranchBasedOn: ")
 
                 }
-                for ((k, optext) in createMethodList.withIndex()) {
-                    //k=1,v=text, optionNumAndText="1: text"
-//                        val optionNumAndText = RadioOptionsUtil.formatOptionKeyAndText(k, v)
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .heightIn(min = MyStyleKt.RadioOptions.minHeight)
-                            .selectable(
-                                selected = selectedOption.intValue == k,
-                                onClick = {
-                                    //更新选择值
-                                    selectedOption.intValue = k
-                                },
-                                role = Role.RadioButton
-                            )
-                            .padding(horizontal = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        RadioButton(
-                            selected = selectedOption.intValue==k,
-                            onClick = null // null recommended for accessibility with screenreaders
-                        )
-                        Text(
-                            text =optext +( if(k==optHEAD) " ($curBranchName)" else ""),
-                            style = MaterialTheme.typography.bodyLarge,
-                            modifier = Modifier.padding(start = 10.dp),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                }
+
+                SingleSelection(
+                    itemList = createMethodList,
+                    selected = {idx, item -> selectedOption.intValue == idx},
+                    text = {idx, item -> item + (if(idx == optHEAD) " ($curBranchName)" else "") },
+                    onClick = {idx, item -> selectedOption.intValue = idx}
+                )
+
                 if(selectedOption.intValue == optCommit) {
+                    Spacer(Modifier.height(5.dp))
+
                     TextField(
                         modifier = Modifier.fillMaxWidth(),
 
@@ -193,6 +165,8 @@ fun CreateBranchDialog(
                         Row {
                             DefaultPaddingText(
                                 text = stringResource(R.string.will_overwrite_if_branch_already_exists),
+                                color = MyStyleKt.TextColor.danger(),
+
                             )
                         }
 

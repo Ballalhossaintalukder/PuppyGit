@@ -16,6 +16,7 @@ import com.catpuppyapp.puppygit.screen.shared.DiffFromScreen
 import com.catpuppyapp.puppygit.screen.shared.FileChooserType
 import com.catpuppyapp.puppygit.screen.shared.IntentHandler
 import com.catpuppyapp.puppygit.utils.AppModel
+import com.catpuppyapp.puppygit.utils.cache.NaviCache
 
 @Composable
 fun AppScreenNavigator() {
@@ -97,12 +98,22 @@ fun AppScreenNavigator() {
             Profile(navController, backStackEntry.arguments?.getString("userId"))
             }
          */
-        composable(Cons.nav_CommitListScreen + "/{repoId}/{useFullOid}/{isHEAD}") {
+        composable(Cons.nav_CommitListScreen + "/{repoId}/{useFullOid}/{isHEAD}/{fullOidCacheKey}/{shortBranchNameCacheKey}") {
+            val fullOidCacheKey = it.arguments?.getString("fullOidCacheKey") ?: ""
+            val shortBranchNameCacheKey = it.arguments?.getString("shortBranchNameCacheKey") ?: ""
+
             CommitListScreen(
                 repoId = it.arguments?.getString("repoId")?:"",
                 useFullOid = it.arguments?.getString("useFullOid") != "0",  //非0就为真
                 isHEAD = it.arguments?.getString("isHEAD") != "0",
-                naviUp = { navController.navigateUp() },
+                fullOidCacheKey = fullOidCacheKey,
+                shortBranchNameCacheKey = shortBranchNameCacheKey,
+                naviUp = {
+                    navController.navigateUp()
+
+                    NaviCache.del(fullOidCacheKey)
+                    NaviCache.del(shortBranchNameCacheKey)
+                },
             )
         }
         composable(Cons.nav_ErrorListScreen + "/{repoId}") {
@@ -113,29 +124,33 @@ fun AppScreenNavigator() {
         }
         composable(Cons.nav_CloneScreen + "/{repoId}") {
             CloneScreen(
-                it.arguments?.getString("repoId"),
+                it.arguments?.getString("repoId") ?: "",
                 naviUp = { navController.navigateUp() },
             )
         }
-//        composable(Cons.nav_DiffScreen + "/{repoId}/{relativePathUnderRepoEncoded}/{fromTo}/{changeType}") {
-        composable(Cons.nav_DiffScreen + "/{repoId}/{fromTo}/{changeType}/{fileSize}/{treeOid1Str}/{treeOid2Str}/{isSubmodule}/{isDiffToLocal}/{curItemIndexAtDiffableList}/{localAtDiffRight}/{fromScreen}") {
+        composable(Cons.nav_DiffScreen + "/{repoId}/{fromTo}/{treeOid1Str}/{treeOid2Str}/{isDiffToLocal}/{curItemIndexAtDiffableList}/{localAtDiffRight}/{fromScreen}/{diffableListCacheKey}/{isMultiMode}") {
+            val diffableListCacheKey = it.arguments?.getString("diffableListCacheKey") ?: ""
+
             DiffScreen(
                 repoId = it.arguments?.getString("repoId") ?: "",
                 fromTo = it.arguments?.getString("fromTo") ?: "",
-                changeType = it.arguments?.getString("changeType") ?: "",
-                fileSize= it.arguments?.getString("fileSize")?.toLong() ?: 0L,
                 treeOid1Str = it.arguments?.getString("treeOid1Str") ?: "",
                 treeOid2Str = it.arguments?.getString("treeOid2Str") ?: "",
-                naviUp = { navController.navigateUp() },
-                isSubmodule = (it.arguments?.getString("isSubmodule")?.toInt() ?: 0) != 0,
                 localAtDiffRight = (it.arguments?.getString("localAtDiffRight")?.toInt() ?: 0) != 0,
                 isDiffToLocal = (it.arguments?.getString("isDiffToLocal")?.toInt() ?: 0) != 0,
                 fromScreen = DiffFromScreen.fromCode(it.arguments?.getString("fromScreen")!!)!!,
+                diffableListCacheKey = diffableListCacheKey,
+                isMultiMode = it.arguments?.getString("isMultiMode") == "1",
                 curItemIndexAtDiffableItemList = try {
                     (it.arguments?.getString("curItemIndexAtDiffableList") ?: "").toInt()
                 }catch (_:Exception) {
                     -1
-                }
+                },
+                naviUp = {
+                    navController.navigateUp()
+
+                    NaviCache.del(diffableListCacheKey)
+                },
 
             )
         }
@@ -175,19 +190,28 @@ fun AppScreenNavigator() {
                 },
             )
         }
-        composable(Cons.nav_TreeToTreeChangeListScreen+"/{repoId}/{commit1OidStr}/{commit2OidStr}/{commitForQueryParents}") {
-//            val commitForQueryParents = it.arguments?.getString("commitForQueryParents") ?: ""
+        composable(Cons.nav_TreeToTreeChangeListScreen+"/{repoId}/{commit1OidStrCacheKey}/{commit2OidStrCacheKey}/{commitForQueryParentsCacheKey}/{titleCacheKey}") {
+            val commit1OidStrCacheKey = it.arguments?.getString("commit1OidStrCacheKey") ?: ""
+            val commit2OidStrCacheKey = it.arguments?.getString("commit2OidStrCacheKey") ?: ""
+            val commitForQueryParentsCacheKey = it.arguments?.getString("commitForQueryParentsCacheKey") ?: ""
+
+            val titleCacheKey = it.arguments?.getString("titleCacheKey") ?: ""
 
             TreeToTreeChangeListScreen(
                 repoId = it.arguments?.getString("repoId") ?: "",
-                commit1OidStr=it.arguments?.getString("commit1OidStr") ?: "",
-                commit2OidStr=it.arguments?.getString("commit2OidStr") ?: "",
+                commit1OidStrCacheKey = commit1OidStrCacheKey,
+                commit2OidStrCacheKey = commit2OidStrCacheKey,
 
                 //若不需要查parents，则传all zero oid在url中占位即可。
-                commitForQueryParents = it.arguments?.getString("commitForQueryParents") ?: "",
-
+                commitForQueryParentsCacheKey = commitForQueryParentsCacheKey,
+                titleCacheKey = titleCacheKey,
                 naviUp = {
                     navController.navigateUp()
+
+                    NaviCache.del(commit1OidStrCacheKey)
+                    NaviCache.del(commit2OidStrCacheKey)
+                    NaviCache.del(commitForQueryParentsCacheKey)
+                    NaviCache.del(titleCacheKey)
                 },
             )
         }
@@ -199,7 +223,9 @@ fun AppScreenNavigator() {
                 },
             )
         }
-        composable(Cons.nav_SubPageEditor+"/{goToLine}/{initMergeMode}/{initReadOnly}") {
+        composable(Cons.nav_SubPageEditor+"/{goToLine}/{initMergeMode}/{initReadOnly}/{filePathKey}") {
+            val filePathKey = it.arguments?.getString("filePathKey") ?: ""
+
             SubPageEditor(
 
                 goToLine = try {
@@ -211,8 +237,10 @@ fun AppScreenNavigator() {
                 initMergeMode = it.arguments?.getString("initMergeMode") == "1",  //传1开启mergeMode，否则关闭
                 initReadOnly = it.arguments?.getString("initReadOnly") == "1",  //传1开启read only，否则关闭
                 editorPageLastFilePath = editorPageLastFilePath,
+                filePathKey=filePathKey,
                 naviUp = {
                     navController.navigateUp()
+                    NaviCache.del(filePathKey)
                 },
             )
         }
@@ -249,11 +277,15 @@ fun AppScreenNavigator() {
             )
         }
 
-        composable(Cons.nav_FileHistoryScreen+"/{repoId}") {
+        composable(Cons.nav_FileHistoryScreen+"/{repoId}/{fileRelativePathKey}") {
+            val fileRelativePathKey = it.arguments?.getString("fileRelativePathKey") ?: ""
+
             FileHistoryScreen(
                 repoId = it.arguments?.getString("repoId") ?: "",
+                fileRelativePathKey = fileRelativePathKey,
                 naviUp = {
                     navController.navigateUp()
+                    NaviCache.del(fileRelativePathKey)
                 },
             )
         }

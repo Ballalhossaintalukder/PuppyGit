@@ -32,7 +32,8 @@ import java.io.File
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun FilesTitle(
-    currentPath: MutableState<String>,
+    currentPath: ()->String,
+    goToPath:(String)->Unit,
     allRepoParentDir: File,
     needRefreshFilesPage: MutableState<String>,
     filesPageGetFilterMode: ()->Int,
@@ -63,8 +64,7 @@ fun FilesTitle(
                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
 
                     //长按标题回到仓库根目录
-                    currentPath.value = allRepoParentDir.canonicalPath
-                    changeStateTriggerRefreshPage(needRefreshFilesPage)
+                    goToPath(allRepoParentDir.canonicalPath)
                 }
             ) {  //onClick
                 requestFromParent.value = PageRequest.requireShowPathDetails
@@ -72,7 +72,7 @@ fun FilesTitle(
         ) {
             ScrollableRow {
                 Text(
-                    text = getFilesScreenTitle(currentPath.value, activityContext),
+                    text = getFilesScreenTitle(currentPath(), activityContext),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     fontSize = MyStyleKt.Title.firstLineFontSize,

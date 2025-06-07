@@ -100,7 +100,7 @@ archs=${2:-$default_archs}
 # set a constant time for make openssl reproducible, see: https://reproducible-builds.org/docs/timestamps/
 # openssl似乎会使用时间戳来干点什么导致输出的so文件hash不同，设这个常量可使openssl或其他依赖时间戳且兼容此环境变量的库输出相同的二进制文件
 # 单位是秒
-export SOURCE_DATE_EPOCH=1734082588
+export SOURCE_DATE_EPOCH=1749296383
 
 for arch in $archs; do
     echo "Current architecture: $arch"

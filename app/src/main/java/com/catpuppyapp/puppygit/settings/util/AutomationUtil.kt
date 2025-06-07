@@ -36,10 +36,11 @@ object AutomationUtil {
 
         return try {
             val repoList = AppModel.dbContainer.repoRepository.getAll(updateRepoInfo = false).filter { bindRepoIds.contains(it.id) }
+            val settings = SettingsUtil.getSettingsSnapshot()
 
             //仅更新有可能用到的仓库的信息
             repoList.forEach {
-                Libgit2Helper.updateRepoInfo(it)
+                Libgit2Helper.updateRepoInfo(it, settings = settings)
             }
 
             repoList

@@ -4,12 +4,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.selection.selectable
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
@@ -17,39 +12,42 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.catpuppyapp.puppygit.constants.Cons
 import com.catpuppyapp.puppygit.data.entity.RepoEntity
+import com.catpuppyapp.puppygit.git.BranchMode
 import com.catpuppyapp.puppygit.play.pro.R
-import com.catpuppyapp.puppygit.style.MyStyleKt
 import com.catpuppyapp.puppygit.utils.Libgit2Helper
 import com.catpuppyapp.puppygit.utils.Msg
 import com.catpuppyapp.puppygit.utils.MyLog
 import com.catpuppyapp.puppygit.utils.StrListUtil
+import com.catpuppyapp.puppygit.utils.cache.Cache
 import com.catpuppyapp.puppygit.utils.createAndInsertError
 import com.catpuppyapp.puppygit.utils.doJobThenOffLoading
 import com.catpuppyapp.puppygit.utils.replaceStringResList
+import com.catpuppyapp.puppygit.utils.state.mutableCustomStateOf
 import com.github.git24j.core.Repository
 
-private val TAG = "SetBranchForRemoteDialog"
-private val stateKeyTag = "SetBranchForRemoteDialog"
+private const val TAG = "SetBranchForRemoteDialog"
 
 @Composable
 fun SetBranchForRemoteDialog(
+    stateKeyTag:String,
     curRepo: RepoEntity,
     remoteName: String,
     isAllInitValue: Boolean,
     onCancel: () -> Unit,
     onOk: (remoteName:String, isAll: Boolean, branchCsvStr: String) -> Unit
 ) {
+    val stateKeyTag = Cache.getComponentKey(stateKeyTag, TAG)
+
     val activityContext = LocalContext.current
-    val isAll = rememberSaveable { mutableStateOf(isAllInitValue)}
+    val selectedOption = mutableCustomStateOf(stateKeyTag, "selectedOption") { if(isAllInitValue) BranchMode.ALL else BranchMode.CUSTOM }
+
 //    val branchList = StateUtil.getCustomSaveableStateList(keyTag = stateKeyTag, keyName = "branchList") {
 //        listOf<String>()
 //    }
@@ -58,7 +56,7 @@ fun SetBranchForRemoteDialog(
 
     AlertDialog(
         title = {
-            Text(text = activityContext.getString(R.string.set_branch_mode))
+            DialogTitle(activityContext.getString(R.string.set_branch_mode))
         },
         text = {
             ScrollableColumn {
@@ -77,57 +75,16 @@ fun SetBranchForRemoteDialog(
 
                 Spacer(modifier = Modifier.height(10.dp))
 
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = MyStyleKt.RadioOptions.minHeight)
+                SingleSelection(
+                    itemList = BranchMode.entries,
+                    selected = {idx, item -> selectedOption.value == item},
+                    text = {idx, item -> activityContext.getString(if(item == BranchMode.ALL) R.string.all else R.string.custom) },
+                    onClick = {idx, item -> selectedOption.value = item}
+                )
 
-                        .selectable(
-                            selected = isAll.value,
-                            onClick = {
-                                isAll.value = true
-                            },
-                            role = Role.RadioButton
-                        )
-                        .padding(horizontal = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    RadioButton(
-                        selected = isAll.value,
-                        onClick = null // null recommended for accessibility with screenreaders
-                    )
-                    Text(
-                        text = activityContext.getString(R.string.all),
-                        style = MaterialTheme.typography.bodyLarge,
-                        modifier = Modifier.padding(start = 10.dp)
-                    )
-                }
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = MyStyleKt.RadioOptions.minHeight)
+                if(selectedOption.value == BranchMode.CUSTOM) {
+                    Spacer(Modifier.height(5.dp))
 
-                        .selectable(
-                            selected = !isAll.value,
-                            onClick = {
-                                isAll.value = false
-                            },
-                            role = Role.RadioButton
-                        )
-                        .padding(horizontal = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    RadioButton(
-                        selected = !isAll.value,
-                        onClick = null // null recommended for accessibility with screenreaders
-                    )
-                    Text(
-                        text = activityContext.getString(R.string.custom),
-                        style = MaterialTheme.typography.bodyLarge,
-                        modifier = Modifier.padding(start = 10.dp)
-                    )
-                }
-                if(!isAll.value) {
                     TextField(
                         modifier = Modifier.fillMaxWidth(),
 
@@ -153,9 +110,10 @@ fun SetBranchForRemoteDialog(
         },
         confirmButton = {
             TextButton(
-                enabled = isAll.value || branchCsvStr.value.isNotBlank(),
-                onClick = { onOk(remoteName, isAll.value, branchCsvStr.value) }) {
-                Text(text = activityContext.getString(R.string.save))
+                enabled = (selectedOption.value == BranchMode.ALL) || branchCsvStr.value.isNotBlank(),
+                onClick = { onOk(remoteName, selectedOption.value == BranchMode.ALL, branchCsvStr.value) }
+            ) {
+                Text(text = stringResource(R.string.save))
             }
         }
     )
@@ -174,7 +132,7 @@ fun SetBranchForRemoteDialog(
                     val (isAllRealValue, branchNameList) = Libgit2Helper.getRemoteFetchBranchList(remote)
 
                     //更新状态变量
-                    isAll.value = isAllRealValue
+                    selectedOption.value = if(isAllRealValue) BranchMode.ALL else BranchMode.CUSTOM
 
                     if (isAllRealValue) {
                         branchCsvStr.value = ""
@@ -187,8 +145,8 @@ fun SetBranchForRemoteDialog(
                 }
 
             } catch (e: Exception) {
-                Msg.requireShowLongDuration("err:" + e.localizedMessage)
-                createAndInsertError(curRepo.id, "err:${e.localizedMessage}")
+                Msg.requireShowLongDuration("err: " + e.localizedMessage)
+                createAndInsertError(curRepo.id, "err: ${e.localizedMessage}")
                 MyLog.e(TAG, "#LaunchedEffect: err: ${e.stackTraceToString()}")
             }
         }

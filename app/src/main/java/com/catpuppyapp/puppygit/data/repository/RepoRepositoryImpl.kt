@@ -23,6 +23,7 @@ import com.catpuppyapp.puppygit.data.entity.RemoteEntity
 import com.catpuppyapp.puppygit.data.entity.RepoEntity
 import com.catpuppyapp.puppygit.etc.Ret
 import com.catpuppyapp.puppygit.git.ImportRepoResult
+import com.catpuppyapp.puppygit.settings.SettingsUtil
 import com.catpuppyapp.puppygit.utils.AppModel
 import com.catpuppyapp.puppygit.utils.Libgit2Helper
 import com.catpuppyapp.puppygit.utils.MyLog
@@ -210,7 +211,7 @@ class RepoRepositoryImpl(private val dao: RepoDao) : RepoRepository {
             return null
         }
 
-        if(onlyReturnReadyRepo && !isRepoReadyAndPathExist(repo)) {
+        if(onlyReturnReadyRepo && repoIsNotReady(repo)) {
             return null
         }
 
@@ -229,8 +230,10 @@ class RepoRepositoryImpl(private val dao: RepoDao) : RepoRepository {
         val list = dao.getAll()
 
         if(updateRepoInfo) {
+            val settings = SettingsUtil.getSettingsSnapshot()
+
             list.forEach {
-                Libgit2Helper.updateRepoInfo(it)
+                Libgit2Helper.updateRepoInfo(it, settings = settings)
             }
         }
 
@@ -242,14 +245,14 @@ class RepoRepositoryImpl(private val dao: RepoDao) : RepoRepository {
         val db = AppModel.dbContainer.db
 
         val remoteForSave = RemoteEntity(
-                                        remoteName = item.pullRemoteName,
-                                        remoteUrl = item.pullRemoteUrl,
-                                        isForPull = Cons.dbCommonTrue,
-                                        isForPush = Cons.dbCommonTrue,
-                                        credentialId = item.credentialIdForClone,
-                                        pushCredentialId = item.credentialIdForClone,
-                                        repoId = item.id,
-                            )
+            remoteName = item.pullRemoteName,
+            remoteUrl = item.pullRemoteUrl,
+            isForPull = Cons.dbCommonTrue,
+            isForPush = Cons.dbCommonTrue,
+            credentialId = item.credentialIdForClone,
+            pushCredentialId = item.credentialIdForClone,
+            repoId = item.id,
+        )
 
         //判断是否是singleBranch模式
         if(dbIntToBool(item.isSingleBranch)) {
@@ -274,15 +277,17 @@ class RepoRepositoryImpl(private val dao: RepoDao) : RepoRepository {
     override suspend fun getAReadyRepo(): RepoEntity? {
         val repos = getAll()
         if(repos.isEmpty()) {
-            return null;
+            return null
         }
+
         for(r in repos) {
-            if (isRepoReadyAndPathExist(r)){
+            if (repoIsReady(r)){
                 Libgit2Helper.updateRepoInfo(r)
 
                 return r
             }
         }
+
         return null;
     }
 
@@ -291,11 +296,14 @@ class RepoRepositoryImpl(private val dao: RepoDao) : RepoRepository {
 
         val repos = getAll()
 
+        val settings = SettingsUtil.getSettingsSnapshot()
+
         for(r in repos) {
-            if (isRepoReadyAndPathExist(r)){
+            if (repoIsReady(r)) {
                 if(requireSyncRepoInfoWithGit) {
-                    Libgit2Helper.updateRepoInfo(r)
+                    Libgit2Helper.updateRepoInfo(r, settings = settings)
                 }
+
                 repoList.add(r)
             }
         }
@@ -386,12 +394,13 @@ class RepoRepositoryImpl(private val dao: RepoDao) : RepoRepository {
         dao.deleteByStorageDirId(storageDirId)
     }
 
-    override suspend fun importRepos(dir: String,
-                                     isReposParent: Boolean,
-                                     repoNamePrefix:String,
-                                     repoNameSuffix:String,
-                                     parentRepoId:String?,
-                                     credentialId:String?,
+    override suspend fun importRepos(
+        dir: String,
+        isReposParent: Boolean,
+        repoNamePrefix:String,
+        repoNameSuffix:String,
+        parentRepoId:String?,
+        credentialId:String?,
 
     ): ImportRepoResult {
         val repos = getAll(updateRepoInfo = false).toMutableList()
@@ -477,12 +486,13 @@ class RepoRepositoryImpl(private val dao: RepoDao) : RepoRepository {
      *  in that case, should pass all repos list to this param;
      *  but if add only 1 repo, needn't this param yet, pass null or ignore is ok
      */
-    private suspend fun importSingleRepo(repo:Repository,
-                                         repoWorkDirPath:String,
-                                         initRepoName:String,
-                                         addRepoToThisListIfSuccess:MutableList<RepoEntity>?=null,
-                                         parentRepoId: String?,
-                                         credentialId:String?,
+    private suspend fun importSingleRepo(
+        repo:Repository,
+        repoWorkDirPath:String,
+        initRepoName:String,
+        addRepoToThisListIfSuccess:MutableList<RepoEntity>?=null,
+        parentRepoId: String?,
+        credentialId:String?,
 
     ):Boolean {
         val funName = "importSingleRepo"
@@ -525,6 +535,8 @@ class RepoRepositoryImpl(private val dao: RepoDao) : RepoRepository {
                 remoteEntity.remoteName = remoteName
                 remoteEntity.repoId = repoEntity.id
 
+                //严格来说应该选两个凭据，一个在fetch时使用，另一个在push时使用，但多数情况fetch/push的url相同，用的凭据也相同，
+                // 所以实现的时候就做成了只能选一个凭据。（导入时选不选凭据其实无所谓，反正之后都可以手动关联）
                 if(credentialId!=null) {
                     remoteEntity.credentialId = credentialId
                     remoteEntity.pushCredentialId = credentialId
@@ -567,6 +579,11 @@ class RepoRepositoryImpl(private val dao: RepoDao) : RepoRepository {
         dao.updateRepoName(repoId, name)
     }
 
+    private fun repoIsReady(repoEntity: RepoEntity?): Boolean {
+        return isRepoReadyAndPathExist(repoEntity)
+    }
+
+    private fun repoIsNotReady(repoEntity: RepoEntity?) = repoIsReady(repoEntity).not();
 
     /*
         suspend fun exampleWithTransaction(){

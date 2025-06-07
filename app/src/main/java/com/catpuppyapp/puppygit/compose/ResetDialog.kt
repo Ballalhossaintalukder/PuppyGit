@@ -1,16 +1,9 @@
 package com.catpuppyapp.puppygit.compose
 
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.selection.selectable
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
@@ -18,16 +11,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.catpuppyapp.puppygit.play.pro.R
 import com.catpuppyapp.puppygit.style.MyStyleKt
-import com.catpuppyapp.puppygit.utils.AppModel
 import com.catpuppyapp.puppygit.utils.Libgit2Helper
 import com.catpuppyapp.puppygit.utils.Msg
 import com.catpuppyapp.puppygit.utils.createAndInsertError
@@ -62,7 +52,7 @@ fun ResetDialog(
 
     AlertDialog(
         title = {
-            Text(text = stringResource(id = R.string.reset))
+            DialogTitle(stringResource(R.string.reset))
         },
         text = {
             ScrollableColumn {
@@ -84,52 +74,31 @@ fun ResetDialog(
 
                 }
 
-                for ((k, optext) in optList.withIndex()) {
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .heightIn(min = MyStyleKt.RadioOptions.minHeight)
+                SingleSelection(
+                    itemList = optList,
+                    selected = {idx, item -> selectedOpt.intValue == idx},
+                    text = {idx, item -> item},
+                    itemDescContext = {idx, item ->
+                        val desc = if(idx == optSoft) {
+                            activityContext.getString(R.string.reset_head)
+                        }else if(idx == optMixed) {
+                            activityContext.getString(R.string.reset_head_index)
+                        }else if(idx == optHard){
+                            activityContext.getString(R.string.reset_head_index_worktree)
+                        } else {
+                            ""
+                        }
 
-                            .selectable(
-                                selected = selectedOpt.intValue == k,
-                                onClick = {
-                                    //更新选择值
-                                    selectedOpt.intValue = k
-                                },
-                                role = Role.RadioButton
+                        ScrollableRow {
+                            PaddingText(
+                                text = desc,
+                                fontWeight = FontWeight.Light,
                             )
-                            .padding(horizontal = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        RadioButton(
-                            selected = selectedOpt.intValue == k,
-                            onClick = null // null recommended for accessibility with screenreaders
-                        )
-                        Text(
-                            text = optext,
-                            style = MaterialTheme.typography.bodyLarge,
-                            modifier = Modifier.padding(start = 10.dp)
-                        )
-                    }
-
-                    val text = if(k== optSoft) {
-                        stringResource(R.string.reset_head)
-                    }else if(k==optMixed) {
-                        stringResource(R.string.reset_head_index)
-                    }else if(k==optHard){
-                        stringResource(R.string.reset_head_index_worktree)
-                    } else {
-                        ""
-                    }
-
-                    Text(text,
-                        fontWeight = FontWeight.Light,
-                        modifier = Modifier.padding(horizontal = MyStyleKt.defaultHorizontalPadding)
-                    )
-
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                }
+                        }
+                    },
+                    onClick = {idx, item -> selectedOpt.intValue = idx},
+                    minHeight = MyStyleKt.RadioOptions.largeHeight
+                )
 
             }
         },
@@ -161,7 +130,7 @@ fun ResetDialog(
 
                                 if(commitRet.hasError()) {
                                     Msg.requireShowLongDuration(commitRet.msg)
-                                    createAndInsertError(repoId, "Reset $type err, resolve commit failed:"+commitRet.msg)
+                                    createAndInsertError(repoId, "Reset $type err, resolve commit failed: "+commitRet.msg)
                                     return@job
                                 }
 
@@ -170,7 +139,7 @@ fun ResetDialog(
                                 val ret = Libgit2Helper.resetToRevspec(repo, commit.id().toString(), type)
                                 if (ret.hasError()) {
                                     Msg.requireShowLongDuration(ret.msg)
-                                    createAndInsertError(repoId, "Reset $type err:"+ret.msg)
+                                    createAndInsertError(repoId, "Reset $type err: "+ret.msg)
                                 } else {
                                     val oldHeadCommitOid = oldHead?.id()?.toString() ?: ""
                                     //如果操作成功，刷新页面

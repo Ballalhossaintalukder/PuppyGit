@@ -67,7 +67,7 @@ fun ChangeListPageActions(
     val isWorktreePage = fromTo == Cons.gitDiffFromIndexToWorktree
     val navController = AppModel.navController
     val activityContext = LocalContext.current
-    val dropDownMenuExpendState = rememberSaveable { mutableStateOf(false) }
+    val dropDownMenuExpandState = rememberSaveable { mutableStateOf(false) }
 
     val repoIsDetached = dbIntToBool(changeListCurRepo.value.isDetached)
 //    val hasTmpStatus = changeListCurRepo.value.tmpStatus.isNotBlank()  //为了避免和repoCard执行的操作冲突，检查下此变量
@@ -131,7 +131,7 @@ fun ChangeListPageActions(
         iconContentDesc = stringResource(R.string.menu),
         onClick = {
             //切换菜单展开状态
-            dropDownMenuExpendState.value = !dropDownMenuExpendState.value
+            dropDownMenuExpandState.value = !dropDownMenuExpandState.value
         }
     )
     Row(modifier = Modifier.padding(top = MyStyleKt.TopBar.dropDownMenuTopPaddingSize)) {
@@ -139,8 +139,8 @@ fun ChangeListPageActions(
         val enableMenuItem = enableAction.value && !changeListPageNoRepo.value
         //菜单列表
         DropdownMenu(
-            expanded = dropDownMenuExpendState.value,
-            onDismissRequest = { dropDownMenuExpendState.value=false }
+            expanded = dropDownMenuExpandState.value,
+            onDismissRequest = { dropDownMenuExpandState.value=false }
         ) {
             if(isWorktreePage) {  // stage all for worktree page
                 DropdownMenuItem(
@@ -153,7 +153,7 @@ fun ChangeListPageActions(
                         requireDoActFromParent.value = true
                         enableAction.value=false  //禁用顶栏的按钮，避免用户重复操作，不过libgit2应该本身有避免重复执行会冲突的操作的机制，但我最好还是再控制一下，避免发生冲突才是最佳
 
-                        dropDownMenuExpendState.value=false
+                        dropDownMenuExpandState.value=false
                     }
                 )
 
@@ -168,7 +168,7 @@ fun ChangeListPageActions(
                         requireDoActFromParent.value = true
                         enableAction.value=false  //禁用顶栏的按钮，避免用户重复操作，不过libgit2应该本身有避免重复执行会冲突的操作的机制，但我最好还是再控制一下，避免发生冲突才是最佳
 
-                        dropDownMenuExpendState.value=false
+                        dropDownMenuExpandState.value=false
                     }
                 )
             }else {  //commit for index page
@@ -182,7 +182,7 @@ fun ChangeListPageActions(
                         requireDoActFromParent.value = true
                         enableAction.value=false  //禁用顶栏的按钮，避免用户重复操作，不过libgit2应该本身有避免重复执行会冲突的操作的机制，但我最好还是再控制一下，避免发生冲突才是最佳
 
-                        dropDownMenuExpendState.value=false
+                        dropDownMenuExpandState.value=false
                     }
                 )
             }
@@ -199,7 +199,7 @@ fun ChangeListPageActions(
                     requireDoActFromParent.value = true
                     enableAction.value=false  //禁用顶栏的按钮，避免用户重复操作，不过libgit2应该本身有避免重复执行会冲突的操作的机制，但我最好还是再控制一下，避免发生冲突才是最佳
 
-                    dropDownMenuExpendState.value=false
+                    dropDownMenuExpandState.value=false
                 }
             )
             DropdownMenuItem(
@@ -212,7 +212,7 @@ fun ChangeListPageActions(
                     requireDoActFromParent.value = true
                     enableAction.value=false  //禁用顶栏的按钮，避免用户重复操作，不过libgit2应该本身有避免重复执行会冲突的操作的机制，但我最好还是再控制一下，避免发生冲突才是最佳
 
-                    dropDownMenuExpendState.value=false
+                    dropDownMenuExpandState.value=false
                 }
             )
 
@@ -227,7 +227,7 @@ fun ChangeListPageActions(
                         requireDoActFromParent.value = true
                         enableAction.value=false  //禁用顶栏的按钮，避免用户重复操作，不过libgit2应该本身有避免重复执行会冲突的操作的机制，但我最好还是再控制一下，避免发生冲突才是最佳
 
-                        dropDownMenuExpendState.value=false
+                        dropDownMenuExpandState.value=false
                     }
                 )
 
@@ -243,7 +243,7 @@ fun ChangeListPageActions(
                     requireDoActFromParent.value = true
                     enableAction.value=false
 
-                    dropDownMenuExpendState.value=false
+                    dropDownMenuExpandState.value=false
                 }
             )
             if(proFeatureEnabled(pushForceTestPassed)) {
@@ -257,7 +257,7 @@ fun ChangeListPageActions(
                         requireDoActFromParent.value = true
                         enableAction.value=false
 
-                        dropDownMenuExpendState.value=false
+                        dropDownMenuExpandState.value=false
                     }
                 )
             }
@@ -271,7 +271,7 @@ fun ChangeListPageActions(
                     requireDoActFromParent.value = true
                     enableAction.value=false
 
-                    dropDownMenuExpendState.value=false
+                    dropDownMenuExpandState.value=false
                 }
             )
 
@@ -286,7 +286,7 @@ fun ChangeListPageActions(
                         requireDoActFromParent.value = true
                         enableAction.value=false
 
-                        dropDownMenuExpendState.value=false
+                        dropDownMenuExpandState.value=false
                     }
                 )
 
@@ -304,7 +304,7 @@ fun ChangeListPageActions(
                     requireDoActFromParent.value = true
                     enableAction.value=false
 
-                    dropDownMenuExpendState.value=false
+                    dropDownMenuExpandState.value=false
                 }
             )
 
@@ -322,7 +322,7 @@ fun ChangeListPageActions(
                             requireDoActFromParent.value = true
                             enableAction.value=false
 
-                            dropDownMenuExpendState.value=false
+                            dropDownMenuExpandState.value=false
                         }
                     )
                 }
@@ -340,7 +340,7 @@ fun ChangeListPageActions(
                         requireDoActFromParent.value = true
                         enableAction.value=false
 
-                        dropDownMenuExpendState.value=false
+                        dropDownMenuExpandState.value=false
                     }
                 )
 
@@ -357,7 +357,7 @@ fun ChangeListPageActions(
                             requireDoActFromParent.value = true
                             enableAction.value=false
 
-                            dropDownMenuExpendState.value=false
+                            dropDownMenuExpandState.value=false
                         }
                     )
                 }
@@ -378,7 +378,7 @@ fun ChangeListPageActions(
                         requireDoActFromParent.value = true
                         enableAction.value=false
 
-                        dropDownMenuExpendState.value=false
+                        dropDownMenuExpandState.value=false
                     }
                 )
 
@@ -393,7 +393,7 @@ fun ChangeListPageActions(
                         requireDoActFromParent.value = true
                         enableAction.value=false
 
-                        dropDownMenuExpendState.value=false
+                        dropDownMenuExpandState.value=false
                     }
                 )
             }
@@ -412,7 +412,7 @@ fun ChangeListPageActions(
                         requireDoActFromParent.value = true
                         enableAction.value=false
 
-                        dropDownMenuExpendState.value=false
+                        dropDownMenuExpandState.value=false
                     }
                 )
 
@@ -428,7 +428,7 @@ fun ChangeListPageActions(
                         requireDoActFromParent.value = true
                         enableAction.value=false
 
-                        dropDownMenuExpendState.value=false
+                        dropDownMenuExpandState.value=false
                     }
                 )
                 DropdownMenuItem(
@@ -443,7 +443,7 @@ fun ChangeListPageActions(
                         requireDoActFromParent.value = true
                         enableAction.value=false
 
-                        dropDownMenuExpendState.value=false
+                        dropDownMenuExpandState.value=false
                     }
                 )
             }
@@ -461,7 +461,7 @@ fun ChangeListPageActions(
                         requireDoActFromParent.value = true
                         enableAction.value=false
 
-                        dropDownMenuExpendState.value=false
+                        dropDownMenuExpandState.value=false
                     }
                 )
 
@@ -477,7 +477,7 @@ fun ChangeListPageActions(
                         requireDoActFromParent.value = true
                         enableAction.value=false
 
-                        dropDownMenuExpendState.value=false
+                        dropDownMenuExpandState.value=false
                     }
                 )
             }

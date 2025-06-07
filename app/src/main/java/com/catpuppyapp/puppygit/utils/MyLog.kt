@@ -48,7 +48,7 @@ object MyLog: DateNamedFileWriter(
             isInited = false
             try {
                 e.printStackTrace()
-                Log.e(TAG, "#init MyLog err:"+e.stackTraceToString())
+                Log.e(TAG, "#init MyLog err: "+e.stackTraceToString())
             }catch (e2:Exception) {
                 e2.printStackTrace()
             }

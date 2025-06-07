@@ -13,12 +13,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
 import com.catpuppyapp.puppygit.compose.RepoInfoDialog
 import com.catpuppyapp.puppygit.compose.ScrollableRow
+import com.catpuppyapp.puppygit.constants.Cons
 import com.catpuppyapp.puppygit.data.entity.RepoEntity
 import com.catpuppyapp.puppygit.play.pro.R
 import com.catpuppyapp.puppygit.screen.functions.defaultTitleDoubleClick
@@ -37,12 +36,18 @@ fun IndexScreenTitle(
     changeListPageItemListState: LazyListState,
     lastPosition: MutableState<Int>,
 ) {
-    val haptic = LocalHapticFeedback.current
+//    val haptic = LocalHapticFeedback.current
     val activityContext = LocalContext.current
 
     val showTitleInfoDialog = rememberSaveable { mutableStateOf(false) }
     if(showTitleInfoDialog.value) {
-        RepoInfoDialog(curRepo.value, showTitleInfoDialog)
+        RepoInfoDialog(
+            curRepo = curRepo.value,
+            showTitleInfoDialog = showTitleInfoDialog,
+            prependContent = {
+                Text(stringResource(R.string.comparing_label)+": "+ Libgit2Helper.getLeftToRightFullHash(Cons.git_HeadCommitHash, Cons.git_IndexCommitHash))
+            }
+        )
     }
 
     val needShowRepoState = rememberSaveable { mutableStateOf(false)}
@@ -56,7 +61,6 @@ fun IndexScreenTitle(
     }
 
     Column(modifier = Modifier
-        .widthIn(min = MyStyleKt.Title.clickableTitleMinWidth)
         .combinedClickable(
             onDoubleClick = {
                 defaultTitleDoubleClick(scope, changeListPageItemListState, lastPosition)
@@ -68,8 +72,7 @@ fun IndexScreenTitle(
         ) { // onClick
             showTitleInfoDialog.value = true
         }
-        //外面的标题宽180.dp，这里的比外面的宽点，因为这个页面顶栏actions少
-        .widthIn(max = 200.dp)
+        .widthIn(min = MyStyleKt.Title.clickableTitleMinWidth)
     ) {
         ScrollableRow {
 

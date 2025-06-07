@@ -1,15 +1,16 @@
 package com.catpuppyapp.puppygit.screen.content.homescreen.innerpage
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.verticalScroll
@@ -18,17 +19,19 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.catpuppyapp.puppygit.compose.AppIcon
+import com.catpuppyapp.puppygit.compose.AppIconMonoChrome
 import com.catpuppyapp.puppygit.compose.ClickableText
 import com.catpuppyapp.puppygit.compose.SpacerRow
 import com.catpuppyapp.puppygit.play.pro.R
@@ -36,7 +39,8 @@ import com.catpuppyapp.puppygit.style.MyStyleKt
 import com.catpuppyapp.puppygit.utils.ActivityUtil
 import com.catpuppyapp.puppygit.utils.AppModel
 import com.catpuppyapp.puppygit.utils.ComposeHelper
-import com.catpuppyapp.puppygit.utils.Msg
+import com.catpuppyapp.puppygit.utils.UIHelper
+import com.catpuppyapp.puppygit.utils.baseVerticalScrollablePageModifier
 
 
 const val authorMail = "luckyclover33xx@gmail.com"
@@ -64,7 +68,13 @@ data class OpenSource(
     val licenseLink:String,
 )
 
-private val openSourceList= listOf(
+data class Contributor(
+    val name:String,
+    val link:String,
+    val desc:String,
+)
+
+private val openSourceList = listOf(
     OpenSource(projectName = "libgit2", projectLink = "https://github.com/libgit2/libgit2", licenseLink = "https://raw.githubusercontent.com/libgit2/libgit2/main/COPYING"),
     OpenSource(projectName = "git24j", projectLink = "https://github.com/git24j/git24j", licenseLink = "https://raw.githubusercontent.com/git24j/git24j/master/LICENSE"),
     OpenSource(projectName = "text-editor-compose", projectLink = "https://github.com/kaleidot725/text-editor-compose", licenseLink = "https://raw.githubusercontent.com/kaleidot725/text-editor-compose/main/LICENSE"),
@@ -72,6 +82,14 @@ private val openSourceList= listOf(
     OpenSource(projectName = "libssh2", projectLink = "https://github.com/libssh2/libssh2", licenseLink = "https://raw.githubusercontent.com/libssh2/libssh2/refs/heads/master/COPYING"),
     OpenSource(projectName = "compose-markdown", projectLink = "https://github.com/jeziellago/compose-markdown", licenseLink = "https://github.com/jeziellago/compose-markdown/blob/main/LICENSE"),
     OpenSource(projectName = "swipe", projectLink = "https://github.com/saket/swipe", licenseLink = "https://github.com/saket/swipe/blob/trunk/LICENSE.txt"),
+)
+
+
+private val contributorList = listOf(
+    Contributor(name = "triksterr", link = "https://github.com/triksterr", desc = "Russian translator"),
+    Contributor(name = "mikropsoft", link = "https://github.com/mikropsoft", desc = "Turkish translator"),
+    Contributor(name = "Hussain96o", link = "https://github.com/Hussain96o", desc = "Arabic translator"),
+    Contributor(name = "sebastien46", link = "https://github.com/sebastien46", desc = "Monochrome app icon"),
 )
 
 @Composable
@@ -84,14 +102,13 @@ fun AboutInnerPage(
     val activityContext = LocalContext.current
     val exitApp = AppModel.exitApp;
 
-    val appIcon = AppModel.getAppIcon(activityContext)
 
-    val clipboardManager = LocalClipboardManager.current
+//    val clipboardManager = LocalClipboardManager.current
 
-    val copy={text:String ->
-        clipboardManager.setText(AnnotatedString(text))
-        Msg.requireShow(activityContext.getString(R.string.copied))
-    }
+//    val copy={text:String ->
+//        clipboardManager.setText(AnnotatedString(text))
+//        Msg.requireShow(activityContext.getString(R.string.copied))
+//    }
 
     //back handler block start
     val isBackHandlerEnable = rememberSaveable { mutableStateOf(true)}
@@ -100,19 +117,44 @@ fun AboutInnerPage(
     BackHandler(enabled = isBackHandlerEnable.value, onBack = {backHandlerOnBack()})
     //back handler block end
 
+    val appLogoEasterEggOn = rememberSaveable { mutableStateOf(false) }
+    val appLogoEasterEggIconColor = remember { mutableStateOf(Color.Magenta) }
 
     Column(
         modifier = Modifier
-            .padding(contentPadding)
-            .padding(top = 10.dp)
-            .fillMaxSize()
-            .verticalScroll(listState)
+            .baseVerticalScrollablePageModifier(contentPadding, listState)
+            .padding(10.dp)
         ,
         horizontalAlignment = Alignment.CenterHorizontally,
+
+        //垂直应从上到下，不需要居中
 //        verticalArrangement = Arrangement.Center
-    ){
+    ) {
         //图标，app名，contact
-        Image(bitmap = appIcon, contentDescription = stringResource(id = R.string.app_icon))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center,
+        ) {
+            Box(
+                modifier = Modifier.clickable {
+                    //若启用则换颜色；否则启用。
+                    if(appLogoEasterEggOn.value) {
+                        appLogoEasterEggIconColor.value = UIHelper.getRandomColor()
+                    }else {
+                        appLogoEasterEggOn.value = true
+                    }
+                }
+            ) {
+                if(appLogoEasterEggOn.value) {
+                    AppIconMonoChrome(tint = appLogoEasterEggIconColor.value)
+                }else {
+                    AppIcon()
+                }
+            }
+
+        }
+
         Column(modifier = Modifier.padding(10.dp)
 
             ,
@@ -226,7 +268,7 @@ fun AboutInnerPage(
         ) {
 //            Text(text = stringResource(R.string.contact_author)+":")
             ClickableText(
-                text = stringResource(R.string.donate),
+                text = "💖"+stringResource(R.string.donate)+"💖",
                 modifier = MyStyleKt.ClickableText.modifierNoPadding.clickable {
 //                    copy(authorMail)
                     ActivityUtil.openUrl(activityContext, donateLink)
@@ -262,40 +304,76 @@ fun AboutInnerPage(
 
             )
         }
+
         HorizontalDivider(modifier = Modifier.padding(10.dp))
+
         //开源项目列表
-        Row (modifier = Modifier.padding(10.dp)){
-            Text(text = stringResource(id = R.string.powered_by_open_source)+":")
-        }
+        TitleRow(stringResource(id = R.string.powered_by_open_source))
+
+        val licenseStrRes = stringResource(R.string.license)
+
         openSourceList.forEach {
-            Column (
-                modifier = Modifier.padding(5.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ){
-                ClickableText(
-                    text = it.projectName,
-//                    fontSize = 14.sp,
-                    modifier = MyStyleKt.ClickableText.modifierNoPadding.clickable {
-                        //                        copy(it.projectLink)
-                        ActivityUtil.openUrl(activityContext, it.projectLink)
-                    },
-                )
-                Spacer(Modifier.height(2.dp))
-                ClickableText(
-                    text = "("+stringResource(R.string.license)+")",
-                    fontSize = 12.sp,
-                    modifier = MyStyleKt.ClickableText.modifierNoPadding.clickable {
-                        //                        copy(it.projectLink)
-                        ActivityUtil.openUrl(activityContext, it.licenseLink)
-                    },
-                )
+            DoubleClickableRow(
+                row1Text = it.projectName,
+                row2Text = licenseStrRes,
+                row1OnClick = { ActivityUtil.openUrl(activityContext, it.projectLink) },
+                row2OnClick = { ActivityUtil.openUrl(activityContext, it.licenseLink) },
+            )
+        }
 
-                Spacer(Modifier.height(10.dp))
+        HorizontalDivider(modifier = Modifier.padding(10.dp))
 
-            }
+        //开源项目列表
+        TitleRow("Thanks")
+
+        contributorList.forEach {
+            DoubleClickableRow(
+                row1Text = it.name,
+                row2Text = it.desc,
+                row1OnClick = { ActivityUtil.openUrl(activityContext, it.link) },
+                row2OnClick = { ActivityUtil.openUrl(activityContext, it.link) },
+            )
         }
 
         SpacerRow()
     }
 
+}
+
+@Composable
+private fun TitleRow(title:String) {
+    Row (modifier = Modifier.padding(10.dp)){
+        Text(text = title, fontWeight = FontWeight.Bold)
+    }
+}
+
+@Composable
+private fun DoubleClickableRow(
+    row1Text:String,
+    row2Text:String,
+    row1OnClick:()->Unit,
+    row2OnClick:()->Unit,
+) {
+    Column (
+        modifier = Modifier.padding(5.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ){
+        ClickableText(
+            text = row1Text,
+            modifier = MyStyleKt.ClickableText.modifierNoPadding.clickable {
+                row1OnClick()
+            },
+        )
+        Spacer(Modifier.height(2.dp))
+        ClickableText(
+            text = "($row2Text)",
+            fontSize = 12.sp,
+            modifier = MyStyleKt.ClickableText.modifierNoPadding.clickable {
+                row2OnClick()
+            },
+        )
+
+        Spacer(Modifier.height(10.dp))
+
+    }
 }

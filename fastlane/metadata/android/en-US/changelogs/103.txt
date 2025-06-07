@@ -1,0 +1,5 @@
+- fix: sometimes commit item not update after reset
+- add Thanks list in About screen
+- support fetch remotes at Branches screen
+- update depend libs (libgit2 to 1.9.1, openssl to 3.5.0)
+- Diff: optimize default match strategy

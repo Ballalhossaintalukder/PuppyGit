@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -24,6 +25,7 @@ import androidx.compose.ui.unit.dp
 import com.catpuppyapp.puppygit.git.ReflogEntryDto
 import com.catpuppyapp.puppygit.play.pro.R
 import com.catpuppyapp.puppygit.screen.functions.fromTagToCommitHistory
+import com.catpuppyapp.puppygit.style.MyStyleKt
 import com.catpuppyapp.puppygit.utils.Libgit2Helper
 import com.catpuppyapp.puppygit.utils.Msg
 import com.catpuppyapp.puppygit.utils.UIHelper
@@ -50,6 +52,8 @@ fun ReflogItem(
 
     val haptic = LocalHapticFeedback.current
 
+
+    val defaultFontWeight = remember { MyStyleKt.TextItem.defaultFontWeight() }
 
     Column(
         //0.9f 占父元素宽度的百分之90
@@ -101,7 +105,7 @@ fun ReflogItem(
             Text(text = thisObj.getShortNewId(),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                fontWeight = FontWeight.Light
+                fontWeight = defaultFontWeight
 
             )
 
@@ -131,7 +135,7 @@ fun ReflogItem(
             Text(text = thisObj.getShortOldId(),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                fontWeight = FontWeight.Light
+                fontWeight = defaultFontWeight
 
             )
 
@@ -160,7 +164,7 @@ fun ReflogItem(
             Text(text = if(shouldShowTimeZoneInfo) TimeZoneUtil.appendUtcTimeZoneText(thisObj.date, thisObj.originTimeZoneOffsetInMinutes) else thisObj.date,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                fontWeight = FontWeight.Light
+                fontWeight = defaultFontWeight
 
             )
         }
@@ -174,7 +178,7 @@ fun ReflogItem(
             Text(text = Libgit2Helper.getFormattedUsernameAndEmail(thisObj.username, thisObj.email),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                fontWeight = FontWeight.Light
+                fontWeight = defaultFontWeight
 
             )
         }
@@ -188,7 +192,7 @@ fun ReflogItem(
             Text(text = thisObj.msg,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                fontWeight = FontWeight.Light
+                fontWeight = defaultFontWeight
 
             )
         }

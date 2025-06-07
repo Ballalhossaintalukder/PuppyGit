@@ -93,7 +93,7 @@ fun SshUnknownHostDialog(
 
                 MyCheckBox(stringResource(R.string.i_trust_the_host), iTrustTheHost)
                 if (iTrustTheHost.value) {
-                    DefaultPaddingText(stringResource(R.string.operation_aborted_after_allowing_maybe_retry), color = MyStyleKt.TextColor.highlighting_green)
+                    DefaultPaddingText(stringResource(R.string.operation_aborted_after_allowing_maybe_retry), color = MyStyleKt.TextColor.getHighlighting())
                 }
                 Spacer(Modifier.height(spacerHeight))
 
