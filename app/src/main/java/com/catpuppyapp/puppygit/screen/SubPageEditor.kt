@@ -1,15 +1,14 @@
 package com.catpuppyapp.puppygit.screen
 
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableIntStateOf
@@ -28,33 +27,37 @@ import com.catpuppyapp.puppygit.compose.LongPressAbleIconBtn
 import com.catpuppyapp.puppygit.compose.SmallFab
 import com.catpuppyapp.puppygit.constants.Cons
 import com.catpuppyapp.puppygit.constants.PageRequest
-import com.catpuppyapp.puppygit.dev.bug_Editor_undoStackLostAfterRotateScreen_Fixed
+import com.catpuppyapp.puppygit.dto.FileDetail
 import com.catpuppyapp.puppygit.dto.FileSimpleDto
 import com.catpuppyapp.puppygit.dto.UndoStack
 import com.catpuppyapp.puppygit.fileeditor.texteditor.view.ScrollEvent
 import com.catpuppyapp.puppygit.play.pro.R
+import com.catpuppyapp.puppygit.screen.content.editor.FileDetailListActions
 import com.catpuppyapp.puppygit.screen.content.homescreen.innerpage.EditorInnerPage
 import com.catpuppyapp.puppygit.screen.content.homescreen.scaffold.actions.EditorPageActions
 import com.catpuppyapp.puppygit.screen.content.homescreen.scaffold.title.EditorTitle
 import com.catpuppyapp.puppygit.screen.functions.getInitTextEditorState
+import com.catpuppyapp.puppygit.screen.shared.EditorPreviewNavStack
 import com.catpuppyapp.puppygit.screen.shared.FilePath
-import com.catpuppyapp.puppygit.screen.shared.SharedState
 import com.catpuppyapp.puppygit.settings.SettingsUtil
 import com.catpuppyapp.puppygit.style.MyStyleKt
 import com.catpuppyapp.puppygit.utils.AppModel
 import com.catpuppyapp.puppygit.utils.FsUtils
 import com.catpuppyapp.puppygit.utils.UIHelper
 import com.catpuppyapp.puppygit.utils.cache.Cache
+import com.catpuppyapp.puppygit.utils.cache.NaviCache
 import com.catpuppyapp.puppygit.utils.doJobThenOffLoading
 import com.catpuppyapp.puppygit.utils.generateRandomString
+import com.catpuppyapp.puppygit.utils.state.mutableCustomBoxOf
+import com.catpuppyapp.puppygit.utils.state.mutableCustomStateListOf
 import com.catpuppyapp.puppygit.utils.state.mutableCustomStateOf
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.withContext
 
 //for debug
 private const val TAG = "SubPageEditor"
-private const val stateKeyTag = "SubPageEditor"
 
 
 //子页面版本editor
@@ -74,21 +77,14 @@ fun SubPageEditor(
     initMergeMode:Boolean,
     initReadOnly:Boolean,
     editorPageLastFilePath:MutableState<String>,
+    filePathKey:String,
     naviUp:()->Unit
 ) {
-//    val isTimeNaviUp = rememberSaveable { mutableStateOf(false) }
-//    if(isTimeNaviUp.value) {
-//        naviUp()
-//    }
+    val stateKeyTag = Cache.getSubPageKey(TAG)
 
-    val naviUp = {
-        AppModel.lastEditFile.value = ""
-        AppModel.lastEditFileWhenDestroy.value = ""
 
-        naviUp()
 
-        Unit
-    }
+
 
 
     val navController = AppModel.navController
@@ -96,7 +92,7 @@ fun SubPageEditor(
 //    val appContext = AppModel.appContext  //这个获取不了Activity!
     val activityContext = LocalContext.current  //这个能获取到
     val scope = rememberCoroutineScope()
-    val allRepoParentDir = AppModel.allRepoParentDir
+//    val allRepoParentDir = AppModel.allRepoParentDir
     val settings = remember { SettingsUtil.getSettingsSnapshot() }
 
 //    val changeListRefreshRequiredByParentPage= StateUtil.getRememberSaveableState(initValue = "")
@@ -114,7 +110,7 @@ fun SubPageEditor(
     //这个变量有在Activity销毁时保存其值的机制，所以仅需从Cache获取一次，后续不管恢复成功还是失败都无所谓，成功就用它的值，失败就用Activity销毁时保存的值。
     // 注意：这里用getByTypeThenDel()是对的，因为此变量有特殊处理，在Activity销毁时会保存其值，其他页面state变量，如果没特殊处理，应该使用get而不是getThenDel以避免rememberSaveable发生恢复状态变量失败的bug时app报错
     // 注意：虽然rememberSaveable有bug(有时无法在旋转屏幕或其他显示配置改变后正常恢复页面的state变量值)，但就算就算此值在文件打开时恢复失败变成空字符串也无所谓，因为在Activity销毁时保存其值的变量仍会存储最后打开文件路径。
-    val editorPageShowingFilePath = rememberSaveable { mutableStateOf(FilePath(Cache.getByTypeThenDel<String>(Cache.Key.subPageEditor_filePathKey) ?: ""))} //当前展示的文件的canonicalPath
+    val editorPageShowingFilePath = rememberSaveable { mutableStateOf(FilePath(NaviCache.getByType<String>(filePathKey) ?: ""))} //当前展示的文件的canonicalPath
     val editorPageShowingFileIsReady = rememberSaveable { mutableStateOf(false)} //当前展示的文件是否已经加载完毕
 
     val editorPageIsEdited = rememberSaveable { mutableStateOf(false)}
@@ -146,6 +142,7 @@ fun SubPageEditor(
 
     //如果用户pro且功能测试通过，允许使用url传来的初始值，否则一律false
     val editorPageMergeMode = rememberSaveable{mutableStateOf(initMergeMode)}
+    val editorPagePatchMode = rememberSaveable(settings.editor.patchModeOn) { mutableStateOf(settings.editor.patchModeOn) }
 
     val editorPageRequestFromParent = rememberSaveable { mutableStateOf("")}
 
@@ -165,22 +162,38 @@ fun SubPageEditor(
         editorPreviewPathChanged.value = generateRandomString()
     }
 
-    val editorPreviewNavStack = mutableCustomStateOf(stateKeyTag, "editorPreviewNavStack") { SharedState.subEditorPreviewNavStack }
+    val editorPreviewNavStack = mutableCustomStateOf(stateKeyTag, "editorPreviewNavStack") { EditorPreviewNavStack("") }
+    val editorPagePreviewLoading = rememberSaveable { mutableStateOf(false) }
 
     val editorQuitPreviewMode = {
-        AppModel.subEditorPreviewModeOnWhenDestroy.value = false
-
         editorBasePath.value = ""
         editorMdText.value = ""
         editorIsPreviewModeOn.value = false
+
+        editorPageRequestFromParent.value = PageRequest.reloadIfChanged
     }
+
     val editorInitPreviewMode = {
         //请求执行一次保存，不然有可能切换
         editorPageRequestFromParent.value = PageRequest.requireInitPreviewFromSubEditor
     }
 
+    val editorPreviewFileDto = mutableCustomStateOf(stateKeyTag, "editorPreviewFileDto") { FileSimpleDto() }
 
-    val settingsTmp = remember { SettingsUtil.getSettingsSnapshot() }  //避免状态变量里的设置项过旧，重新获取一个
+    val editorRecentFileList = mutableCustomStateListOf(stateKeyTag, "recentFileList") { listOf<FileDetail>() }
+    val editorSelectedRecentFileList = mutableCustomStateListOf(stateKeyTag, "editorSelectedRecentFileList") { listOf<FileDetail>() }
+    val editorRecentFileListSelectionMode = rememberSaveable { mutableStateOf(false) }
+    val editorRecentListState = rememberLazyStaggeredGridState()
+    val editorInRecentFilesPage = rememberSaveable { mutableStateOf(false) }
+
+
+    //初始值不用忽略，因为打开文件后默认focusing line idx为null，所以这个值是否忽略并没意义
+    //这个值不能用state，不然修改state后会重组，然后又触发聚焦，就没意义了
+    val ignoreFocusOnce = mutableCustomBoxOf(stateKeyTag, "ignoreFocusOnce") { false }
+    val softKbVisibleWhenLeavingEditor = mutableCustomBoxOf(stateKeyTag, "softKbVisibleWhenLeavingEditor") { false }
+
+
+    val settingsTmp = settings  //之前在这重新获取了一个，后来发现没必要，为避免改变量名，这直接赋值算了
     val editorShowLineNum = rememberSaveable{mutableStateOf(settingsTmp.editor.showLineNum)}
     val editorLineNumFontSize = rememberSaveable { mutableIntStateOf(settingsTmp.editor.lineNumFontSize)}
     val editorFontSize = rememberSaveable { mutableIntStateOf(settingsTmp.editor.fontSize)}
@@ -193,13 +206,10 @@ fun SubPageEditor(
     val editorShowUndoRedo = rememberSaveable{mutableStateOf(settingsTmp.editor.showUndoRedo)}
 //    val editorUndoStack = remember(editorPageShowingFilePath.value){ derivedStateOf { UndoStack(filePath = editorPageShowingFilePath.value.ioPath) } }
 //    val editorUndoStack = remember { SharedState.subEditorUndoStack }
-    val editorUndoStack = remember(editorPageShowingFilePath.value.ioPath) {
-        if(bug_Editor_undoStackLostAfterRotateScreen_Fixed) {
-            SharedState.subEditorUndoStack
-        }else {
-            mutableStateOf(UndoStack(editorPageShowingFilePath.value.ioPath))
-        }
-    }
+    val editorUndoStack = mutableCustomStateOf(stateKeyTag, "editorUndoStack") { UndoStack("") }
+
+
+    val editorLoadLock = mutableCustomBoxOf(stateKeyTag, "editorLoadLock") { Mutex() }.value
 
 
     val showCloseDialog = rememberSaveable { mutableStateOf(false)}
@@ -226,10 +236,6 @@ fun SubPageEditor(
 //        changeStateTriggerRefreshPage(needRefreshEditorPage)
     }
 
-    if(isLoading.value) {
-        LoadingDialog(loadingText.value)
-    }
-
     val doSave:suspend ()->Unit = FsUtils.getDoSaveForEditor(
         editorPageShowingFilePath = editorPageShowingFilePath,
         editorPageLoadingOn = loadingOn,
@@ -247,18 +253,65 @@ fun SubPageEditor(
         snapshotedFileInfo = editorPageSnapshotedFileInfo
     )
 
+
+
+    val editorFilterRecentListState = rememberLazyStaggeredGridState()
+    val editorFilterRecentList = mutableCustomStateListOf(stateKeyTag, "editorFilterRecentList") { listOf<FileDetail>() }
+    val editorFilterRecentListOn = rememberSaveable { mutableStateOf(false) }
+    val editorEnableRecentListFilter = rememberSaveable { mutableStateOf(false) }
+    val editorFilterRecentListKeyword = mutableCustomStateOf(stateKeyTag, "editorFilterRecentListKeyword") { TextFieldValue("") }
+    val editorFilterRecentListLastSearchKeyword = rememberSaveable { mutableStateOf("") }
+    val editorFilterRecentListResultNeedRefresh = rememberSaveable { mutableStateOf("") }
+    val editorFilterRecentListSearching = rememberSaveable { mutableStateOf(false) }
+    val editorFilterRecentListSearchToken = rememberSaveable { mutableStateOf("") }
+    val editorFilterResetSearchValues = {
+        editorFilterRecentListSearching.value = false
+        editorFilterRecentListSearchToken.value = ""
+        editorFilterRecentListLastSearchKeyword.value = ""
+    }
+
+    val editorInitRecentFilesFilterMode = {
+        editorFilterRecentListKeyword.value = TextFieldValue("")
+        editorFilterRecentListOn.value = true
+    }
+    val editorRecentFilesQuitFilterMode = {
+        editorFilterResetSearchValues()
+        editorFilterRecentListOn.value = false
+    }
+
+
+    val editorRecentListLastScrollPosition = rememberSaveable { mutableStateOf(0) }
+    val editorRecentListFilterLastScrollPosition = rememberSaveable { mutableStateOf(0) }
+
+    val getActuallyRecentFilesList = {
+        if(editorEnableRecentListFilter.value) editorFilterRecentList.value else editorRecentFileList.value
+    }
+    val getActuallyRecentFilesListState = {
+        if(editorEnableRecentListFilter.value) editorFilterRecentListState else editorRecentListState
+    }
+    val getActuallyRecentFilesListLastPosition = {
+        if(editorEnableRecentListFilter.value) editorRecentListFilterLastScrollPosition else editorRecentListLastScrollPosition
+    }
+
+    val editorRecentListScrolled = rememberSaveable { mutableStateOf(settings.showNaviButtons) }
+
+
     Scaffold(
         modifier = Modifier.nestedScroll(homeTopBarScrollBehavior.nestedScrollConnection),
         topBar = {
             TopAppBar(
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    titleContentColor = MaterialTheme.colorScheme.primary,
-                ),
+                colors = MyStyleKt.TopBar.getColors(),
                 title = {
                     //这页面不用来打开外部文件，正常来说不会出现file uri，不过虽然可以通过最近文件列表打开一个uri路径，但这个处理起来有点繁琐，算了，不管了，又不是不能用
 
                     EditorTitle(
+                        recentFileListIsEmpty = editorRecentFileList.value.isEmpty(),
+                        recentFileListFilterModeOn = editorFilterRecentListOn.value,
+                        recentListFilterKeyword = editorFilterRecentListKeyword,
+                        getActuallyRecentFilesListState = getActuallyRecentFilesListState,
+                        getActuallyRecentFilesListLastPosition = getActuallyRecentFilesListLastPosition,
+
+                        patchModeOn = editorPagePatchMode.value,
                         previewNavStack = editorPreviewNavStack.value,
                         previewingPath = editorPreviewPath,
                         isPreviewModeOn = editorIsPreviewModeOn.value,
@@ -276,7 +329,10 @@ fun SubPageEditor(
 
                 },
                 navigationIcon = {
-                    if(editorIsPreviewModeOn.value || editorPageSearchMode.value || editorAdjustFontSizeMode.value || editorAdjustLineNumFontSizeMode.value) {
+                    if(editorIsPreviewModeOn.value || editorPageSearchMode.value
+                        || editorAdjustFontSizeMode.value || editorAdjustLineNumFontSizeMode.value
+                        || (editorInRecentFilesPage.value && editorFilterRecentListOn.value)
+                    ) {
                         LongPressAbleIconBtn(
                             tooltipText = stringResource(R.string.close),
                             icon =  Icons.Filled.Close,
@@ -290,6 +346,8 @@ fun SubPageEditor(
                                 editorPageRequestFromParent.value = PageRequest.requireSaveFontSizeAndQuitAdjust
                             }else if(editorAdjustLineNumFontSizeMode.value) {
                                 editorPageRequestFromParent.value = PageRequest.requireSaveLineNumFontSizeAndQuitAdjust
+                            }else if(editorInRecentFilesPage.value && editorFilterRecentListOn.value) {
+                                editorRecentFilesQuitFilterMode()
                             }
                         }
                     }else {
@@ -322,43 +380,55 @@ fun SubPageEditor(
                 },
                 actions = {
                     if(!editorOpenFileErr.value) {
-                        EditorPageActions(
-                            requireEditorScrollToPreviewCurPos = requireEditorScrollToPreviewCurPos,
-                            initPreviewMode = editorInitPreviewMode,
-                            previewNavStack = editorPreviewNavStack.value,
-                            previewPath = editorPreviewPath,
-                            previewPathChanged = editorPreviewPathChanged.value,
-                            isPreviewModeOn = editorIsPreviewModeOn.value,
-                            editorPageShowingFilePath = editorPageShowingFilePath,
-    //                        editorPageRequireOpenFilePath,
-                            editorPageShowingFileIsReady = editorPageShowingFileIsReady,
-                            needRefreshEditorPage = needRefreshEditorPage,
-                            editorPageTextEditorState = editorPageTextEditorState,
-    //                        editorPageShowSaveDoneToast,
-                            isSaving = editorPageIsSaving,
-                            isEdited = editorPageIsEdited,
-                            showReloadDialog = showReloadDialog,
-                            showCloseDialog = showCloseDialog,
-                            closeDialogCallback=closeDialogCallback,
-    //                        isLoading = isLoading,
-                            doSave = doSave,
-                            loadingOn = loadingOn,
-                            loadingOff = loadingOff,
-                            editorPageRequest = editorPageRequestFromParent,
-                            editorPageSearchMode = editorPageSearchMode,
-                            editorPageMergeMode=editorPageMergeMode,
-                            readOnlyMode = editorReadOnlyMode,
-                            editorSearchKeyword = editorPageSearchKeyword.value.text,
-                            isSubPageMode=true,
+                        val notOpenFile = !editorPageShowingFileIsReady.value && editorPageShowingFilePath.value.isBlank()
 
-                            fontSize=editorFontSize,
-                            lineNumFontSize=editorLineNumFontSize,
-                            adjustFontSizeMode=editorAdjustFontSizeMode,
-                            adjustLineNumFontSizeMode=editorAdjustLineNumFontSizeMode,
-                            showLineNum = editorShowLineNum,
-                            undoStack = editorUndoStack.value,
-                            showUndoRedo = editorShowUndoRedo
-                        )
+                        if(notOpenFile && editorRecentFileList.value.isNotEmpty()) {
+                            FileDetailListActions(
+                                request = editorPageRequestFromParent,
+                                filterModeOn = editorFilterRecentListOn.value,
+
+                                initFilterMode = editorInitRecentFilesFilterMode,
+                            )
+                        }else  {
+                            EditorPageActions(
+                                requireEditorScrollToPreviewCurPos = requireEditorScrollToPreviewCurPos,
+                                initPreviewMode = editorInitPreviewMode,
+                                previewNavStack = editorPreviewNavStack.value,
+                                previewPath = editorPreviewPath,
+                                previewPathChanged = editorPreviewPathChanged.value,
+                                isPreviewModeOn = editorIsPreviewModeOn.value,
+                                editorPageShowingFilePath = editorPageShowingFilePath,
+                                //                        editorPageRequireOpenFilePath,
+                                editorPageShowingFileIsReady = editorPageShowingFileIsReady,
+                                needRefreshEditorPage = needRefreshEditorPage,
+                                editorPageTextEditorState = editorPageTextEditorState,
+                                //                        editorPageShowSaveDoneToast,
+                                isSaving = editorPageIsSaving,
+                                isEdited = editorPageIsEdited,
+                                showReloadDialog = showReloadDialog,
+                                showCloseDialog = showCloseDialog,
+                                closeDialogCallback=closeDialogCallback,
+                                //                        isLoading = isLoading,
+                                doSave = doSave,
+                                loadingOn = loadingOn,
+                                loadingOff = loadingOff,
+                                editorPageRequest = editorPageRequestFromParent,
+                                editorPageSearchMode = editorPageSearchMode,
+                                editorPageMergeMode=editorPageMergeMode,
+                                editorPagePatchMode=editorPagePatchMode,
+                                readOnlyMode = editorReadOnlyMode,
+                                editorSearchKeyword = editorPageSearchKeyword.value.text,
+                                isSubPageMode=true,
+
+                                fontSize=editorFontSize,
+                                lineNumFontSize=editorLineNumFontSize,
+                                adjustFontSizeMode=editorAdjustFontSizeMode,
+                                adjustLineNumFontSizeMode=editorAdjustLineNumFontSizeMode,
+                                showLineNum = editorShowLineNum,
+                                undoStack = editorUndoStack.value,
+                                showUndoRedo = editorShowUndoRedo
+                            )
+                        }
                     }
                 },
                 scrollBehavior = homeTopBarScrollBehavior,
@@ -379,10 +449,56 @@ fun SubPageEditor(
                 ) {
                     editorPageRequestFromParent.value = PageRequest.requireSave
                 }
+            }else if(editorInRecentFilesPage.value) {
+                GoToTopAndGoToBottomFab(
+                    filterModeOn = editorFilterRecentListOn.value,
+                    scope = scope,
+                    filterListState = editorFilterRecentListState,
+                    listState = editorRecentListState,
+                    filterListLastPosition = editorRecentListFilterLastScrollPosition,
+                    listLastPosition = editorRecentListLastScrollPosition,
+                    showFab = editorRecentListScrolled,
+                    listSize = getActuallyRecentFilesList().size,
+                )
             }
         }
     ) { contentPadding ->
+
+
+        if(isLoading.value || editorPagePreviewLoading.value) {
+            LoadingDialog(
+                // edit mode可能会设loading text，例如正在保存之类的；preview直接显示个普通的loading文案就行
+                if(isLoading.value) loadingText.value else stringResource(R.string.loading)
+            )
+        }
+
         EditorInnerPage(
+//            stateKeyTag = Cache.combineKeys(stateKeyTag, "EditorInnerPage"),
+            stateKeyTag = stateKeyTag,
+
+            recentFileList = editorRecentFileList,
+            selectedRecentFileList = editorSelectedRecentFileList,
+            recentFileListSelectionMode = editorRecentFileListSelectionMode,
+            recentListState = editorRecentListState,
+            inRecentFilesPage = editorInRecentFilesPage,
+
+            editorFilterRecentListState = editorFilterRecentListState,
+            editorFilterRecentList = editorFilterRecentList.value,
+            editorFilterRecentListOn = editorFilterRecentListOn,
+            editorEnableRecentListFilter = editorEnableRecentListFilter,
+            editorFilterRecentListKeyword = editorFilterRecentListKeyword,
+            editorFilterRecentListLastSearchKeyword = editorFilterRecentListLastSearchKeyword,
+            editorFilterRecentListResultNeedRefresh = editorFilterRecentListResultNeedRefresh,
+            editorFilterRecentListSearching = editorFilterRecentListSearching,
+            editorFilterRecentListSearchToken = editorFilterRecentListSearchToken,
+            editorFilterResetSearchValues = editorFilterResetSearchValues,
+            editorRecentFilesQuitFilterMode = editorRecentFilesQuitFilterMode,
+
+            ignoreFocusOnce = ignoreFocusOnce,
+            softKbVisibleWhenLeavingEditor = softKbVisibleWhenLeavingEditor,
+
+            previewLoading = editorPagePreviewLoading,
+            editorPreviewFileDto = editorPreviewFileDto,
             requireEditorScrollToPreviewCurPos = requireEditorScrollToPreviewCurPos,
             requirePreviewScrollToEditorCurPos = requirePreviewScrollToEditorCurPos,
             previewPageScrolled = editorPreviewPageScrolled,
@@ -433,6 +549,7 @@ fun SubPageEditor(
             editorSearchKeyword = editorPageSearchKeyword,
             readOnlyMode = editorReadOnlyMode,
             editorMergeMode = editorPageMergeMode,
+            editorPatchMode = editorPagePatchMode,
 
             editorShowLineNum=editorShowLineNum,
             editorLineNumFontSize=editorLineNumFontSize,
@@ -445,7 +562,8 @@ fun SubPageEditor(
             editorLastSavedFontSize = editorLastSavedFontSize,
             openDrawer = {}, //非顶级页面按返回键不需要打开抽屉
             editorOpenFileErr = editorOpenFileErr,
-            undoStack = editorUndoStack
+            undoStack = editorUndoStack.value,
+            loadLock = editorLoadLock
 
         )
     }
@@ -453,19 +571,6 @@ fun SubPageEditor(
 
 
 
-//    //compose创建时的副作用
-////    LaunchedEffect(currentPage.intValue) {
-//    LaunchedEffect(Unit) {
-//    }
-//
-//
-//    //compose被销毁时执行的副作用
-//    DisposableEffect(Unit) {
-////        ("DisposableEffect: entered main")
-//        onDispose {
-////            ("DisposableEffect: exited main")
-//        }
-//    }
 
 }
 

@@ -13,6 +13,9 @@ import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.json.encodeToStream
 import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.locks.ReadWriteLock
+import java.util.concurrent.locks.ReentrantReadWriteLock
+import kotlin.concurrent.withLock
 
 object SettingsUtil {
     private const val TAG = "SettingsUtil"
@@ -27,7 +30,11 @@ object SettingsUtil {
     private val saveChannel = Channel<AppSettings>(capacity = channelBufferSize, onBufferOverflow = BufferOverflow.SUSPEND)
     private val saveJobStarted = AtomicBoolean(false)
 
-    private lateinit var appSettings:AppSettings
+    private val appSettingsRwLock: ReadWriteLock = ReentrantReadWriteLock()
+    private var appSettings:AppSettings = AppSettings()
+        get() = appSettingsRwLock.readLock().withLock { field }
+        set(value) = appSettingsRwLock.writeLock().withLock { field = value }
+
     private lateinit var settingsFile:File
     private lateinit var settingsBakFile:File
     private lateinit var saveDir:File
@@ -105,7 +112,7 @@ object SettingsUtil {
                     }
                     errCountLimit--
 
-                    MyLog.e(TAG, "$logTag: write config to settings file err:${e.stackTraceToString()}")
+                    MyLog.e(TAG, "$logTag: write config to settings file err: ${e.stackTraceToString()}")
                 }
             }
 

@@ -9,7 +9,7 @@ import android.os.Build
 import android.service.quicksettings.Tile
 import android.service.quicksettings.TileService
 import androidx.core.content.ContextCompat
-import com.catpuppyapp.puppygit.utils.AppModel
+import com.catpuppyapp.puppygit.constants.IntentCons
 import com.catpuppyapp.puppygit.utils.ContextUtil
 import com.catpuppyapp.puppygit.utils.MyLog
 import com.catpuppyapp.puppygit.utils.receiverFlags
@@ -17,12 +17,15 @@ import com.catpuppyapp.puppygit.utils.receiverFlags
 private const val TAG = "TileHttpService"
 
 
+// 注意: TileService没重写 onCreate 也没执行 AppMode 的init系列函数，但不会出问题，因为onClick被触发时，会启动HttpService，其内部有执行初始化
+// note: tile service haven't overwrite onCreate and execute `AppMode.init_` serial functions,
+//   but is ok, cause HttpService will do init when Tile service onClick triggered
 @TargetApi(Build.VERSION_CODES.N)  // tile support by android 24 and above
 class TileHttpService: TileService() {
     companion object {
         //加个包名，避免冲突
-        const val ACTION_UPDATE = AppModel.appPackageName +".UPDATE_TILE"
-        const val INTENT_EXTRA_KEY_NEW_STATE = "newState"
+        val ACTION_UPDATE = IntentCons.Action.UPDATE_TILE
+        const val INTENT_EXTRA_KEY_NEW_STATE = IntentCons.ExtrasKey.newState
 
         fun sendUpdateTileRequest(appContext: Context, newState:Boolean) {
             val intent = Intent(ACTION_UPDATE)

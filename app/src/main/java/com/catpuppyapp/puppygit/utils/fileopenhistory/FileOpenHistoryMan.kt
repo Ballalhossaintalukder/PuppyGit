@@ -5,30 +5,42 @@ import com.catpuppyapp.puppygit.settings.SettingsUtil
 import com.catpuppyapp.puppygit.utils.JsonUtil
 import com.catpuppyapp.puppygit.utils.MyLog
 import com.catpuppyapp.puppygit.utils.doJobThenOffLoading
+import com.catpuppyapp.puppygit.utils.forEachBetter
 import com.catpuppyapp.puppygit.utils.getSecFromTime
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.json.encodeToStream
 import java.io.File
+import java.util.concurrent.locks.ReadWriteLock
+import java.util.concurrent.locks.ReentrantReadWriteLock
+import kotlin.concurrent.withLock
 
 
 object FileOpenHistoryMan {
+    // max histories count
+    const val defaultHistoryMaxCount = 50
+
     private const val TAG = "FileOpenHistoryMan"
 
-    private var _limit = 50  // will update by settings value
+    private var _limit = defaultHistoryMaxCount  // will update by settings value
     private const val fileName = "file_open_history.json"
 
     private lateinit var _file: File
     private lateinit var _saveDir: File
 
-    private lateinit var curHistory: FileOpenHistory
+    private val curHistoryRwLock: ReadWriteLock = ReentrantReadWriteLock()
+    private var curHistory: FileOpenHistory = FileOpenHistory()
+        get() = curHistoryRwLock.readLock().withLock { field }
+        set(value) = curHistoryRwLock.writeLock().withLock { field = value }
+
+
     private val lock = Mutex()
 
     /**
      *
      * should run this method after AppModel and Settings and MyLog init done
-     * @param limit how many history will remembered
+     * @param limit how many histories will remembered
      * @param requireClearOldSettingsEditedHistory if true, will clear settings remembered file edited position, caller should check before pass this value to avoid unnecessary clear
      */
     fun init(saveDir:File, limit:Int, requireClearOldSettingsEditedHistory:Boolean) {
@@ -90,7 +102,14 @@ object FileOpenHistoryMan {
             removeOldHistory(h)
         }
 
-        saveHistory(h)
+        update(h)
+    }
+
+    fun remove(path:String) {
+        val h = getHistory()
+        h.storage.remove(path)
+
+        update(h)
     }
 
     /**
@@ -187,7 +206,7 @@ object FileOpenHistoryMan {
         val newStorage = mutableMapOf<String, FileEditedPos>()
 
         // update old history
-        getHistory().storage.forEach { (k, v) ->
+        getHistory().storage.forEachBetter { k, v ->
             newStorage[k] = v.copy(lastUsedTime = v.lastUsedTime - (offsetInSec))
         }
 

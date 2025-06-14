@@ -32,31 +32,24 @@ fun CopyableDialog(
     //本来是想：如果执行完操作的某个阶段需要改loadingText，可使用此状态变量作为doJob协程的参数并在需要更新loadingText时修改此状态变量的值。但实际上：在onOk里更新loadingText就行了
 //    val loadingTextState = StateUtil.getRememberSaveableState(initValue = loadingText)
 
-    AlertDialog(
-        title = {
-            MySelectionContainer {
-                if(requireShowTitleCompose) {
-                    titleCompose()
-                }else {
-                    Text(title)
-                }
-
-            }
-        },
-        text = {
-            MySelectionContainer {
-                if(requireShowTextCompose) {
-                    textCompose()
-                }else {
-                    ScrollableColumn {
-                        Text(text)
-                    }
-                }
-            }
-        },
-        //点击弹框外区域的时候触发此方法，一般设为和OnCancel一样的行为即可
-        onDismissRequest = onCancel,
-        dismissButton = {
+    CopyableDialog2(
+        title = title,
+        text = text,
+        requireShowTitleCompose = requireShowTitleCompose,
+        titleCompose = titleCompose,
+        requireShowTextCompose = requireShowTextCompose,
+        textCompose = textCompose,
+        cancelBtnText = cancelBtnText,
+        okBtnText = okBtnText,
+        cancelTextColor = cancelTextColor,
+        okTextColor= okTextColor,
+        okBtnEnabled= okBtnEnabled,
+        loadingOn= loadingOn,
+        loadingOff= loadingOff,
+        loadingText= loadingText,
+        onCancel= onCancel,
+        onOk= onOk,
+        cancelCompose = {
             TextButton(
                 onClick = onCancel
             ) {
@@ -66,7 +59,7 @@ fun CopyableDialog(
                 )
             }
         },
-        confirmButton = {
+        okCompose = {
             TextButton(
                 enabled = okBtnEnabled,
                 onClick = {
@@ -78,13 +71,12 @@ fun CopyableDialog(
             ) {
                 Text(
                     text = okBtnText,
-                    color = okTextColor,
+                    color = if(okBtnEnabled) okTextColor else Color.Unspecified,
                 )
             }
         },
 
     )
-
 
 }
 
@@ -110,6 +102,7 @@ fun CopyableDialog2(
 
     //若cancelCompose为null，则此函数为 cancel按钮 和 onDismiss 回调；否则仅为onDismiss回调。（p.s. onDismiss就是弹窗显示的情况下，点击非弹窗区域触发的那个函数）
     onCancel: () -> Unit,
+    onDismiss: ()->Unit = onCancel,
 
     onOk: suspend () -> Unit,  //加suspend是为了避免拷贝的时候卡住或抛异常，不过外部不需要开协程，本组件内开就行了，调用者只写逻辑即可
 ) {
@@ -118,13 +111,15 @@ fun CopyableDialog2(
 
     AlertDialog(
         title = {
+            //避免和外部的selection冲突导致长按选择文本时app崩溃
+            // 例如，旧版的compose（新版不是不崩，只是我没测试过，不确定），
+            // 外部组件用selection container包了整个屏幕，然后显示弹窗，然后长按弹窗内文字，就会崩溃
             MySelectionContainer {
                 if(requireShowTitleCompose) {
                     titleCompose()
                 }else {
-                    Text(title)
+                    DialogTitle(title)
                 }
-
             }
         },
         text = {
@@ -139,7 +134,7 @@ fun CopyableDialog2(
             }
         },
         //点击弹框外区域的时候触发此方法，一般设为和OnCancel一样的行为即可
-        onDismissRequest = onCancel,
+        onDismissRequest = onDismiss,
         dismissButton = {
             if(cancelCompose == null) {
                 TextButton(
@@ -167,7 +162,7 @@ fun CopyableDialog2(
                 ) {
                     Text(
                         text = okBtnText,
-                        color = okTextColor,
+                        color = if(okBtnEnabled) okTextColor else Color.Unspecified,
                     )
                 }
             }else {

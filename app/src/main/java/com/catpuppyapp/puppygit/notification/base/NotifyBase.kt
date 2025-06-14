@@ -15,6 +15,7 @@ import androidx.core.app.NotificationManagerCompat
 import com.catpuppyapp.puppygit.notification.bean.Action
 import com.catpuppyapp.puppygit.play.pro.R
 import com.catpuppyapp.puppygit.utils.MyLog
+import com.catpuppyapp.puppygit.utils.forEachBetter
 
 
 abstract class NotifyBase(
@@ -108,7 +109,7 @@ abstract class NotifyBase(
         val context = context ?: appContext
 
         val builder = NotificationCompat.Builder(context, channelId)
-            .setSmallIcon(R.drawable.branch) // 替换为您的图标
+            .setSmallIcon(R.drawable.dog_head) // 替换为您的图标
             .setContentTitle(title)
             .setContentText(message)
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
@@ -116,7 +117,7 @@ abstract class NotifyBase(
             .setContentIntent(pendingIntent) // 设置点击通知时的意图
             .setAutoCancel(true) // 点击后通知将自动消失，除非你是foreground service启动的通知
 
-        actionList?.invoke(context)?.forEach { action ->
+        actionList?.invoke(context)?.forEachBetter { action ->
             builder.addAction(action.iconId, action.text, action.pendingIntent)
         }
 

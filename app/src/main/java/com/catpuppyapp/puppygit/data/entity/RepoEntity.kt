@@ -9,11 +9,18 @@ import com.catpuppyapp.puppygit.constants.Cons
 import com.catpuppyapp.puppygit.constants.StorageDirCons
 import com.catpuppyapp.puppygit.data.entity.common.BaseFields
 import com.catpuppyapp.puppygit.etc.RepoPendingTask
+import com.catpuppyapp.puppygit.play.pro.R
+import com.catpuppyapp.puppygit.settings.AppSettings
+import com.catpuppyapp.puppygit.settings.SettingsUtil
 import com.catpuppyapp.puppygit.utils.Libgit2Helper
+import com.catpuppyapp.puppygit.utils.MyLog
 import com.catpuppyapp.puppygit.utils.dbIntToBool
 import com.catpuppyapp.puppygit.utils.getSecFromTime
+import com.catpuppyapp.puppygit.utils.getShortTimeIfPossible
 import com.catpuppyapp.puppygit.utils.getShortUUID
 import com.github.git24j.core.Repository
+
+private const val TAG = "RepoEntity"
 
 @Entity(tableName = "repo")
 data class RepoEntity(
@@ -42,7 +49,7 @@ data class RepoEntity(
 
     //分支短名
     var branch: String = "",  //如果仓库没detached HEAD，这个是分支名，如果detached，这个是短commit hash，可以通过git24j的相关函数判断仓库是否处于detached HEAD状态，或者在detached时直接使用 lastCommitHash 的值也行
-    var lastCommitHash: String = "",  //最后提交的hash，短
+    var lastCommitHash: String = "",  //最后提交的完整hash
     var isDetached:Int=Cons.dbCommonFalse,
     var upstreamBranch:String="",  // eg: origin/main
 
@@ -56,6 +63,7 @@ data class RepoEntity(
     var cloneUrl:String="",
 
     //仓库默认状态为 active，可通过仓库设置页面(不是公用仓库选项，是仓库私有的选项)设置为 inactive，如果是inactive，将不会自动检查仓库状态，在changelist也不能查看仓库状态(在changelist切换仓库，没这个仓库)
+    @Deprecated("实际上没用到这个字段")
     var isActive: Int=Cons.dbCommonTrue,
 
     var createBy:Int= Cons.dbRepoCreateByClone,
@@ -127,17 +135,42 @@ data class RepoEntity(
     @Ignore
     var pendingTask:RepoPendingTask=RepoPendingTask.NONE
 
+    @Ignore
+    var lastCommitHashShort:String? = null  //最后提交hash，短
+        private set
+        get() {
+            val tmp =  field
+            if(tmp != null && lastCommitHash.startsWith(tmp)) {
+                return tmp
+            }
+
+            return Libgit2Helper.getShortOidStrByFull(lastCommitHash).let { field = it; it }
+        }
+
+    @Ignore
+    var lastCommitDateTime:String=""
+        private set
+
+    // this filed no need set in copy, will re-generate and cache the value at first time getting
+    @Ignore
+    private var lastUpdateTimeFormattedCached:String? = null
+
     /**
      * 拷贝所有字段，包括不在data class构造器的字段
      */
-    fun copyAllFields():RepoEntity {
-        val newInstance = copy()
-
+    fun copyAllFields(
+        newInstance: RepoEntity = copy(),
+        settings: AppSettings = SettingsUtil.getSettingsSnapshot()
+    ):RepoEntity {
         newInstance.gitRepoState = gitRepoState
         newInstance.parentRepoName = parentRepoName
         newInstance.parentRepoValid = parentRepoValid
         newInstance.otherText = otherText
         newInstance.pendingTask = pendingTask
+        newInstance.lastCommitDateTime = lastCommitDateTime
+
+        updateLastCommitHashShort()
+        updateCommitDateTime(settings)
 
         return newInstance
     }
@@ -161,5 +194,41 @@ data class RepoEntity(
 
     fun getRepoStateStr(context: Context): String {
         return Libgit2Helper.getRepoStateStr(gitRepoState, context)
+    }
+
+    fun updateLastCommitHashShort() {
+        lastCommitHashShort = Libgit2Helper.getShortOidStrByFull(lastCommitHash)
+    }
+
+    // update date time of commit
+    fun updateCommitDateTime(settings: AppSettings) {
+        try {
+            Repository.open(fullSavePath).use { repo ->
+                updateCommitDateTimeWithRepo(repo, settings)
+            }
+        }catch (e: Exception) {
+            MyLog.e(TAG, "#updateCommitDateTime: resolve commit hash failed! hash=$lastCommitHash, err=${e.localizedMessage}")
+        }
+    }
+
+    fun updateCommitDateTimeWithRepo(repo: Repository, settings: AppSettings) {
+        lastCommitDateTime = try {
+            getShortTimeIfPossible(Libgit2Helper.getSingleCommitSimple(repo, repoId = id, commitOidStr = lastCommitHash, settings).dateTime)
+        }catch (e: Exception) {
+            MyLog.e(TAG, "#updateCommitDateTimeWithRepo: resolve commit hash failed! hash=$lastCommitHash, err=${e.localizedMessage}")
+            ""
+        }
+    }
+
+    fun cachedLastUpdateTime():String {
+        return lastUpdateTimeFormattedCached ?: getShortTimeIfPossible(lastUpdateTime).let { lastUpdateTimeFormattedCached = it; it }
+    }
+
+    fun createErrMsgForView(context: Context):String {
+        return if(createErrMsg.isEmpty()) {
+            ""
+        }else {
+            context.getString(R.string.error) + ": " + createErrMsg
+        }
     }
 }

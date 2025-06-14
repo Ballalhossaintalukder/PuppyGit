@@ -16,6 +16,7 @@ import com.catpuppyapp.puppygit.utils.RepoActUtil
 import com.catpuppyapp.puppygit.utils.cache.NotifySenderMap
 import com.catpuppyapp.puppygit.utils.createAndInsertError
 import com.catpuppyapp.puppygit.utils.doJobThenOffLoading
+import com.catpuppyapp.puppygit.utils.forEachBetter
 import com.catpuppyapp.puppygit.utils.genHttpHostPortStr
 import com.catpuppyapp.puppygit.utils.generateRandomString
 import io.ktor.serialization.kotlinx.json.json
@@ -175,7 +176,7 @@ internal class HttpServer(
 
                                 MyLog.d(TAG, "generate notifyers for ${validRepoListFromDb.size} repos")
 
-                                validRepoListFromDb.forEach {
+                                validRepoListFromDb.forEachBetter {
                                     //notify
                                     val serviceNotify = createNotify(NotifyUtil.genId())
                                     NotifySenderMap.set(
@@ -281,7 +282,7 @@ internal class HttpServer(
 
                                 MyLog.d(TAG, "generate notifyers for ${validRepoListFromDb.size} repos")
 
-                                validRepoListFromDb.forEach {
+                                validRepoListFromDb.forEachBetter {
                                     //notify
                                     val serviceNotify = createNotify(NotifyUtil.genId())
                                     NotifySenderMap.set(
@@ -387,7 +388,7 @@ internal class HttpServer(
 
                                 MyLog.d(TAG, "generate notifyers for ${validRepoListFromDb.size} repos")
 
-                                validRepoListFromDb.forEach {
+                                validRepoListFromDb.forEachBetter {
                                     //notify
                                     val serviceNotify = createNotify(NotifyUtil.genId())
                                     NotifySenderMap.set(
@@ -468,7 +469,7 @@ internal class HttpServer(
                                 val allRepos = AppModel.dbContainer.repoRepository.getAll()
                                 MyLog.d(TAG, "generate notifyers for ${allRepos.size} repos")
 
-                                allRepos.forEach {
+                                allRepos.forEachBetter {
                                     //notify
                                     val serviceNotify = createNotify(NotifyUtil.genId())
                                     NotifySenderMap.set(
@@ -545,7 +546,7 @@ internal class HttpServer(
                                 val allRepos = AppModel.dbContainer.repoRepository.getAll()
                                 MyLog.d(TAG, "generate notifyers for ${allRepos.size} repos")
 
-                                allRepos.forEach {
+                                allRepos.forEachBetter {
                                     //notify
                                     val serviceNotify = createNotify(NotifyUtil.genId())
                                     NotifySenderMap.set(
@@ -617,7 +618,7 @@ internal class HttpServer(
                                 val allRepos = AppModel.dbContainer.repoRepository.getAll()
                                 MyLog.d(TAG, "generate notifyers for ${allRepos.size} repos")
 
-                                allRepos.forEach {
+                                allRepos.forEachBetter {
                                     //notify
                                     val serviceNotify = createNotify(NotifyUtil.genId())
                                     NotifySenderMap.set(
@@ -685,7 +686,7 @@ internal class HttpServer(
 
         val db = AppModel.dbContainer
         val validRepoListFromDb = mutableListOf<RepoEntity>()
-        repoNameOrIdList.forEach { repoNameOrId ->
+        repoNameOrIdList.forEachBetter { repoNameOrId ->
             val repoRet = db.repoRepository.getByNameOrId(repoNameOrId, forceUseIdMatchRepo)
             if (repoRet.hasError() || repoRet.data == null) {
                 MyLog.d(TAG, "query repo '$repoNameOrId' from db err: " + repoRet.msg)

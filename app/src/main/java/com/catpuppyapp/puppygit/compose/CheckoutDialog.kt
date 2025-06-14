@@ -2,12 +2,10 @@ package com.catpuppyapp.puppygit.compose
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.selection.selectable
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
@@ -19,7 +17,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -41,13 +38,15 @@ import com.catpuppyapp.puppygit.utils.doJobThenOffLoading
 import com.github.git24j.core.Oid
 import com.github.git24j.core.Repository
 
-private val TAG = "CheckoutDialog"
-private val stateKeyTag = "CheckoutDialog"
+private const val TAG = "CheckoutDialog"
 
 
 @Composable
 fun CheckoutDialog(
-    initBranchName:String="",  // if checkout remote branch, init branch name  to remote branch name
+    branchName: MutableState<String>,
+    // this may will be remote branch short name without remote prefix when check out any remote branch
+    remoteBranchShortNameMaybe:String = "",
+
     isCheckoutRemoteBranch:Boolean=false,  // show set upstream checkbox if true
     remotePrefixMaybe:String="",
     showCheckoutDialog:MutableState<Boolean>,
@@ -61,15 +60,13 @@ fun CheckoutDialog(
     loadingOn:(String)->Unit,
     loadingOff:()->Unit,
     onlyUpdateCurItem:Boolean,  //在操作完成后，若此值为true仅执行updateCurItem，否则执行refreshPage。（ps：创建分支或tag后，只需要更新当前条目，不用刷新整个页面，刷新页面会重置列表，所以不要轻易刷新
-    updateCurItem:(curItemIdx:Int, fullOid:String) -> Unit,  // curItemIdx代表需要更新的条目在列表中的索引; fullOid用来重新查询commit信息
+    updateCurItem:(curItemIdx:Int, fullOid:String, forceCreateBranch:Boolean, branchName:String) -> Unit,  // curItemIdx代表需要更新的条目在列表中的索引; fullOid用来重新查询commit信息
     refreshPage:()->Unit,  //刷新页面，若不需要刷新可传空
     curCommitIndex:Int,  //当前条目索引，若不需要调用updateCurItem更新当前item或期望通过findCurItemIdxInList查找索引，此值可传-1
     expectCheckoutType:Int,  //期望的checkout类型，不一定会采用，但可确定调用checkout的是谁，是远程分支还是本地分支还是别的
     showJustCheckout:Boolean= false,  //参数原名：`checkoutLocalBranch`。 作用：显示一个just checkout选项并默认选中，一般只有checkout本地分支时才需要设此值为true
     findCurItemIdxInList:(oid:String)->Int,  //实现一个函数从list找到当前条目id，然后把id传给updateCurItem函数更新条目，若不需要更新列表条目，可返回-1
 ) {
-    // this may will be remote branch short name without remote prefix , if checking out any remote branch
-    val remoteBranchShortNameMaybe = initBranchName
 
     val repoId = curRepo.id
 
@@ -82,23 +79,23 @@ fun CheckoutDialog(
     val checkoutOptionDefault = if(showJustCheckout) checkoutOptionJustCheckoutForLocalBranch else checkoutOptionCreateBranch  //默认选中创建分支，detach head如果没reflog，有可能丢数据
     val checkoutRemoteOptions = listOf(
         activityContext.getString(R.string.dont_update_head),
-        activityContext.getString(R.string.detach_head),
+//        activityContext.getString(R.string.detach_head),
+        Cons.gitDetachHeadStr,  //这个感觉不翻译好一些
         activityContext.getString(R.string.new_branch) + "(" + activityContext.getString(R.string.recommend) + ")",
         stringResource(R.string.just_checkout)
     )
 
 
     val checkoutSelectedOption = rememberSaveable{ mutableIntStateOf(checkoutOptionDefault) }
-    val checkoutRemoteCreateBranchName = rememberSaveable { mutableStateOf(initBranchName) }
     val checkoutUserInputCommitHash = rememberSaveable { mutableStateOf("") }
     val forceCheckout = rememberSaveable { mutableStateOf(false) }
     val dontCheckout = rememberSaveable { mutableStateOf(false) }
-    val overwriteIfExist = rememberSaveable { mutableStateOf(false) }
+    val overwriteIfBranchExist = rememberSaveable { mutableStateOf(false) }
     val setUpstream = rememberSaveable { mutableStateOf(isCheckoutRemoteBranch) }
 
     val getCheckoutOkBtnEnabled:()->Boolean = getCheckoutOkBtnEnabled@{
         //请求checkout时创建分支但没填分支，返回假
-        if(checkoutSelectedOption.intValue == checkoutOptionCreateBranch && checkoutRemoteCreateBranchName.value.isBlank()) {
+        if(checkoutSelectedOption.intValue == checkoutOptionCreateBranch && branchName.value.isBlank()) {
             return@getCheckoutOkBtnEnabled false
         }
 
@@ -150,7 +147,8 @@ fun CheckoutDialog(
         }
 
 
-    ConfirmDialog(title = activityContext.getString(R.string.checkout),
+    ConfirmDialog(
+        title = activityContext.getString(R.string.checkout),
         requireShowTextCompose = true,
         textCompose = {
             //只能有一个节点，因为这个东西会在lambda后返回，而lambda只能有一个返回值，弄两个布局就乱了，和react组件只能有一个root div一个道理 。
@@ -214,45 +212,17 @@ fun CheckoutDialog(
                     Text(text = activityContext.getString(R.string.plz_choose_a_checkout_type) + ":")
                 }
 
-                for ((k, optext) in checkoutRemoteOptions.withIndex()) {
-                    //免费用户不支持 "Don't update head"
-                    //直接continue对应选项即可，这样就不会在界面显示了，索引也可正常工作，完美
-                    if(!proFeatureEnabled(dontUpdateHeadWhenCheckoutTestPassed) && k == checkoutOptionDontUpdateHead) {
-                        continue
-                    }
+                Spacer(Modifier.height(5.dp))
 
-                    //只有在checkout本地分支时才显示just checkout选项
-                    if(!showJustCheckout && k==checkoutOptionJustCheckoutForLocalBranch) {
-                        continue
-                    }
+                //单选框，选择检出类型
+                SingleSelection(
+                    itemList = checkoutRemoteOptions,
+                    selected = {idx, item -> checkoutSelectedOption.intValue == idx},
+                    text = {idx, item -> item},
+                    onClick = {idx, item -> checkoutSelectedOption.intValue = idx},
+                    skip = {idx, item -> (idx == checkoutOptionDontUpdateHead && !proFeatureEnabled(dontUpdateHeadWhenCheckoutTestPassed)) || (idx == checkoutOptionJustCheckoutForLocalBranch && !showJustCheckout)}
+                )
 
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .heightIn(min = MyStyleKt.RadioOptions.minHeight)
-
-                            .selectable(
-                                selected = checkoutSelectedOption.intValue == k,
-                                onClick = {
-                                    //更新选择值
-                                    checkoutSelectedOption.intValue = k
-                                },
-                                role = Role.RadioButton
-                            )
-                            .padding(horizontal = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        RadioButton(
-                            selected = checkoutSelectedOption.intValue == k,
-                            onClick = null // null recommended for accessibility with screenreaders
-                        )
-                        Text(
-                            text = optext,
-                            style = MaterialTheme.typography.bodyLarge,
-                            modifier = Modifier.padding(start = 10.dp)
-                        )
-                    }
-                }
                 //如果选择的是创建分支，显示一个输入框
                 if (checkoutSelectedOption.intValue == checkoutOptionCreateBranch) {
                     Row(modifier = Modifier.padding(5.dp)) {
@@ -261,10 +231,10 @@ fun CheckoutDialog(
                     TextField(
                         modifier = Modifier.fillMaxWidth(),
 
-                        value = checkoutRemoteCreateBranchName.value,
+                        value = branchName.value,
                         singleLine = true,
                         onValueChange = {
-                            checkoutRemoteCreateBranchName.value = it
+                            branchName.value = it
                         },
                         label = {
                             Text(stringResource(R.string.branch_name))
@@ -274,16 +244,19 @@ fun CheckoutDialog(
 //                            }
                     )
 
+                    Spacer(Modifier.height(10.dp))
+
                     if(isCheckoutRemoteBranch && remotePrefixMaybe.isNotBlank() && remoteBranchShortNameMaybe.isNotBlank()) {
                         MyCheckBox(text = stringResource(R.string.set_upstream), value = setUpstream)
                     }
 
                     if(proFeatureEnabled(overwriteExistWhenCreateBranchTestPassed)) {
-                        MyCheckBox(text = stringResource(R.string.overwrite_if_exist), value = overwriteIfExist)
-                        if(overwriteIfExist.value) {
+                        MyCheckBox(text = stringResource(R.string.overwrite_if_exist), value = overwriteIfBranchExist)
+                        if(overwriteIfBranchExist.value) {
                             Row {
                                 DefaultPaddingText(
                                     text = stringResource(R.string.will_overwrite_if_branch_already_exists),
+                                    color = MyStyleKt.TextColor.danger(),
                                 )
                             }
 
@@ -319,6 +292,8 @@ fun CheckoutDialog(
                 val showForceCheckout = (!(checkoutSelectedOption.intValue == checkoutOptionCreateBranch && dontCheckout.value)) && proFeatureEnabled(forceCheckoutTestPassed)
                 //仅当选中createbranch且勾选dontCheckout时才隐藏force，否则显示
                 if(showForceCheckout) {
+                    Spacer(Modifier.height(10.dp))
+
                     // show force checkbox
                     MyCheckBox(text = stringResource(R.string.force), value = forceCheckout)
 
@@ -352,7 +327,7 @@ fun CheckoutDialog(
         //如果使用用户输入，就使用用户输入；否则，如果请求检出commit，就用commit值；否则当作检出引用（分支 or tag），返回引用名
         val curCommitOidOrRefName = if(useUserInputHash) checkoutUserInputCommitHash else if(expectCheckoutType==Cons.checkoutType_checkoutCommitThenDetachHead) curCommitOid else fullName
         val curCommitShortOidOrShortRefName = if(useUserInputHash) checkoutUserInputCommitHash else if(expectCheckoutType==Cons.checkoutType_checkoutCommitThenDetachHead) curCommitShortOid else shortName
-        val localBranchWillCreate = checkoutRemoteCreateBranchName.value
+        val localBranchWillCreate = branchName.value
         val repoFullPath = curRepo.fullSavePath
 //                val curRepoId = curRepo.id  //这个和页面的repoId参数一样，所以直接用那个就行
         val curCommitIndex = if(useUserInputHash || curCommitIndex<0) -1 else curCommitIndex  //用于在checkout长按选择的当前提交失败时更新当前提交信息，如果checkout为分支，其实分两个步骤，一个创建分支，一个checkout分支，若1成功，2失败，则checkout返回失败，但这时当前提交已经改变，至少分支列表会多出刚才创建的那个分支，所以需要重新获取commit信息。如果是用户输入提交号checkout，则无需更新提交条目，此值应设为一个无效索引值，例如-1（当然，用户可能手动输入提交号，而那个提交号显示在列表中，这时其实需要更新那个提交条目的信息，但是无法预判用户会输入什么，而且不更新也问题不大，所以忽略）
@@ -431,7 +406,7 @@ fun CheckoutDialog(
                     MyLog.d(TAG, "checkout commit to new local branch: localBranchWillCreate=$localBranchWillCreate, baseCommitOid=$baseCommitOid")
 
                     //参数1，要创建的本地分支名；2是否基于HEAD创建分支，3如果不基于HEAD，提供一个引用名
-                    val createBranchRet = doCreateBranch(localBranchWillCreate, baseCommitOid, overwriteIfExist.value)  //创建分支
+                    val createBranchRet = doCreateBranch(localBranchWillCreate, baseCommitOid, overwriteIfBranchExist.value)  //创建分支
                     if (createBranchRet.success()) {
                         val (fullBranchRefspec, branchShortName, branchHeadFullHash) = createBranchRet.data!!  //第一个返回值是长分支名，二是短分支名，三是分支头hash
 
@@ -470,7 +445,7 @@ fun CheckoutDialog(
 
                             //把新创建的分支关联的commit条目更新一下，因为上面需要多显示一个新分支
                             // note: need not validate index at here, it will validate when into updateCurCommitInfo, if index invalid, nothing to do
-                            updateCurItem(commitIndexNeedUpdate, branchHeadFullHash)
+                            updateCurItem(commitIndexNeedUpdate, branchHeadFullHash, overwriteIfBranchExist.value, localBranchWillCreate)
                         }
 
                         Msg.requireShow(activityContext.getString(R.string.create_branch_success))
@@ -548,22 +523,19 @@ fun CheckoutDialog(
                         curCommitIndex
                     }
 
-                    updateCurItem(commitIndexNeedUpdate, curCommitOidOrRefName)
+                    updateCurItem(commitIndexNeedUpdate, curCommitOidOrRefName, overwriteIfBranchExist.value, localBranchWillCreate)
                 } catch (e: Exception) {
-                    MyLog.e(
-                        TAG,
-                        "err: try update item info failed when checkout, err=" + e.stackTraceToString()
-                    )
+                    MyLog.w(TAG, "err: try update item info failed when checkout, err=" + e.localizedMessage)
                 }
 
                 //显示通知
-                Msg.requireShowLongDuration("err:" + e.localizedMessage)
+                Msg.requireShowLongDuration("err: " + e.localizedMessage)
                 val refName = if(shortName.isNotBlank() && shortName==curCommitOidOrRefName) shortName else "$shortName($curCommitOidOrRefName)"
                 //给用户看的错误
                 //"checkout main(abcdef1) err" or "checkout abcef12 err"
-                createAndInsertError(repoId, "checkout '" + refName + "' err:" + e.localizedMessage)
+                createAndInsertError(repoId, "checkout '" + refName + "' err: " + e.localizedMessage)
                 //给开发者debug看的错误
-                MyLog.e(TAG, "checkout '" + refName + "' err:" + e.stackTraceToString())
+                MyLog.e(TAG, "checkout '" + refName + "' err: " + e.stackTraceToString())
             }
         }
     }

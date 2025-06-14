@@ -12,12 +12,9 @@ import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.FilterAlt
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -42,7 +39,9 @@ import com.catpuppyapp.puppygit.compose.ErrorItem
 import com.catpuppyapp.puppygit.compose.FilterTextField
 import com.catpuppyapp.puppygit.compose.GoToTopAndGoToBottomFab
 import com.catpuppyapp.puppygit.compose.LongPressAbleIconBtn
+import com.catpuppyapp.puppygit.compose.MyHorizontalDivider
 import com.catpuppyapp.puppygit.compose.MyLazyColumn
+import com.catpuppyapp.puppygit.compose.PullToRefreshBox
 import com.catpuppyapp.puppygit.compose.RepoInfoDialog
 import com.catpuppyapp.puppygit.compose.ScrollableRow
 import com.catpuppyapp.puppygit.constants.Cons
@@ -58,6 +57,7 @@ import com.catpuppyapp.puppygit.style.MyStyleKt
 import com.catpuppyapp.puppygit.utils.AppModel
 import com.catpuppyapp.puppygit.utils.Msg
 import com.catpuppyapp.puppygit.utils.MyLog
+import com.catpuppyapp.puppygit.utils.cache.Cache
 import com.catpuppyapp.puppygit.utils.changeStateTriggerRefreshPage
 import com.catpuppyapp.puppygit.utils.doJobThenOffLoading
 import com.catpuppyapp.puppygit.utils.state.mutableCustomStateListOf
@@ -65,7 +65,6 @@ import com.catpuppyapp.puppygit.utils.state.mutableCustomStateOf
 
 
 private const val TAG = "ErrorListScreen"
-private const val stateKeyTag = "ErrorListScreen"
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -78,9 +77,14 @@ fun ErrorListScreen(
     repoId:String,
     naviUp: () -> Boolean,
 ) {
-    val homeTopBarScrollBehavior = AppModel.homeTopBarScrollBehavior
+    val stateKeyTag = Cache.getSubPageKey(TAG)
+
+
     val activityContext = LocalContext.current
+    val clipboardManager = LocalClipboardManager.current
+    val homeTopBarScrollBehavior = AppModel.homeTopBarScrollBehavior
     val scope = rememberCoroutineScope()
+
     val settings = remember { SettingsUtil.getSettingsSnapshot() }
 
     //获取假数据
@@ -100,16 +104,7 @@ fun ErrorListScreen(
     val curObjInState = mutableCustomStateOf(keyTag = stateKeyTag, keyName = "curObjInState",initValue = ErrorEntity())
     val showClearAllConfirmDialog = rememberSaveable { mutableStateOf(false)}
 
-    val doClearAll={
-        doJobThenOffLoading {
-            val errDb = AppModel.dbContainer.errorRepository
-            errDb.deleteByRepoId(repoId)
 
-//            list.clear()
-            //x 找到原因了：因为之前用的是 mutableList() 而不是 mutableStateListOf()) 奇怪啊，这个不知道为什么这里的刷新不好使，就非得在上面把list clear一下才行不然列表就还是有东西，但点击刷新后东西就没了，不知道什么原因，以后再排查吧
-            changeStateTriggerRefreshPage(needRefresh)
-        }
-    }
 
     val filterResultNeedRefresh = rememberSaveable { mutableStateOf("") }
 
@@ -174,6 +169,13 @@ fun ErrorListScreen(
 //    }.value
     // 向下滚动监听，结束
 
+    val removeItemByPredicate = { predicate:(ErrorEntity)->Boolean ->
+        if(enableFilterState.value) {
+            filterList.value.removeIf { predicate(it) }
+        }
+
+        list.value.removeIf { predicate(it) }
+    }
 
     val showTitleInfoDialog = rememberSaveable { mutableStateOf(false) }
     if(showTitleInfoDialog.value) {
@@ -188,14 +190,58 @@ fun ErrorListScreen(
     val filterLastPosition = rememberSaveable { mutableStateOf(0) }
     val lastPosition = rememberSaveable { mutableStateOf(0) }
 
+    if(showClearAllConfirmDialog.value) {
+        ConfirmDialog(
+            title=stringResource(R.string.clear_all),
+            text=stringResource(R.string.clear_all_ask_text),
+            okTextColor = MyStyleKt.TextColor.danger(),
+            onCancel = { showClearAllConfirmDialog.value=false },
+            onOk = {
+                //关闭弹窗
+                showClearAllConfirmDialog.value = false
+
+                doJobThenOffLoading {
+                    AppModel.dbContainer.errorRepository.deleteByRepoId(repoId)
+
+                    Msg.requireShow(activityContext.getString(R.string.success))
+
+                    changeStateTriggerRefreshPage(needRefresh)
+                }
+            }
+        )
+    }
+
+
+    val viewDialogText = rememberSaveable { mutableStateOf("") }
+    val showViewDialog = rememberSaveable { mutableStateOf(false) }
+    if(showViewDialog.value) {
+        CopyableDialog(
+            title = stringResource(R.string.error_msg),
+            text = viewDialogText.value,
+            onCancel = {
+                showViewDialog.value=false
+            }
+        ) { //复制到剪贴板
+            showViewDialog.value=false
+            clipboardManager.setText(AnnotatedString(viewDialogText.value))
+            Msg.requireShow(activityContext.getString(R.string.copied))
+        }
+    }
+
+    BackHandler {
+        if(filterModeOn.value) {
+            filterModeOn.value = false
+            resetSearchVars()
+        } else {
+            naviUp()
+        }
+    }
+
     Scaffold(
         modifier = Modifier.nestedScroll(homeTopBarScrollBehavior.nestedScrollConnection),
         topBar = {
             TopAppBar(
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    titleContentColor = MaterialTheme.colorScheme.primary,
-                ),
+                colors = MyStyleKt.TopBar.getColors(),
                 title = {
                     if(filterModeOn.value) {
                         FilterTextField(filterKeyWord = filterKeyword, loading = searching.value)
@@ -304,112 +350,94 @@ fun ErrorListScreen(
         }
     ) { contentPadding ->
 
-        if(showClearAllConfirmDialog.value) {
-            ConfirmDialog(title=stringResource(R.string.clear_all),
-                text=stringResource(R.string.clear_all_ask_text),
-                okTextColor = MyStyleKt.TextColor.danger(),
-                onCancel = {showClearAllConfirmDialog.value=false},  //关闭弹窗
-                onOk = {
-                    showClearAllConfirmDialog.value=false  //关闭弹窗
-                    doClearAll()  //执行操作
-                }
-            )
-        }
-
+        // bottom sheet放不放pull to refresh box都行，不会冲突
         if(showBottomSheet.value) {
-            BottomSheet(showBottomSheet, sheetState, stringResource(R.string.id)+":"+curObjInState.value.id) {
+            BottomSheet(showBottomSheet, sheetState, stringResource(R.string.id)+": "+curObjInState.value.id) {
 //                BottomSheetItem(sheetState=sheetState, showBottomSheet=showBottomSheet, text=stringResource(R.string.view_msg)){
 //                    //弹窗显示错误信息，可复制
 //                }
-                BottomSheetItem(sheetState=sheetState, showBottomSheet=showBottomSheet, text=stringResource(R.string.delete), textColor = MyStyleKt.TextColor.danger()){
-                    // onClick()
-                    //在这里可以直接用state curObj取到当前选中条目，curObjInState在长按条目后会被更新为当前被长按的条目
-                    // 不用确认，直接删除，可以有撤销的snackbar，但非必须
+                BottomSheetItem(sheetState=sheetState, showBottomSheet=showBottomSheet, text=stringResource(R.string.delete), textColor = MyStyleKt.TextColor.danger()) {
+                    val target = curObjInState.value
+
                     doJobThenOffLoading {
-                        val errDb = AppModel.dbContainer.errorRepository
-                        errDb.delete(curObjInState.value)
-                        changeStateTriggerRefreshPage(needRefresh)
+                        // remove from db
+                        AppModel.dbContainer.errorRepository.delete(target)
+
+                        // remove from list/filterList
+                        removeItemByPredicate {
+                            it.id == target.id
+                        }
+
+                        Msg.requireShow(activityContext.getString(R.string.success))
                     }
                 }
             }
         }
-        val clipboardManager = LocalClipboardManager.current
 
-        val viewDialogText = rememberSaveable { mutableStateOf("") }
-        val showViewDialog = rememberSaveable { mutableStateOf(false) }
-        if(showViewDialog.value) {
-            CopyableDialog(
-                title = stringResource(id = R.string.error_msg),
-                text = viewDialogText.value,
-                onCancel = {
-                    showViewDialog.value=false
+        PullToRefreshBox(
+            contentPadding = contentPadding,
+            onRefresh = { changeStateTriggerRefreshPage(needRefresh) }
+        ) {
+
+            //根据关键字过滤条目
+            val keyword = filterKeyword.value.text.lowercase()  //关键字
+            val enableFilter = filterModeActuallyEnabled(filterModeOn.value, keyword)
+
+            val lastNeedRefresh = rememberSaveable { mutableStateOf("") }
+            val list = filterTheList(
+                needRefresh = filterResultNeedRefresh.value,
+                lastNeedRefresh = lastNeedRefresh,
+                enableFilter = enableFilter,
+                keyword = keyword,
+                lastKeyword = lastKeyword,
+                searching = searching,
+                token = token,
+                activityContext = activityContext,
+                filterList = filterList.value,
+                list = list.value,
+                resetSearchVars = resetSearchVars,
+                match = { idx: Int, it: ErrorEntity ->
+                    it.msg.lowercase().contains(keyword) || it.date.lowercase().contains(keyword) || it.id.lowercase().contains(keyword)
                 }
-            ) { //复制到剪贴板
-                showViewDialog.value=false
-                clipboardManager.setText(AnnotatedString(viewDialogText.value))
-                Msg.requireShow(activityContext.getString(R.string.copied))
-            }
-        }
-
-        //根据关键字过滤条目
-        val keyword = filterKeyword.value.text.lowercase()  //关键字
-        val enableFilter = filterModeActuallyEnabled(filterModeOn.value, keyword)
-
-        val lastNeedRefresh = rememberSaveable { mutableStateOf("") }
-        val list = filterTheList(
-            needRefresh = filterResultNeedRefresh.value,
-            lastNeedRefresh = lastNeedRefresh,
-            enableFilter = enableFilter,
-            keyword = keyword,
-            lastKeyword = lastKeyword,
-            searching = searching,
-            token = token,
-            activityContext = activityContext,
-            filterList = filterList.value,
-            list = list.value,
-            resetSearchVars = resetSearchVars,
-            match = { idx: Int, it: ErrorEntity ->
-                it.msg.lowercase().contains(keyword) || it.date.lowercase().contains(keyword) || it.id.lowercase().contains(keyword)
-            }
-        )
+            )
 
 
-        val listState = if(enableFilter) filterListState else lazyListState
+            val listState = if(enableFilter) filterListState else lazyListState
 //        if(enableFilter) {  //更新filter列表state
 //            filterListState.value = listState
 //        }
-        //更新是否启用filter
-        enableFilterState.value = enableFilter
+            //更新是否启用filter
+            enableFilterState.value = enableFilter
 
 
-        MyLazyColumn(
-            contentPadding = contentPadding,
-            list = list,
-            listState = listState,
-            requireForEachWithIndex = true,
-            requirePaddingAtBottom = true
-        ) { idx, it ->
-            //在这个组件里更新了 state curObj，所以长按后直接用curObj就能获取到当前对象了
-            ErrorItem(showBottomSheet,curObjInState,idx, lastClickedItemKey, it) {
-                val sb = StringBuilder()
-                sb.append(activityContext.getString(R.string.id)).append(": ").appendLine(it.id).appendLine()
-                    .append(activityContext.getString(R.string.date)).append(": ").appendLine(it.date).appendLine()
-                    .append(activityContext.getString(R.string.msg)).append(": ").appendLine(it.msg)
+            MyLazyColumn(
+                contentPadding = contentPadding,
+                list = list,
+                listState = listState,
+                requireForEachWithIndex = true,
+                requirePaddingAtBottom = true
+            ) { idx, it ->
+                //在这个组件里更新了 state curObj，所以长按后直接用curObj就能获取到当前对象了
+                ErrorItem(showBottomSheet,curObjInState,idx, lastClickedItemKey, it) {
+                    val suffix = "\n\n"
+                    val sb = StringBuilder()
 
-                viewDialogText.value = sb.toString()
-                showViewDialog.value = true
+                    sb.append(activityContext.getString(R.string.id)).append(": ").append(it.id).append(suffix)
+                    sb.append(activityContext.getString(R.string.date)).append(": ").append(it.date).append(suffix)
+                    sb.append(activityContext.getString(R.string.msg)).append(": ").append(it.msg).append(suffix)
+
+                    viewDialogText.value = sb.removeSuffix(suffix).toString()
+
+                    showViewDialog.value = true
+                }
+
+                MyHorizontalDivider()
             }
-            HorizontalDivider()
+
         }
 
-    }
 
-    BackHandler {
-        if(filterModeOn.value) {
-            filterModeOn.value = false
-        } else {
-            naviUp()
-        }
+
     }
 
     //compose创建时的副作用

@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -24,6 +25,7 @@ import androidx.compose.ui.unit.dp
 import com.catpuppyapp.puppygit.git.StashDto
 import com.catpuppyapp.puppygit.play.pro.R
 import com.catpuppyapp.puppygit.screen.functions.fromTagToCommitHistory
+import com.catpuppyapp.puppygit.style.MyStyleKt
 import com.catpuppyapp.puppygit.utils.Msg
 import com.catpuppyapp.puppygit.utils.UIHelper
 import com.catpuppyapp.puppygit.utils.state.CustomStateSaveable
@@ -47,6 +49,8 @@ fun StashItem(
 
     val haptic = LocalHapticFeedback.current
 
+    val defaultFontWeight = remember { MyStyleKt.TextItem.defaultFontWeight() }
+
     Column(
         //0.9f 占父元素宽度的百分之90
         modifier = Modifier
@@ -62,7 +66,7 @@ fun StashItem(
                     lastClickedItemKey.value = thisObj.getItemKey()
 
                     //震动反馈
-                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+//                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
 
                     //设置当前条目
                     curObjFromParent.value = StashDto()
@@ -109,7 +113,7 @@ fun StashItem(
                 text = thisObj.getCachedShortStashId(),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                fontWeight = FontWeight.Light
+                fontWeight = defaultFontWeight
 
             )
 
@@ -138,7 +142,7 @@ fun StashItem(
                 text = thisObj.msg,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                fontWeight = FontWeight.Light
+                fontWeight = defaultFontWeight
 
             )
         }

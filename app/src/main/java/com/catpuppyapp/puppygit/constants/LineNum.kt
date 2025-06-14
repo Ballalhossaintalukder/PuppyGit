@@ -21,7 +21,8 @@ object LineNum {
          * trans a puppy line EOF_NL to EOF line, because EOF_NL's content is something like "no new line of file", but I only want to show a clear new line
          */
         fun transLineToEofLine(line: PuppyLine, add:Boolean): PuppyLine {
-            return line.copy(lineNum = LINE_NUM,
+            return line.copy(
+                lineNum = LINE_NUM,
                 originType = if(add) Diff.Line.OriginType.ADDITION.toString() else Diff.Line.OriginType.DELETION.toString(),
                 content = Cons.lineBreak,
                 contentLen = 1
@@ -34,6 +35,6 @@ object LineNum {
      * return true if this line number means should restore last edited or viewed position
      */
     fun shouldRestoreLastPosition(lineNumWillCheck:Int) :Boolean {
-        return lineNumWillCheck==lastPosition || (lineNumWillCheck!=EOF.LINE_NUM && lineNumWillCheck <= 0)
+        return lineNumWillCheck == lastPosition || (lineNumWillCheck != EOF.LINE_NUM && lineNumWillCheck <= 0)
     }
 }

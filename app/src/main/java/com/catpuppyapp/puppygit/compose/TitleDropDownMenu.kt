@@ -6,7 +6,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowLeft
@@ -17,16 +17,19 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
 import com.catpuppyapp.puppygit.style.MyStyleKt
+import com.catpuppyapp.puppygit.utils.AppModel
+import com.catpuppyapp.puppygit.utils.dropDownItemContainerColor
 
 @Composable
-fun <T> TitleDropDownMenu(
-    dropDownMenuExpendState: MutableState<Boolean>,
+fun <T> SimpleTitleDropDownMenu(
+    dropDownMenuExpandState: MutableState<Boolean>,
     curSelectedItem:T,
     itemList: List<T>,
     isItemSelected:(T)->Boolean,
@@ -39,7 +42,7 @@ fun <T> TitleDropDownMenu(
     itemOnClick: (T)->Unit
 ) {
     TitleDropDownMenu(
-        dropDownMenuExpendState = dropDownMenuExpendState,
+        dropDownMenuExpandState = dropDownMenuExpandState,
         curSelectedItem = curSelectedItem,
         itemList = itemList,
         titleClickEnabled = titleClickEnabled,
@@ -63,14 +66,15 @@ fun <T> TitleDropDownMenu(
         },
         titleRightIcon = {
             Icon(
-                imageVector = if (dropDownMenuExpendState.value) Icons.Filled.ArrowDropDown else Icons.AutoMirrored.Filled.ArrowLeft,
+                imageVector = if (dropDownMenuExpandState.value) Icons.Filled.ArrowDropDown else Icons.AutoMirrored.Filled.ArrowLeft,
                 contentDescription = showHideMenuIconContentDescription,
             )
         },
-        menuItem = {
+        isItemSelected = isItemSelected,
+        menuItem = {it, selected ->
             DropDownMenuItemText(
                 text = menuItemFormatter(it),
-                selected = isItemSelected(it)
+                selected = selected,
             )
         },
         titleOnLongClick = titleOnLongClick,
@@ -83,42 +87,57 @@ fun <T> TitleDropDownMenu(
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun <T> TitleDropDownMenu(
-    dropDownMenuExpendState: MutableState<Boolean>,
+    dropDownMenuExpandState: MutableState<Boolean>,
     curSelectedItem:T,
     itemList: List<T>,
+
+    // 这个是长按和点按共同的enabled
     titleClickEnabled:Boolean,
+
     switchDropDownMenuShowHide:()->Unit = {
-        dropDownMenuExpendState.value = !dropDownMenuExpendState.value
+        dropDownMenuExpandState.value = !dropDownMenuExpandState.value
     },
     closeDropDownMenu:()->Unit  = {
-        dropDownMenuExpendState.value = false
+        dropDownMenuExpandState.value = false
     },
     titleFirstLine:@Composable (T)->Unit,
     titleSecondLine:@Composable (T)->Unit,
     titleRightIcon:@Composable (T)->Unit,  // icon at the title text right
-    menuItem:@Composable (T)->Unit,
+    menuItem:@Composable (T, selected:Boolean)->Unit,
     titleOnLongClick:(T)->Unit,
-    itemOnClick: (T)->Unit
+    isItemSelected:(T)->Boolean,
+
+    //展开的菜单的条目的onClick
+    itemOnClick: (T)->Unit,
+    titleOnClick: ()->Unit = { switchDropDownMenuShowHide() },  //切换下拉菜单显示隐藏
+    showExpandIcon: Boolean = true,
 ) {
     val haptic = LocalHapticFeedback.current
+    val configuration = AppModel.getCurActivityConfig()
+
+    //最多占屏幕宽度一半
+    val itemWidth = remember(configuration.screenWidthDp) { (configuration.screenWidthDp / 2).dp }
+
+    val iconWidth = remember { 30.dp }
+    val textWidth = remember (showExpandIcon, itemWidth, iconWidth) { if(showExpandIcon) itemWidth - iconWidth else itemWidth }
 
     Box(
         modifier = Modifier
-            .fillMaxWidth()
+            .width(itemWidth)
             .combinedClickable(
                 enabled = titleClickEnabled,
                 onLongClick = {  //长按显示仓库名和分支名
-                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+//                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
 
                     titleOnLongClick(curSelectedItem)
                 }
             ) { // onClick
-                switchDropDownMenuShowHide()  //切换下拉菜单显示隐藏
+                titleOnClick()
             },
     ) {
         Column(
             modifier = Modifier
-                .fillMaxWidth(.8f)
+                .width(textWidth)
                 .align(Alignment.CenterStart)
         ) {
             Row(
@@ -137,22 +156,32 @@ fun <T> TitleDropDownMenu(
             }
         }
 
-        Column(
-            modifier = Modifier
-                .fillMaxWidth(.2f)
-                .align(Alignment.CenterEnd)
-        ) {
-            titleRightIcon(curSelectedItem)
+        if(showExpandIcon) {
+            Column(
+                modifier = Modifier
+                    .width(iconWidth)
+                    .align(Alignment.CenterEnd)
+            ) {
+                titleRightIcon(curSelectedItem)
+            }
         }
     }
+
+    //下拉菜单
     DropdownMenu(
-        expanded = dropDownMenuExpendState.value,
+        expanded = dropDownMenuExpandState.value,
         onDismissRequest = { closeDropDownMenu() }
     ) {
         for (i in itemList.toList()) {
+            val selected = isItemSelected(i)
+
             //列出条目
             DropdownMenuItem(
-                text = { menuItem(i) },
+                modifier = Modifier
+                    .dropDownItemContainerColor(selected)
+                    .width(itemWidth)
+                ,
+                text = { menuItem(i, selected) },
                 onClick = {
                     itemOnClick(i)
                     closeDropDownMenu()

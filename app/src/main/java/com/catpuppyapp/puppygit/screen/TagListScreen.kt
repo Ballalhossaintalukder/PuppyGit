@@ -2,34 +2,27 @@ package com.catpuppyapp.puppygit.screen
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Downloading
 import androidx.compose.material.icons.filled.FilterAlt
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material.icons.filled.Upload
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
@@ -52,14 +45,16 @@ import com.catpuppyapp.puppygit.compose.AskGitUsernameAndEmailDialogWithSelectio
 import com.catpuppyapp.puppygit.compose.BottomBar
 import com.catpuppyapp.puppygit.compose.CheckoutDialog
 import com.catpuppyapp.puppygit.compose.CheckoutDialogFrom
-import com.catpuppyapp.puppygit.compose.ClickableText
 import com.catpuppyapp.puppygit.compose.CopyableDialog
 import com.catpuppyapp.puppygit.compose.CreateTagDialog
 import com.catpuppyapp.puppygit.compose.FilterTextField
+import com.catpuppyapp.puppygit.compose.FullScreenScrollableColumn
 import com.catpuppyapp.puppygit.compose.GoToTopAndGoToBottomFab
 import com.catpuppyapp.puppygit.compose.LoadingDialog
 import com.catpuppyapp.puppygit.compose.LongPressAbleIconBtn
+import com.catpuppyapp.puppygit.compose.MyHorizontalDivider
 import com.catpuppyapp.puppygit.compose.MyLazyColumn
+import com.catpuppyapp.puppygit.compose.PullToRefreshBox
 import com.catpuppyapp.puppygit.compose.RepoInfoDialog
 import com.catpuppyapp.puppygit.compose.ResetDialog
 import com.catpuppyapp.puppygit.compose.ScrollableRow
@@ -75,6 +70,7 @@ import com.catpuppyapp.puppygit.screen.functions.filterModeActuallyEnabled
 import com.catpuppyapp.puppygit.screen.functions.filterTheList
 import com.catpuppyapp.puppygit.screen.functions.fromTagToCommitHistory
 import com.catpuppyapp.puppygit.screen.functions.triggerReFilter
+import com.catpuppyapp.puppygit.screen.shared.SharedState
 import com.catpuppyapp.puppygit.settings.SettingsUtil
 import com.catpuppyapp.puppygit.style.MyStyleKt
 import com.catpuppyapp.puppygit.ui.theme.Theme
@@ -83,10 +79,12 @@ import com.catpuppyapp.puppygit.utils.Libgit2Helper
 import com.catpuppyapp.puppygit.utils.Msg
 import com.catpuppyapp.puppygit.utils.MyLog
 import com.catpuppyapp.puppygit.utils.UIHelper
+import com.catpuppyapp.puppygit.utils.cache.Cache
 import com.catpuppyapp.puppygit.utils.changeStateTriggerRefreshPage
 import com.catpuppyapp.puppygit.utils.createAndInsertError
 import com.catpuppyapp.puppygit.utils.doActIfIndexGood
 import com.catpuppyapp.puppygit.utils.doJobThenOffLoading
+import com.catpuppyapp.puppygit.utils.forEachBetter
 import com.catpuppyapp.puppygit.utils.formatMinutesToUtc
 import com.catpuppyapp.puppygit.utils.state.mutableCustomStateListOf
 import com.catpuppyapp.puppygit.utils.state.mutableCustomStateOf
@@ -95,7 +93,6 @@ import com.catpuppyapp.puppygit.utils.updateSelectedList
 import com.github.git24j.core.Repository
 
 private const val TAG = "TagListScreen"
-private const val stateKeyTag = "TagListScreen"
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -109,13 +106,15 @@ fun TagListScreen(
 //    branch:String?,
     naviUp: () -> Boolean,
 ) {
+    val stateKeyTag = Cache.getSubPageKey(TAG)
+
     val homeTopBarScrollBehavior = AppModel.homeTopBarScrollBehavior
     val navController = AppModel.navController
     val activityContext = LocalContext.current
     val haptic = LocalHapticFeedback.current
     val scope = rememberCoroutineScope()
     val settings = remember { SettingsUtil.getSettingsSnapshot() }
-    val shouldShowTimeZoneInfo = remember { TimeZoneUtil.shouldShowTimeZoneInfo(settings) }
+    val shouldShowTimeZoneInfo = rememberSaveable { TimeZoneUtil.shouldShowTimeZoneInfo(settings) }
     val clipboardManager = LocalClipboardManager.current
 
     val inDarkTheme = Theme.inDarkTheme
@@ -293,7 +292,7 @@ fun TagListScreen(
     val lastClickedItemKey = rememberSaveable{mutableStateOf(Cons.init_last_clicked_item_key)}
 
 
-    // hardReset start
+    // reset start
 //    val acceptHardReset = StateUtil.getRememberSaveableState(initValue = false)
     val resetOid = rememberSaveable { mutableStateOf("") }
     val showResetDialog = rememberSaveable { mutableStateOf(false) }
@@ -319,12 +318,12 @@ fun TagListScreen(
             refreshPage = { oldHeadCommitOid, isDetached ->
                 //更新下仓库信息以使title在仓库为detached HEAD时显示出reset后的hash。非detached HEAD时只是更新分支指向的提交号分支本身不变，所以不用更新
                 if(isDetached) {
-                    curRepo.value = curRepo.value.copy(isDetached= Cons.dbCommonTrue, lastCommitHash = Libgit2Helper.getShortOidStrByFull(item.targetFullOidStr))
+                    curRepo.value = curRepo.value.let { it.copyAllFields(it.copy(isDetached = Cons.dbCommonTrue, lastCommitHash = item.targetFullOidStr), settings) }
                 }
             }
         )
     }
-    // hardReset end
+    // reset end
 
 
     //checkout start
@@ -336,11 +335,14 @@ fun TagListScreen(
         showCheckoutDialog.value = true
     }
 
+    val branchNameForCheckout = rememberSaveable { mutableStateOf("") }
+
     if(showCheckoutDialog.value) {
         val item = selectedItemList.value.first()
 
         CheckoutDialog(
             showCheckoutDialog=showCheckoutDialog,
+            branchName = branchNameForCheckout,
             from = CheckoutDialogFrom.OTHER,
 //            expectCheckoutType = Cons.checkoutTypeCommit,  //用这个reflog不会包含tag名
             expectCheckoutType = Cons.checkoutType_checkoutRefThenDetachHead,  //用这个会包含tag名
@@ -353,7 +355,7 @@ fun TagListScreen(
             loadingOn = loadingOn,
             loadingOff = loadingOff,
             onlyUpdateCurItem = false,
-            updateCurItem = {curItemIdx, fullOid-> },  //不需要更新当前条目
+            updateCurItem = {_, _, _, _ -> },  //不需要更新当前条目
             refreshPage = {
                //更新当前仓库信息即可，目的是在title显示出最新的分支或提交信息
                 doJobThenOffLoading job@{
@@ -471,7 +473,7 @@ fun TagListScreen(
                 val suffix = ", "
                 val spliter = "\n----------\n"
 
-                pushFailedList.forEach {
+                pushFailedList.forEachBetter {
                     toastMsg.append(it.remoteName).append(suffix)
                     repoLogMsg.append("remoteName='${it.remoteName}', err=${it.exception?.localizedMessage}").append(spliter)
                     logMsg.append("remoteName='${it.remoteName}', err=${it.exception?.stackTraceToString()}").append(spliter)
@@ -607,7 +609,7 @@ fun TagListScreen(
         val itemSuffix = "\n\n"
         val spliter = "--------------\n\n"
 
-        selectedItemList.forEach {
+        selectedItemList.forEachBetter {
             sb.append(activityContext.getString(R.string.name)).append(": ").append(it.shortName).append(itemSuffix)
             sb.append(activityContext.getString(R.string.full_name)).append(": ").append(it.name).append(itemSuffix)
             sb.append(activityContext.getString(R.string.target)).append(": ").append(it.targetFullOidStr).append(itemSuffix)
@@ -633,16 +635,31 @@ fun TagListScreen(
     }
 
 
+    BackHandler {
+        if(multiSelectionMode.value) {
+            quitSelectionMode()
+        } else if(filterModeOn.value) {
+            filterModeOn.value = false
+            resetSearchVars()
+        } else {
+            naviUp()
+        }
+    }
+
+    val isInitLoading = rememberSaveable { mutableStateOf(SharedState.defaultLoadingValue) }
+    val initLoadingOn = { msg:String ->
+        isInitLoading.value = true
+    }
+    val initLoadingOff = {
+        isInitLoading.value = false
+    }
 
 
     Scaffold(
         modifier = Modifier.nestedScroll(homeTopBarScrollBehavior.nestedScrollConnection),
         topBar = {
             TopAppBar(
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    titleContentColor = MaterialTheme.colorScheme.primary,
-                ),
+                colors = MyStyleKt.TopBar.getColors(),
                 title = {
                     if(filterModeOn.value) {
                         FilterTextField(filterKeyWord = filterKeyword, loading = searching.value)
@@ -719,7 +736,7 @@ fun TagListScreen(
 
                         LongPressAbleIconBtn(
                             tooltipText = stringResource(R.string.fetch_tags),
-                            icon =  Icons.Filled.Download,
+                            icon =  Icons.Filled.Downloading,
                             iconContentDesc = stringResource(R.string.fetch_tags),
                         ) {
                             initFetchTagDialog()
@@ -754,240 +771,218 @@ fun TagListScreen(
             }
         }
     ) { contentPadding ->
-        if (loading.value) {
+
+        PullToRefreshBox(
+            contentPadding = contentPadding,
+            onRefresh = { changeStateTriggerRefreshPage(needRefresh) }
+        ) {
+
+            if (loading.value) {
 //            LoadingText(text = loadingText.value, contentPadding = contentPadding)
-            LoadingDialog(text = loadingText.value)
-        }
+                LoadingDialog(text = loadingText.value)
+            }
 
 
-        if(list.value.isEmpty()) {  //无条目，显示可创建或fetch
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(contentPadding)
-//                        .padding(bottom = 80.dp)  //不要在这加padding，如果想加，应在底部加个padding row
-                    .verticalScroll(rememberScrollState())
-                ,
-                verticalArrangement = Arrangement.Center,
-                horizontalAlignment = Alignment.CenterHorizontally,
+            if(list.value.isEmpty()) {  //无条目，显示可创建或fetch
+                FullScreenScrollableColumn(contentPadding) {
+                    if(isInitLoading.value) {
+                        Text(text = stringResource(R.string.loading))
+                    }else {
+                        Row {
+                            Text(text = stringResource(R.string.no_tags_found))
+                        }
 
-            ) {
-                Row(
-                    modifier = Modifier
-                        .padding(top = 10.dp)
-                    ,
-                ) {
-                    Text(
-                        text = stringResource(R.string.no_tags_found),
-                    )
-                }
-                Row(
-                    modifier = Modifier
-                        .padding(top = 10.dp)
-                    ,
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    ClickableText(
-                        text = stringResource(R.string.fetch),
-                        modifier = MyStyleKt.ClickableText.modifierNoPadding
-                            .clickable {
+                        Row(modifier = Modifier.padding(top = 10.dp),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            LongPressAbleIconBtn(
+                                icon = Icons.Filled.Downloading,
+                                tooltipText = stringResource(R.string.fetch),
+                            ) {
                                 initFetchTagDialog()
-                            },
-                    )
-                    Text(
-                        text =  " "+stringResource(R.string.or_str)+" ",
-                    )
-                    ClickableText(
-                        text =  stringResource(R.string.create),
-                        modifier = MyStyleKt.ClickableText.modifierNoPadding
-                            .clickable {
+                            }
+
+                            LongPressAbleIconBtn(
+                                icon = Icons.Filled.Add,
+                                tooltipText =  stringResource(R.string.create),
+                            ) {
                                 val hash = ""
                                 initNewTagDialog(hash)
                             }
-                        ,
+                        }
+                    }
+                }
+
+            }else {  //有条目
+                //根据关键字过滤条目
+                val keyword = filterKeyword.value.text.lowercase()  //关键字
+                val enableFilter = filterModeActuallyEnabled(filterModeOn.value, keyword)
+
+                val lastNeedRefresh = rememberSaveable { mutableStateOf("") }
+                val list = filterTheList(
+                    needRefresh = filterResultNeedRefresh.value,
+                    lastNeedRefresh = lastNeedRefresh,
+                    enableFilter = enableFilter,
+                    keyword = keyword,
+                    lastKeyword = lastKeyword,
+                    searching = searching,
+                    token = token,
+                    activityContext = activityContext,
+                    filterList = filterList.value,
+                    list = list.value,
+                    resetSearchVars = resetSearchVars,
+                    match = { idx:Int, it: TagDto ->
+                        it.shortName.lowercase().contains(keyword)
+                                || it.name.lowercase().contains(keyword)
+                                || it.msg.lowercase().contains(keyword)
+                                || it.targetFullOidStr.lowercase().contains(keyword)
+                                || it.taggerName.lowercase().contains(keyword)
+                                || it.taggerEmail.lowercase().contains(keyword)
+                                || it.fullOidStr.lowercase().contains(keyword)  // annotated tag对象的oid；非annotated tag此值和targetFullOidStr一样
+                                || it.getType(activityContext, false).lowercase().contains(keyword)
+                                || it.getType(activityContext, true).lowercase().contains(keyword)
+                                || formatMinutesToUtc(it.originTimeOffsetInMinutes).lowercase().contains(keyword)
+                    }
+                )
+
+
+                val listState = if(enableFilter) filterListState else listState
+//            if(enableFilter) {  //更新filter列表state
+//                filterListState.value = listState
+//            }
+                //更新是否启用filter
+                enableFilterState.value = enableFilter
+
+                MyLazyColumn(
+                    contentPadding = contentPadding,
+                    list = list,
+                    listState = listState,
+                    requireForEachWithIndex = true,
+                    requirePaddingAtBottom = true,
+                    forEachCb = {},
+                ){idx, it->
+                    //长按会更新curObjInPage为被长按的条目
+                    TagItem(it, lastClickedItemKey, shouldShowTimeZoneInfo, showDetails, isItemInSelected, onLongClick = {
+                        if(multiSelectionMode.value) {  //多选模式
+                            //在选择模式下长按条目，执行区域选择（连续选择一个范围）
+                            UIHelper.doSelectSpan(idx, it,
+                                selectedItemList.value, list,
+                                switchItemSelected,
+                                selectItem
+                            )
+                        }else {  //非多选模式
+                            //启动多选模式
+                            switchItemSelected(it)
+                        }
+                    }
+                    ) {  //onClick
+                        if(multiSelectionMode.value) {  //选择模式
+                            UIHelper.selectIfNotInSelectedListElseRemove(it, selectedItemList.value)
+                        }else {  //非选择模式
+                            //点击条目跳转到分支的提交历史记录页面
+                            fromTagToCommitHistory(
+                                fullOid = it.targetFullOidStr,
+                                shortName = it.shortName,
+                                repoId = repoId
+                            )
+                        }
+                    }
+
+                    MyHorizontalDivider()
+                }
+
+                if (multiSelectionMode.value) {
+
+                    val iconList:List<ImageVector> = listOf(
+                        Icons.Filled.Delete,  //删除
+                        Icons.Filled.Upload,  //上传（push）
+                        Icons.Filled.Info,  //详情
+                        Icons.Filled.SelectAll,  //全选
+                    )
+                    val iconTextList:List<String> = listOf(
+                        stringResource(id = R.string.delete),
+                        stringResource(id = R.string.push),
+                        stringResource(id = R.string.details),
+                        stringResource(id = R.string.select_all),
+                    )
+                    val iconEnableList:List<()->Boolean> = listOf(
+                        {selectedItemList.value.isNotEmpty()},  // delete
+                        {selectedItemList.value.isNotEmpty()},  // push
+                        {selectedItemList.value.isNotEmpty()},  // details
+                        {true} // select all
+                    )
+
+                    val moreItemTextList = (listOf(
+                        stringResource(R.string.checkout),
+                        stringResource(R.string.reset),  //日后改成reset并可选模式 soft/mixed/hard
+//        stringResource(R.string.details),  //可针对单个或多个条目查看details，多个时，用分割线分割多个条目的信息
+                    ))
+
+                    val moreItemEnableList:List<()->Boolean> = (listOf(
+                        {selectedItemList.value.size==1},  // checkout
+                        {selectedItemList.value.size==1},  // hardReset
+                        {selectedItemList.value.isNotEmpty()}  // details
+                    ))
+
+                    val iconOnClickList:List<()->Unit> = listOf(  //index页面的底栏选项
+                        delete@{
+                            initDelTagDialog()
+                        },
+
+                        push@{
+                            initPushTagDialog()
+                        },
+                        details@{
+                            showDetails(selectedItemList.value)
+                        },
+                        selectAll@{
+//                        val list = if(enableFilterState.value) filterList.value else list.value
+
+                            list.forEachBetter {
+                                selectItem(it)
+                            }
+
+                            Unit
+                        },
+                    )
+
+
+                    val moreItemOnClickList:List<()->Unit> = (listOf(
+                        checkout@{
+                            initCheckoutDialogComposableVersion()
+                        },
+                        hardReset@{
+                            doActIfIndexGood(0, selectedItemList.value) { item ->
+                                initResetDialog(item.targetFullOidStr)
+                            }
+
+                            Unit
+                        },
+
+                        ))
+
+                    BottomBar(
+                        quitSelectionMode=quitSelectionMode,
+                        iconList=iconList,
+                        iconTextList=iconTextList,
+                        iconDescTextList=iconTextList,
+                        iconOnClickList=iconOnClickList,
+                        iconEnableList=iconEnableList,
+                        moreItemTextList=moreItemTextList,
+                        moreItemOnClickList=moreItemOnClickList,
+                        moreItemEnableList = moreItemEnableList,
+                        getSelectedFilesCount = getSelectedFilesCount,
+                        countNumOnClickEnabled = true,
+                        countNumOnClick = countNumOnClickForBottomBar,
+                        reverseMoreItemList = true
                     )
                 }
             }
 
-        }else {  //有条目
-            //根据关键字过滤条目
-            val keyword = filterKeyword.value.text.lowercase()  //关键字
-            val enableFilter = filterModeActuallyEnabled(filterModeOn.value, keyword)
-
-            val lastNeedRefresh = rememberSaveable { mutableStateOf("") }
-            val list = filterTheList(
-                needRefresh = filterResultNeedRefresh.value,
-                lastNeedRefresh = lastNeedRefresh,
-                enableFilter = enableFilter,
-                keyword = keyword,
-                lastKeyword = lastKeyword,
-                searching = searching,
-                token = token,
-                activityContext = activityContext,
-                filterList = filterList.value,
-                list = list.value,
-                resetSearchVars = resetSearchVars,
-                match = { idx:Int, it: TagDto ->
-                    it.shortName.lowercase().contains(keyword)
-                            || it.name.lowercase().contains(keyword)
-                            || it.msg.lowercase().contains(keyword)
-                            || it.targetFullOidStr.lowercase().contains(keyword)
-                            || it.taggerName.lowercase().contains(keyword)
-                            || it.taggerEmail.lowercase().contains(keyword)
-                            || it.fullOidStr.lowercase().contains(keyword)  // annotated tag对象的oid；非annotated tag此值和targetFullOidStr一样
-                            || it.getType(activityContext, false).lowercase().contains(keyword)
-                            || it.getType(activityContext, true).lowercase().contains(keyword)
-                            || formatMinutesToUtc(it.originTimeOffsetInMinutes).lowercase().contains(keyword)
-                }
-            )
-
-
-            val listState = if(enableFilter) filterListState else listState
-//            if(enableFilter) {  //更新filter列表state
-//                filterListState.value = listState
-//            }
-            //更新是否启用filter
-            enableFilterState.value = enableFilter
-
-            MyLazyColumn(
-                contentPadding = contentPadding,
-                list = list,
-                listState = listState,
-                requireForEachWithIndex = true,
-                requirePaddingAtBottom = true,
-                forEachCb = {},
-            ){idx, it->
-                //长按会更新curObjInPage为被长按的条目
-                TagItem(it, lastClickedItemKey, shouldShowTimeZoneInfo, showDetails, isItemInSelected, onLongClick = {
-                    if(multiSelectionMode.value) {  //多选模式
-                        //在选择模式下长按条目，执行区域选择（连续选择一个范围）
-                        UIHelper.doSelectSpan(idx, it,
-                            selectedItemList.value, list,
-                            switchItemSelected,
-                            selectItem
-                        )
-                    }else {  //非多选模式
-                        //启动多选模式
-                        switchItemSelected(it)
-                    }
-                }
-                ) {  //onClick
-                    if(multiSelectionMode.value) {  //选择模式
-                        UIHelper.selectIfNotInSelectedListElseRemove(it, selectedItemList.value)
-                    }else {  //非选择模式
-                        //点击条目跳转到分支的提交历史记录页面
-                        fromTagToCommitHistory(
-                            fullOid = it.targetFullOidStr,
-                            shortName = it.shortName,
-                            repoId = repoId
-                        )
-                    }
-                }
-
-                HorizontalDivider()
-            }
-
-            if (multiSelectionMode.value) {
-
-                val iconList:List<ImageVector> = listOf(
-                    Icons.Filled.Delete,  //删除
-                    Icons.Filled.Upload,  //上传（push）
-                    Icons.Filled.Info,  //详情
-                    Icons.Filled.SelectAll,  //全选
-                )
-                val iconTextList:List<String> = listOf(
-                    stringResource(id = R.string.delete),
-                    stringResource(id = R.string.push),
-                    stringResource(id = R.string.details),
-                    stringResource(id = R.string.select_all),
-                )
-                val iconEnableList:List<()->Boolean> = listOf(
-                    {selectedItemList.value.isNotEmpty()},  // delete
-                    {selectedItemList.value.isNotEmpty()},  // push
-                    {selectedItemList.value.isNotEmpty()},  // details
-                    {true} // select all
-                )
-
-                val moreItemTextList = (listOf(
-                    stringResource(R.string.checkout),
-                    stringResource(R.string.reset),  //日后改成reset并可选模式 soft/mixed/hard
-//        stringResource(R.string.details),  //可针对单个或多个条目查看details，多个时，用分割线分割多个条目的信息
-                ))
-
-                val moreItemEnableList:List<()->Boolean> = (listOf(
-                    {selectedItemList.value.size==1},  // checkout
-                    {selectedItemList.value.size==1},  // hardReset
-                    {selectedItemList.value.isNotEmpty()}  // details
-                ))
-
-                val iconOnClickList:List<()->Unit> = listOf(  //index页面的底栏选项
-                    delete@{
-                        initDelTagDialog()
-                    },
-
-                    push@{
-                        initPushTagDialog()
-                    },
-                    details@{
-                        showDetails(selectedItemList.value)
-                    },
-                    selectAll@{
-//                        val list = if(enableFilterState.value) filterList.value else list.value
-
-                        list.forEach {
-                            selectItem(it)
-                        }
-
-                        Unit
-                    },
-                )
-
-
-                val moreItemOnClickList:List<()->Unit> = (listOf(
-                    checkout@{
-                        initCheckoutDialogComposableVersion()
-                    },
-                    hardReset@{
-                        doActIfIndexGood(0, selectedItemList.value) { item ->
-                            initResetDialog(item.targetFullOidStr)
-                        }
-
-                        Unit
-                    },
-
-                    ))
-
-                BottomBar(
-                    quitSelectionMode=quitSelectionMode,
-                    iconList=iconList,
-                    iconTextList=iconTextList,
-                    iconDescTextList=iconTextList,
-                    iconOnClickList=iconOnClickList,
-                    iconEnableList=iconEnableList,
-                    moreItemTextList=moreItemTextList,
-                    moreItemOnClickList=moreItemOnClickList,
-                    moreItemEnableList = moreItemEnableList,
-                    getSelectedFilesCount = getSelectedFilesCount,
-                    countNumOnClickEnabled = true,
-                    countNumOnClick = countNumOnClickForBottomBar,
-                    reverseMoreItemList = true
-                )
-            }
         }
 
     }
-
-    BackHandler {
-        if(multiSelectionMode.value) {
-            quitSelectionMode()
-        } else if(filterModeOn.value) {
-            filterModeOn.value = false
-        } else {
-            naviUp()
-        }
-    }
-
 
     //compose创建时的副作用
     LaunchedEffect(needRefresh.value) {
@@ -997,7 +992,8 @@ fun TagListScreen(
                 refreshId != needRefresh.value
             }
 
-            doJobThenOffLoading(loadingOn = loadingOn, loadingOff = loadingOff, loadingText = activityContext.getString(R.string.loading)) {
+//            doJobThenOffLoading(loadingOn = loadingOn, loadingOff = loadingOff, loadingText = activityContext.getString(R.string.loading)) {
+            doJobThenOffLoading(initLoadingOn, initLoadingOff) {
                 list.value.clear()  //先清一下list，然后可能添加也可能不添加
 
                 if(!repoId.isNullOrBlank()) {
@@ -1042,7 +1038,7 @@ fun TagListScreen(
 //                            }
                             //test, end
 
-                            remotes.forEach { remoteCheckedList.value.add(false) }  //有几个remote就创建几个Boolean
+                            remotes.forEachBetter { remoteCheckedList.value.add(false) }  //有几个remote就创建几个Boolean
                             remoteList.value.addAll(remotes)
                         }
                     }
@@ -1052,8 +1048,7 @@ fun TagListScreen(
                 triggerReFilter(filterResultNeedRefresh)
             }
         } catch (e: Exception) {
-            MyLog.e(TAG, "#LaunchedEffect() err:"+e.stackTraceToString())
-//            ("LaunchedEffect: job cancelled")
+            MyLog.e(TAG, "#LaunchedEffect() err: "+e.stackTraceToString())
         }
     }
 

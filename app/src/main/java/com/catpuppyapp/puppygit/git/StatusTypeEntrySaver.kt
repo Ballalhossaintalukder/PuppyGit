@@ -8,10 +8,13 @@ import com.catpuppyapp.puppygit.utils.mime.MimeType
 import com.catpuppyapp.puppygit.utils.mime.guessFromFileName
 import java.io.File
 
-class StatusTypeEntrySaver: ItemKey {
+class StatusTypeEntrySaver(): ItemKey {
     var repoIdFromDb:String="";
     var fileName:String="";
     var relativePathUnderRepo:String="";  //仓库下的相对路径，包含文件名
+
+    var fileParentPathOfRelativePath:String="";  //文件在仓库下的相对路径的父路径，例如 abc/123.txt，文件名是123.txt，父路径是abc/
+    var repoWorkDirPath:String="";
 
     //modified, newfile,untracked, etc
     var changeType:String?=null;
@@ -88,6 +91,32 @@ class StatusTypeEntrySaver: ItemKey {
         return File(canonicalPath)
     }
 
+
+    fun toDiffableItem():DiffableItem {
+        return DiffableItem(
+            repoIdFromDb = repoIdFromDb,
+            relativePath = relativePathUnderRepo,
+            itemType = itemType,
+            changeType = changeType?:"",
+            isChangeListItem = true,
+            isFileHistoryItem = false,
+
+            // FileHistory专有条目
+            entryId = "",
+            // FileHistory专有条目
+            commitId = "",
+
+            sizeInBytes = fileSizeInBytes,
+            shortCommitId = "",
+
+            repoWorkDirPath = repoWorkDirPath,
+            fileName = fileName,
+            fullPath = canonicalPath,
+            fileParentPathOfRelativePath = fileParentPathOfRelativePath,
+        )
+    }
+
+
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (javaClass != other?.javaClass) return false
@@ -119,7 +148,7 @@ class StatusTypeEntrySaver: ItemKey {
     }
 
     override fun getItemKey():String {
-        return repoIdFromDb+ relativePathUnderRepo+changeType+itemType
+        return generateItemKey(repoIdFromDb, relativePathUnderRepo, changeType, itemType)
     }
 
     fun maybeIsFileAndExist():Boolean {
@@ -128,5 +157,12 @@ class StatusTypeEntrySaver: ItemKey {
 
     fun maybeIsDirAndExist():Boolean {
         return itemType == Cons.gitItemTypeDir || itemType == Cons.gitItemTypeSubmodule || itemType != Cons.gitItemTypeFile
+    }
+
+    companion object {
+
+        fun generateItemKey(repoId:String, relativePath:String, changeType:String?, itemType:Int):String {
+            return repoId+ relativePath+changeType+itemType
+        }
     }
 }

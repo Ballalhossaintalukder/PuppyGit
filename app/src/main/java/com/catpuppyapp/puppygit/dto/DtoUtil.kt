@@ -15,62 +15,91 @@ import com.catpuppyapp.puppygit.server.bean.ConfigBean
 import com.catpuppyapp.puppygit.settings.AppSettings
 import com.catpuppyapp.puppygit.utils.AppModel
 import com.catpuppyapp.puppygit.utils.Libgit2Helper
+import com.catpuppyapp.puppygit.utils.forEachBetter
 import com.catpuppyapp.puppygit.utils.genHttpHostPortStr
+import com.catpuppyapp.puppygit.utils.getFileNameFromCanonicalPath
+import com.catpuppyapp.puppygit.utils.getParentPathEndsWithSeparator
 import com.github.git24j.core.Commit
 import com.github.git24j.core.Oid
 import com.github.git24j.core.Repository
 import com.github.git24j.core.Submodule
+import java.io.File
 
-fun createCommitDto(
+fun createSimpleCommitDto(
     commitOid: Oid,
-    allBranchList: List<BranchNameAndTypeDto>,
-    allTagList:List<TagDto>,
     commit: Commit,
     repoId: String,
-    repoIsShallow:Boolean,
-    shallowOidList:List<String>,
     settings:AppSettings
+):CommitDto = createCommitDto(
+        commitOid = commitOid,
+        allBranchList = listOf(),
+        allTagList = listOf(),
+        commit = commit,
+        repoId = repoId,
+        repoIsShallow = false,
+        shallowOidList = listOf(),
+        settings = settings
+    )
+
+
+fun createCommitDto(
+    //之所以单独传oid对象是因为如果有现成的oid对象，
+    // 就不需要commit.id()了，commit.id()是个jni操作，
+    // 性能不如直接字符串生成Oid好，
+    // 但如果没现成的commitOid也可直接传commit.id()过来，都行
+    commitOid: Oid,
+
+    allBranchList: List<BranchNameAndTypeDto>?,
+    allTagList:List<TagDto>?,
+    commit: Commit,
+
+    //数据库的repoId，用来判断当前是在操作哪个仓库
+    //若不需要此参数，可传空字符串
+    repoId: String,
+
+    repoIsShallow:Boolean,
+    shallowOidList:List<String>?,
+    settings:AppSettings,
+    queryParents:Boolean = true,
 ): CommitDto {
     val c = CommitDto()
-    /*
-             var oidStr: String="",
-             var branchShortNameList: MutableList<String> = mutableListOf(),  //分支名列表，master origin/master 之类的，能通过看这个判断出是否把分支推送到远程了
-             var parentOidStrList: MutableList<String> = mutableListOf(),  //父提交id列表，需要的时候可以根据这个oid取出父提交，然后可以取出父提交的树，用来diff
-             var dateTime: String="",
-             var author: String="",
-             var email: String="",
-             var shortMsg:String="", //只包含第一行
-             var msg: String="",  //完整commit信息
-             var repoId:String="",  //数据库的repoId，用来判断当前是在操作哪个仓库
-             var treeOidStr:String="",  //提交树的oid和commit的oid不一样哦
-             */
+
     c.oidStr = commitOid.toString()  // next.toString() or commit.id() ，两者相同，但用 next.toString() 性能更好，因为Oid纯java实现，不需要jni
     c.shortOidStr = Libgit2Helper.getShortOidStrByFull(c.oidStr)
     val commitOidStr = commit.id().toString()
-    //添加分支列表
-    for (b in allBranchList) {
-        if (b.oidStr == commitOidStr) {
-            c.branchShortNameList.add(b.shortName)
-        }
-    }
-    //添加tag列表
-    for(t in allTagList) {
-        if(t.targetFullOidStr == commitOidStr) {
-            c.tagShortNameList.add(t.shortName)
+
+    if(allBranchList != null) {
+        //添加分支列表
+        for (b in allBranchList) {
+            if (b.oidStr == commitOidStr) {
+                c.branchShortNameList.add(b.shortName)
+            }
         }
     }
 
-    //添加parent列表，合并的提交就会有多个parent，一般都是1个
-    val parentCount = commit.parentCount()
-    if (parentCount > 0) {
-        var pc = 0
-        while (pc < parentCount) {
-            val parentOidStr = commit.parentId(pc).toString()
-            c.parentOidStrList.add(parentOidStr)
-            c.parentShortOidStrList.add(Libgit2Helper.getShortOidStrByFull(parentOidStr))
-            pc++
+    if(allTagList != null) {
+        //添加tag列表
+        for(t in allTagList) {
+            if(t.targetFullOidStr == commitOidStr) {
+                c.tagShortNameList.add(t.shortName)
+            }
         }
     }
+
+    if(queryParents) {
+        //添加parent列表，合并的提交就会有多个parent，一般都是1个
+        val parentCount = commit.parentCount()
+        if (parentCount > 0) {
+            var pc = 0
+            while (pc < parentCount) {
+                val parentOidStr = commit.parentId(pc).toString()
+                c.parentOidStrList.add(parentOidStr)
+                c.parentShortOidStrList.add(Libgit2Helper.getShortOidStrByFull(parentOidStr))
+                pc++
+            }
+        }
+    }
+
     c.dateTime = Libgit2Helper.getDateTimeStrOfCommit(commit, settings)
     c.originTimeOffsetInMinutes = commit.timeOffset()
 
@@ -87,7 +116,7 @@ fun createCommitDto(
     c.repoId = repoId
     c.treeOidStr = commit.treeId().toString()
 
-    if(repoIsShallow && shallowOidList.contains(c.oidStr)) {
+    if(repoIsShallow && shallowOidList != null && shallowOidList.contains(c.oidStr)) {
         c.isGrafted=true  //当前提交是shallow root
     }
 
@@ -96,7 +125,7 @@ fun createCommitDto(
 
 
 suspend fun updateRemoteDtoList(repo: Repository, remoteDtoList: List<RemoteDto>, onErr:(errRemote: RemoteDto, e:Exception)->Unit={r,e->}) {
-    remoteDtoList.forEach {
+    remoteDtoList.forEachBetter {
         try {
             updateRemoteDto(repo, it)
 
@@ -187,15 +216,22 @@ fun createSubmoduleDto(
 
 
 fun createFileHistoryDto(
+    repoWorkDirPath:String,
     commitOidStr: String,
     treeEntryOidStr:String,
     commit: Commit,
     repoId: String,
     fileRelativePathUnderRepo:String,
-    settings: AppSettings
+    settings: AppSettings,
+    commitList: List<String>,
 ): FileHistoryDto {
     val obj = FileHistoryDto()
 
+    obj.commitList = commitList.toList()
+    obj.repoWorkDirPath = repoWorkDirPath
+    obj.fileParentPathOfRelativePath = getParentPathEndsWithSeparator(fileRelativePathUnderRepo)
+    obj.fileName = getFileNameFromCanonicalPath(fileRelativePathUnderRepo)
+    obj.fileFullPath = File(repoWorkDirPath, fileRelativePathUnderRepo).canonicalPath
     obj.filePathUnderRepo = fileRelativePathUnderRepo
     obj.treeEntryOidStr = treeEntryOidStr
     obj.commitOidStr = commitOidStr

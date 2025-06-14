@@ -3,21 +3,50 @@ package com.catpuppyapp.puppygit.compose
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.staggeredgrid.LazyStaggeredGridState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.HideSource
 import androidx.compose.material.icons.filled.VerticalAlignBottom
 import androidx.compose.material.icons.filled.VerticalAlignTop
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableState
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import com.catpuppyapp.puppygit.play.pro.R
 import com.catpuppyapp.puppygit.style.MyStyleKt
+import com.catpuppyapp.puppygit.utils.AppModel
 import com.catpuppyapp.puppygit.utils.UIHelper
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
+
+@Composable
+fun GoToTopAndGoToBottomFab(
+    filterModeOn: Boolean,
+    scope: CoroutineScope,
+    filterListState: LazyStaggeredGridState,
+    listState: LazyStaggeredGridState,
+    filterListLastPosition: MutableState<Int>,
+    listLastPosition: MutableState<Int>,
+    showFab: MutableState<Boolean>,
+    listSize:Int,
+) {
+    val goToTop = {UIHelper.switchBetweenTopAndLastVisiblePosition(scope, listState, listLastPosition)}
+    val goToTopFiltered = {UIHelper.switchBetweenTopAndLastVisiblePosition(scope, filterListState, filterListLastPosition)}
+    val goToBottom = {UIHelper.scrollToItem(scope, listState, listSize)}
+    val goToBottomFiltered = {UIHelper.scrollToItem(scope, filterListState, listSize)}
+    val hideButton = getHideButton(showFab, scope)
+
+
+    GoToTopAndGoToBottomFab_Internal(
+        filterModeOn = filterModeOn,
+        scrollToTop = goToTop,
+        scrollToTopForFilterState = goToTopFiltered,
+        scrollToBottom = goToBottom,
+        scrollToBottomForFilterState = goToBottomFiltered,
+        hideButton = hideButton
+    )
+}
 
 @Composable
 fun GoToTopAndGoToBottomFab(
@@ -99,9 +128,9 @@ private fun GoToTopAndGoToBottomFab_Internal(
     scrollToBottomForFilterState:()->Unit,
     hideButton:()->Unit,
 ) {
-    val activityContext = LocalContext.current
+    val configuration = AppModel.getCurActivityConfig()
 
-    Column(modifier = MyStyleKt.Fab.getFabModifier(UIHelper.isPortrait(), UIHelper.getDeviceWidthHeightInDp(activityContext))) {
+    Column(modifier = MyStyleKt.Fab.getFabModifier(UIHelper.isPortrait(configuration), UIHelper.getDeviceWidthHeightInDp(configuration))) {
         //show go to top
         SmallFab(
             icon = Icons.Filled.VerticalAlignTop, iconDesc = stringResource(id = R.string.go_to_top)
@@ -144,8 +173,10 @@ private fun getHideButton(showButton:MutableState<Boolean>, scope: CoroutineScop
 
         //隐藏10秒后自动重新显示
         scope.launch {
-            delay(10_000) // 10s
-            showButton.value = true
+            runCatching {
+                delay(10_000) // 10s
+                showButton.value = true
+            }
         }
     }
 }

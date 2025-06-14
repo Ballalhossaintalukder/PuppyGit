@@ -6,6 +6,8 @@ import kotlinx.serialization.Serializable
 data class AutomationSettings (
     var packageNameAndRepoIdsMap:MutableMap<String, List<String>> = mutableMapOf(),
 
+    var packageNameAndRepoAndSettingsMap: MutableMap<String, PackageNameAndRepoSettings> =  mutableMapOf(),
+
     /**
      * show notify if server do act err
      *

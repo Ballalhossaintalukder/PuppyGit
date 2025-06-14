@@ -1,5 +1,6 @@
 package com.catpuppyapp.puppygit.utils.compare
 
+import com.catpuppyapp.puppygit.dev.DevFeature
 import com.catpuppyapp.puppygit.utils.compare.param.CompareParam
 import com.catpuppyapp.puppygit.utils.compare.result.IndexModifyResult
 import com.catpuppyapp.puppygit.utils.compare.result.IndexStringPart
@@ -21,7 +22,9 @@ class SimilarCompareImpl: SimilarCompare {
         search: Search,
         betterSearch: Search,
         matchByWords:Boolean,
-        ignoreEndOfNewLine:Boolean
+        ignoreEndOfNewLine:Boolean,
+        degradeToCharMatchingIfMatchByWordFailed:Boolean,
+        treatNoWordMatchAsNoMatchedWhenMatchByWord:Boolean,
     ): IndexModifyResult {
         // empty check
         if(add.isEmpty() || del.isEmpty() || ((onlyLineSeparatorAsEmpty || ignoreEndOfNewLine) && (add.isOnlyLineSeparator() || del.isOnlyLineSeparator()))){ //其中一个为空或只有换行符，不比较，直接返回结果，当作无匹配
@@ -58,11 +61,11 @@ class SimilarCompareImpl: SimilarCompare {
             // match by words
         if(matchByWords) {
             //如果按单词比较为真，尝试以单词比较，如果有匹配，直接返回，如果无匹配，则继续往下执行普通比较
-            result = doMatchByWords(addWillUse, delWillUse, requireBetterMatching)
+            result = doMatchByWords(addWillUse, delWillUse, requireBetterMatching, treatNoWordMatchAsNoMatchedWhenMatchByWord)
         }
 
         // if match by words not enabled or not matched, try match by chars
-        if(result == null || result.matched.not()) {
+        if(result == null || (result.matched.not() && degradeToCharMatchingIfMatchByWordFailed)) {
             // match by chars
             val reverse = searchDirection == SearchDirection.REVERSE || searchDirection == SearchDirection.REVERSE_FIRST
 
@@ -114,13 +117,13 @@ class SimilarCompareImpl: SimilarCompare {
 
     /**
      * @param requireBetterMatching if true, will try index of for not-matched words
-     * @param treatNoWordMatchAsNoMatched if true, will return no match when only spaces matched ( no any non-space word matched )
+     * @param treatNoWordMatchAsNoMatched if true, will return no match when only spaces and punctuations matched ( haven't any non-space words matched )
      */
     private fun<T:CharSequence> doMatchByWords(
         add: CompareParam<T>,
         del: CompareParam<T>,
         requireBetterMatching: Boolean,
-        treatNoWordMatchAsNoMatched:Boolean = true, //如果只有空格匹配，没单词匹配，当作无匹配
+        treatNoWordMatchAsNoMatched:Boolean,
     ):IndexModifyResult {
         val addWordSpacePair = getWordAndIndexList(add, requireBetterMatching)
         val delWordSpacePair = getWordAndIndexList(del, requireBetterMatching)

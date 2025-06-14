@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.SheetState
 import androidx.compose.material3.Text
@@ -31,8 +30,6 @@ import androidx.compose.ui.unit.sp
 import com.catpuppyapp.puppygit.play.pro.R
 import com.catpuppyapp.puppygit.style.MyStyleKt
 import com.catpuppyapp.puppygit.ui.theme.Theme
-import com.catpuppyapp.puppygit.utils.ComposeHelper
-import com.catpuppyapp.puppygit.utils.state.StateUtil
 import kotlinx.coroutines.launch
 
 
@@ -177,14 +174,14 @@ private fun BottomSheetTitle(title:String) {
                 text = title,
                 textAlign = TextAlign.Center,
 
-                fontSize = 15.sp,
+                fontSize = MyStyleKt.Title.firstLineFontSizeSmall,
                 color = Color.Gray,
 
                 )
         }
     }
 
-    HorizontalDivider()
+    MyHorizontalDivider()
 }
 
 //这个Footer的作用主要是让菜单比底部导航栏高，不然有可能底部导航栏会盖住菜单，如果使用的是手势导航，这个东西可能会导致有点丑，不过我觉得可以接受

@@ -6,24 +6,20 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.catpuppyapp.puppygit.ui.theme.Theme
 import com.catpuppyapp.puppygit.utils.UIHelper
 
 
-
 @Composable
-fun CardButton(
+fun SingleLineCardButton(
     modifier: Modifier = Modifier,
 //    paddingValues: PaddingValues = PaddingValues(30.dp),
     text: String,
@@ -35,11 +31,9 @@ fun CardButton(
     CardButton(
         modifier = modifier,
         enabled = enabled,
-        buttonHeight = 50,
         content = {
             Text(
                 text = text,
-                fontWeight = FontWeight.Light,
                 maxLines = 1,
                 softWrap = false,
                 overflow = TextOverflow.Ellipsis,
@@ -55,53 +49,46 @@ fun CardButton(
 fun CardButton(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
-    buttonHeight:Int? = null,  //null = no limit
+    minHeight:Int = 50,
+    maxHeight:Int = 120,
     content:@Composable RowScope.()->Unit,
     onClick: () -> Unit
 ) {
 
-    val cardColor = UIHelper.defaultCardColor()
+    val maxHeight = maxHeight.coerceAtLeast(minHeight)
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(top = 2.dp)  //顶部加点margin，不然有时候显示不全
-            .then(modifier),
+            .then(modifier)
+        ,
+
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Card(
+        MyCard(
             //0.9f 占父元素宽度的百分之90
             modifier = Modifier
                 .clickable(enabled = enabled) {
                     onClick()
-                },
-            colors = CardDefaults.cardColors(
-                containerColor = cardColor,
-            ),
-            elevation = CardDefaults.cardElevation(
-                defaultElevation = 6.dp
-            )
+                }
+            ,
 
         ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth(.85f)
-                    .then(
-                        //如果高度不为null，限制高度；否则不限
-                        if(buttonHeight != null) {
-                            Modifier.height(buttonHeight.dp)
-                        }else{
-                            Modifier
-                        }
-                    )
+                    .heightIn(min = minHeight.dp, max = maxHeight.dp)
                     .padding(5.dp)
                 ,
 
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                content()
+                ScrollableColumn {
+                    content()
+                }
             }
 
         }

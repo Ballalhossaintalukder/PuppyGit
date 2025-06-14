@@ -45,7 +45,7 @@ fun CreateRemoteDialog(
 
     AlertDialog(
         title = {
-            Text(stringResource(R.string.create))
+            DialogTitle(stringResource(R.string.create))
         },
         text = {
             ScrollableColumn {

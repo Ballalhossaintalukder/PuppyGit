@@ -34,13 +34,16 @@ data class AppSettings(
     var startPageMode:Int=startPageMode_rememberLastQuit,
     var lastQuitHomeScreen:Int= Cons.selectedItem_Repos,
 
+    //是否初次使用，对第一次使用的人显示个按钮可长按显示功能的提示弹窗(后来改成设置用户名和邮箱的弹窗了)
     @Deprecated("改成存到prefman了")
-    var firstUse:Boolean=true,      //是否初次使用，对第一次使用的人显示个按钮可长按显示功能的提示弹窗
+    var firstUse:Boolean=true,
 
-    var snapshotKeepInDays:Int = 3,  //快照文件保存天数，快照文件夹内最后修改时间超过此天书的文件将在app启动时被自动删除
+    //快照文件保存天数，快照文件夹内最后修改时间超过此天数的文件将在app启动时被自动删除
+    var snapshotKeepInDays:Int = 3,
 
     //全局git设置
-    var globalGitConfig:GlobalGitConfig = GlobalGitConfig(),  //充当公用git配置文件，相当于电脑上的 ~/.gitconfig
+    //充当公用git配置文件，相当于电脑上的 ~/.gitconfig
+    var globalGitConfig:GlobalGitConfig = GlobalGitConfig(),
 
     //各个页面的设置
     val files:Files = Files(),
@@ -106,6 +109,25 @@ data class AppSettings(
 
 
     val automation: AutomationSettings = AutomationSettings(),
+
+    val devSettings: DevSettings = DevSettings(),
+
+    /**
+     * 提交历史页面是否使用RTL布局，因为提交树默认是镜像的，但我又实在不想单独写了提交树页面，
+     * 所以添加一个按钮，点击可切换左右布局，RTL开启时提交树就可变成非镜像的了
+     */
+    var commitHistoryRTL: Boolean = false,
+
+    /**
+     * 是否显示提交历史树形图
+     */
+    var commitHistoryGraph: Boolean = true,
+
+    /**
+     * 提交信息模板，若为空，将自动生成，否则将根据模板自动生成提交信息，但有些特殊情况，比如merge或amend时，可能不会遵循模板
+     */
+    var commitMsgTemplate:String = "",
+
 ) {
 
     override fun equals(other: Any?): Boolean {

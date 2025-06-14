@@ -3,16 +3,11 @@ package com.catpuppyapp.puppygit.screen
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
@@ -22,19 +17,15 @@ import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.LinkOff
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalClipboardManager
@@ -47,12 +38,15 @@ import androidx.compose.ui.unit.dp
 import com.catpuppyapp.puppygit.compose.ConfirmDialog
 import com.catpuppyapp.puppygit.compose.CopyableDialog
 import com.catpuppyapp.puppygit.compose.FilterTextField
+import com.catpuppyapp.puppygit.compose.FullScreenScrollableColumn
 import com.catpuppyapp.puppygit.compose.GoToTopAndGoToBottomFab
 import com.catpuppyapp.puppygit.compose.InfoDialog
 import com.catpuppyapp.puppygit.compose.LinkOrUnLinkCredentialAndRemoteDialog
 import com.catpuppyapp.puppygit.compose.LongPressAbleIconBtn
+import com.catpuppyapp.puppygit.compose.MyHorizontalDivider
 import com.catpuppyapp.puppygit.compose.MyLazyColumn
 import com.catpuppyapp.puppygit.compose.PageCenterIconButton
+import com.catpuppyapp.puppygit.compose.PullToRefreshBox
 import com.catpuppyapp.puppygit.compose.RemoteItemForCredential
 import com.catpuppyapp.puppygit.compose.ScrollableColumn
 import com.catpuppyapp.puppygit.compose.ScrollableRow
@@ -65,11 +59,13 @@ import com.catpuppyapp.puppygit.screen.functions.defaultTitleDoubleClick
 import com.catpuppyapp.puppygit.screen.functions.filterModeActuallyEnabled
 import com.catpuppyapp.puppygit.screen.functions.filterTheList
 import com.catpuppyapp.puppygit.screen.functions.triggerReFilter
+import com.catpuppyapp.puppygit.screen.shared.SharedState
 import com.catpuppyapp.puppygit.settings.SettingsUtil
 import com.catpuppyapp.puppygit.style.MyStyleKt
 import com.catpuppyapp.puppygit.utils.AppModel
 import com.catpuppyapp.puppygit.utils.Msg
 import com.catpuppyapp.puppygit.utils.MyLog
+import com.catpuppyapp.puppygit.utils.cache.Cache
 import com.catpuppyapp.puppygit.utils.changeStateTriggerRefreshPage
 import com.catpuppyapp.puppygit.utils.createAndInsertError
 import com.catpuppyapp.puppygit.utils.doJobThenOffLoading
@@ -77,7 +73,6 @@ import com.catpuppyapp.puppygit.utils.state.mutableCustomStateListOf
 import com.catpuppyapp.puppygit.utils.state.mutableCustomStateOf
 
 private const val TAG = "CredentialRemoteListScreen"
-private const val stateKeyTag = "CredentialRemoteListScreen"
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -86,6 +81,8 @@ fun CredentialRemoteListScreen(
     isShowLink:Boolean,
     naviUp: () -> Unit,
 ) {
+    val stateKeyTag = Cache.getSubPageKey(TAG)
+
     val (isShowLink, setIsShowLink) = rememberSaveable { mutableStateOf(isShowLink) }
 
     val clipboardManager = LocalClipboardManager.current
@@ -304,14 +301,34 @@ fun CredentialRemoteListScreen(
         navController.navigate(Cons.nav_CredentialRemoteListScreen + "/" + credentialId + "/0")
     }
 
+
+
+    val initLoadingText = rememberSaveable { mutableStateOf("") }
+    val initLoading = rememberSaveable { mutableStateOf(SharedState.defaultLoadingValue) }
+    val initLoadingOn = { msg:String ->
+        initLoadingText.value = msg
+        initLoading.value = true
+    }
+
+    val initLoadingOff = {
+        initLoading.value = false
+    }
+
+
+    BackHandler {
+        if(filterModeOn.value) {
+            filterModeOn.value = false
+            resetSearchVars()
+        } else {
+            naviUp()
+        }
+    }
+
     Scaffold(
         modifier = Modifier.nestedScroll(homeTopBarScrollBehavior.nestedScrollConnection),
         topBar = {
             TopAppBar(
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    titleContentColor = MaterialTheme.colorScheme.primary,
-                ),
+                colors = MyStyleKt.TopBar.getColors(),
                 title = {
                     if(filterModeOn.value) {
                         FilterTextField(filterKeyWord = filterKeyword, loading = searching.value)
@@ -447,78 +464,87 @@ fun CredentialRemoteListScreen(
         }
     ) { contentPadding ->
 
-        if(list.value.isEmpty()) {
-            PageCenterIconButton(
-                contentPadding = contentPadding,
-                onClick = goToCreateLinkPage,
-                icon = Icons.Filled.Add,
-                iconDesc = stringResource(R.string.create_link),
-                text = stringResource(R.string.create_link),
-                condition = isShowLink,
-                elseContent = {
-                    Text(stringResource(R.string.item_list_is_empty))
+        PullToRefreshBox(
+            contentPadding = contentPadding,
+            onRefresh = { changeStateTriggerRefreshPage(needRefresh) }
+        ) {
+            if(list.value.isEmpty()) {
+                if(initLoading.value) {
+                    FullScreenScrollableColumn(contentPadding) {
+                        Text(initLoadingText.value)
+                    }
+                } else {
+                    PageCenterIconButton(
+                        contentPadding = contentPadding,
+                        onClick = goToCreateLinkPage,
+                        icon = Icons.Filled.Add,
+                        text = stringResource(R.string.create_link),
+                        condition = isShowLink,
+                        elseContent = {
+                            Text(stringResource(R.string.item_list_is_empty))
+                        }
+                    )
                 }
-            )
-        }else {
+            }else {
 
-            //根据关键字过滤条目
-            val keyword = filterKeyword.value.text.lowercase()  //关键字
-            val enableFilter = filterModeActuallyEnabled(filterModeOn.value, keyword)
+                //根据关键字过滤条目
+                val keyword = filterKeyword.value.text.lowercase()  //关键字
+                val enableFilter = filterModeActuallyEnabled(filterModeOn.value, keyword)
 
-            val lastNeedRefresh = rememberSaveable { mutableStateOf("") }
-            val list = filterTheList(
-                needRefresh = filterResultNeedRefresh.value,
-                lastNeedRefresh = lastNeedRefresh,
-                enableFilter = enableFilter,
-                keyword = keyword,
-                lastKeyword = lastKeyword,
-                searching = searching,
-                token = token,
-                activityContext = activityContext,
-                filterList = filterList.value,
-                list = list.value,
-                resetSearchVars = resetSearchVars,
-                match = { idx:Int, it: RemoteDtoForCredential ->
-                    it.repoName.lowercase().contains(keyword)
-                            || it.remoteName.lowercase().contains(keyword)
-                            || it.remoteFetchUrl.lowercase().contains(keyword)
-                            || it.remotePushUrl.lowercase().contains(keyword)
-                            || it.getCredentialNameOrNone().lowercase().contains(keyword)
-                            || it.getPushCredentialNameOrNone().lowercase().contains(keyword)
+                val lastNeedRefresh = rememberSaveable { mutableStateOf("") }
+                val list = filterTheList(
+                    needRefresh = filterResultNeedRefresh.value,
+                    lastNeedRefresh = lastNeedRefresh,
+                    enableFilter = enableFilter,
+                    keyword = keyword,
+                    lastKeyword = lastKeyword,
+                    searching = searching,
+                    token = token,
+                    activityContext = activityContext,
+                    filterList = filterList.value,
+                    list = list.value,
+                    resetSearchVars = resetSearchVars,
+                    match = { idx:Int, it: RemoteDtoForCredential ->
+                        it.repoName.lowercase().contains(keyword)
+                                || it.remoteName.lowercase().contains(keyword)
+                                || it.remoteFetchUrl.lowercase().contains(keyword)
+                                || it.remotePushUrl.lowercase().contains(keyword)
+                                || it.getCredentialNameOrNone().lowercase().contains(keyword)
+                                || it.getPushCredentialNameOrNone().lowercase().contains(keyword)
 
-                }
-            )
+                    }
+                )
 
-            val listState = if(enableFilter) filterListState else listState
+                val listState = if(enableFilter) filterListState else listState
 //        if(enableFilter) {  //更新filter列表state
 //            filterListState.value = listState
 //        }
-            //更新是否启用filter
-            enableFilterState.value = enableFilter
+                //更新是否启用filter
+                enableFilterState.value = enableFilter
 
-            MyLazyColumn(
-                contentPadding = contentPadding,
-                list = list,
-                listState = listState,
-                requireForEachWithIndex = true,
-                requirePaddingAtBottom = true
-            ) { idx,it->
-                RemoteItemForCredential(
-                    isShowLink=isShowLink,
-                    idx = idx, thisItem = it,
-                    showUrlDialog = showUrlDialog,
-                    actIcon = if(isShowLink) Icons.Filled.LinkOff else Icons.Filled.Link,
-                    actText = if(isShowLink) stringResource(R.string.unlink) else stringResource(R.string.link),
+                MyLazyColumn(
+                    contentPadding = contentPadding,
+                    list = list,
+                    listState = listState,
+                    requireForEachWithIndex = true,
+                    requirePaddingAtBottom = true
+                ) { idx,it->
+                    RemoteItemForCredential(
+                        isShowLink=isShowLink,
+                        idx = idx, thisItem = it,
+                        showUrlDialog = showUrlDialog,
+                        actIcon = if(isShowLink) Icons.Filled.LinkOff else Icons.Filled.Link,
+                        actText = if(isShowLink) stringResource(R.string.unlink) else stringResource(R.string.link),
 
-                    //x 废弃，容易令人困惑) 如果是 None页面 且 是关联模式 且 条目fetch和push凭据id都为空，则不需要显示unlink，因为在无凭据条目列表将条目unlink到无凭据没有意义，执行了也没效果
+                        //x 废弃，容易令人困惑) 如果是 None页面 且 是关联模式 且 条目fetch和push凭据id都为空，则不需要显示unlink，因为在无凭据条目列表将条目unlink到无凭据没有意义，执行了也没效果
 //                actAction = if(isNonePage && isShowLink && it.credentialId.isNullOrEmpty() && it.pushCredentialId.isNullOrEmpty()) null else ({
-                    //若半关联，可取消关联非None的选项，但从逻辑上说在None页面显示取消关联不合理，而且取消关联None可用关联到None替代且更加合理，所以，若None页面不显示unlink) 若是None页面 且 关联模式 则不显示取消关联按钮，就算任一凭据已关联id不为空也不显示，因为本质上取消关联就是将已关联到当前凭据的条目关联到None凭据，而当前显示的就是已关联到None的条目，所以再取消关联没意义
-                    actAction = if(isNonePage && isShowLink) null else ({
-                        curItem.value = it
-                        requireDoLink.value = !isShowLink
-                        targetAll.value = false
-                        linkOrUnlinkDialogTitle.value=if(requireDoLink.value) activityContext.getString(R.string.link) else activityContext.getString(R.string.unlink)  // (不建议，不方便记Err)若空字符串，将会自动根据requireDoLink的值决定使用link还是unlink作为title
-                        showLinkOrUnLinkDialog.value=true
+                        //若半关联，可取消关联非None的选项，但从逻辑上说在None页面显示取消关联不合理，而且取消关联None可用关联到None替代且更加合理，所以，若None页面不显示unlink) 若是None页面 且 关联模式 则不显示取消关联按钮，就算任一凭据已关联id不为空也不显示，因为本质上取消关联就是将已关联到当前凭据的条目关联到None凭据，而当前显示的就是已关联到None的条目，所以再取消关联没意义
+                        actAction = if(isNonePage && isShowLink) null else ({
+                            curItem.value = it
+                            requireDoLink.value = !isShowLink
+                            targetAll.value = false
+                            linkOrUnlinkDialogTitle.value=if(requireDoLink.value) activityContext.getString(R.string.link) else activityContext.getString(R.string.unlink)  // (不建议，不方便记Err)若空字符串，将会自动根据requireDoLink的值决定使用link还是unlink作为title
+                            showLinkOrUnLinkDialog.value=true
 
 //                if(isShowLink) {  //如果是显示已关联条目的页面，点击取关直接执行
 //                    doUnLink(it.remoteId)
@@ -531,29 +557,22 @@ fun CredentialRemoteListScreen(
 //                    }
 //                }
 
-                    })
-                )
+                        })
+                    )
 
-                HorizontalDivider()
+                    MyHorizontalDivider()
 
+                }
             }
         }
 
-
     }
 
-    BackHandler {
-        if(filterModeOn.value) {
-            filterModeOn.value = false
-        } else {
-            naviUp()
-        }
-    }
 
     //compose创建时的副作用
     LaunchedEffect(needRefresh.value) {
         try {
-            doJobThenOffLoading {
+            doJobThenOffLoading(initLoadingOn, initLoadingOff, activityContext.getString(R.string.loading)) {
                 val remoteDb = AppModel.dbContainer.remoteRepository
                 val credentialDb = AppModel.dbContainer.credentialRepository
                 //这个页面用不到密码，所以查询的是加密后的密码，没解密

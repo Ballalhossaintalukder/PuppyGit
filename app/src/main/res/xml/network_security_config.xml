@@ -8,7 +8,10 @@
 <!--            <certificates src="@raw/myca"/>-->
 <!--            trust system certificates-->
             <certificates src="system"/>
-<!--            <certificates src="user"/>-->
+
+            <!-- 这个配置不影响通过jni 调用的c代码，而我的app是通过c代码和git远程仓库通信的，
+                所以这个允许与否其实意义不大，如果需要允许自定义证书，可以放到我的app的cert-user目录下 -->
+            <certificates src="user"/>
         </trust-anchors>
     </base-config>
 </network-security-config>

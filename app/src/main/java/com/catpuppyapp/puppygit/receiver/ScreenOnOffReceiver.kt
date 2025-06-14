@@ -12,6 +12,7 @@ import com.catpuppyapp.puppygit.settings.util.AutomationUtil
 import com.catpuppyapp.puppygit.utils.MyLog
 import com.catpuppyapp.puppygit.utils.cache.AutoSrvCache
 import com.catpuppyapp.puppygit.utils.doJob
+import com.catpuppyapp.puppygit.utils.forEachBetter
 import com.catpuppyapp.puppygit.utils.generateRandomString
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -49,15 +50,28 @@ class ScreenOnOffReceiver : BroadcastReceiver() {
             AutomationService.appLeaveTime[lastPackage] = System.currentTimeMillis()
 
             //创建push任务
-            job.value = doJob {
+            job.value = doJob job@{
                 try {
                     val settings = SettingsUtil.getSettingsSnapshot()
                     val repoList = AutomationUtil.getRepos(settings.automation, lastPackage)
-                    if(!repoList.isNullOrEmpty()) {
+
+                    if(repoList.isNullOrEmpty()) {
+                        return@job
+                    }
+
+                    AutomationUtil.groupReposByPushDelayTime(
+                        lastPackage,
+                        repoList,
+                        settings
+                    ).forEachBetter forEach@{ pushDelayInSec, repoList ->
+                        if(repoList.isEmpty()) {
+                            return@forEach
+                        }
+
                         // do push, one package may bind multi repos, start a coroutine do push for them
-                        val pushDelayInMillSec = settings.automation.pushDelayInSec * 1000L
                         //负数将禁用push
-                        if (pushDelayInMillSec >= 0L) {
+                        if (pushDelayInSec >= 0L) {
+                            val pushDelayInMillSec = pushDelayInSec * 1000L
                             //大于0，等待超过延迟时间后再执行操作；若等于0，则不检查，直接跳过这段，执行后面的push
                             if (pushDelayInMillSec > 0L) {
                                 val startAt = System.currentTimeMillis()
@@ -75,6 +89,8 @@ class ScreenOnOffReceiver : BroadcastReceiver() {
                             }
 
                             AutomationService.pushRepoList(sessionId = "ScrOffAutoPush_"+generateRandomString(), settings, repoList)
+                        }else {
+                            MyLog.d(TAG, "push delay less than 0, push canceled")
                         }
                     }
 

@@ -1,27 +1,22 @@
 package com.catpuppyapp.puppygit.screen
 
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowLeft
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FilterAlt
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.SwapHoriz
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -29,24 +24,27 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
+import com.catpuppyapp.puppygit.compose.CompareInfo
 import com.catpuppyapp.puppygit.compose.DropDownMenuItemText
 import com.catpuppyapp.puppygit.compose.FilterTextField
 import com.catpuppyapp.puppygit.compose.GoToTopAndGoToBottomFab
+import com.catpuppyapp.puppygit.compose.InDialogTitle
 import com.catpuppyapp.puppygit.compose.LongPressAbleIconBtn
+import com.catpuppyapp.puppygit.compose.MyHorizontalDivider
 import com.catpuppyapp.puppygit.compose.RepoInfoDialog
+import com.catpuppyapp.puppygit.compose.RepoInfoDialogItemSpacer
+import com.catpuppyapp.puppygit.compose.TitleDropDownMenu
 import com.catpuppyapp.puppygit.constants.Cons
 import com.catpuppyapp.puppygit.data.entity.RepoEntity
 import com.catpuppyapp.puppygit.dev.commitsTreeToTreeDiffReverseTestPassed
 import com.catpuppyapp.puppygit.dev.dev_EnableUnTestedFeature
+import com.catpuppyapp.puppygit.git.CommitDto
 import com.catpuppyapp.puppygit.git.StatusTypeEntrySaver
 import com.catpuppyapp.puppygit.play.pro.R
 import com.catpuppyapp.puppygit.screen.content.homescreen.innerpage.ChangeListInnerPage
@@ -59,15 +57,15 @@ import com.catpuppyapp.puppygit.utils.AppModel
 import com.catpuppyapp.puppygit.utils.Libgit2Helper
 import com.catpuppyapp.puppygit.utils.Msg
 import com.catpuppyapp.puppygit.utils.UIHelper
-import com.catpuppyapp.puppygit.utils.addPrefix
 import com.catpuppyapp.puppygit.utils.cache.Cache
+import com.catpuppyapp.puppygit.utils.cache.NaviCache
 import com.catpuppyapp.puppygit.utils.state.mutableCustomStateListOf
 import com.catpuppyapp.puppygit.utils.state.mutableCustomStateOf
 import com.github.git24j.core.Repository
 
-//for debug
+
 private const val TAG = "TreeToTreeChangeListScreen"
-private const val stateKeyTag = "TreeToTreeChangeListScreen"
+
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -82,19 +80,23 @@ fun TreeToTreeChangeListScreen(
     repoId:String,
 
     // show differences of commit1 to commit2 (git cmd format: 'commit1..commit2', or 'left..right')
-    commit1OidStr:String,  // left
-    commit2OidStr:String,  // right
+    //这个万一包含/呢，例如 'origin/main' 这种，所以为了避免导航出错，必须不用导航传参
+    commit1OidStrCacheKey:String,  // left
+    commit2OidStrCacheKey:String,  // right
+    commitForQueryParentsCacheKey:String,  // commit for query parents, if empty ,will not query parents for commits. ps: only need this param when compare to parents, other cases, should pass empty string
+    titleCacheKey:String,
 
-    commitForQueryParents:String,  // commit for query parents, if empty ,will not query parents for commits. ps: only need this param when compare to parents, other cases, should pass empty string
     naviUp: () -> Unit
 ) {
+    val stateKeyTag = Cache.getSubPageKey(TAG)
+
     //避免导航出现 "//" 导致导航失败
     //因为title要改变这个值，所以用State
-    val commit1OidStrState = rememberSaveable { mutableStateOf(commit1OidStr) }
-    if(commit1OidStrState.value.isBlank()) {
-        commit1OidStrState.value = Cons.git_AllZeroOid.toString()
-    }
-    val commit2OidStr = commit2OidStr.ifBlank { Cons.git_AllZeroOid.toString() }
+    val commit1OidStrState = rememberSaveable(commit1OidStrCacheKey) { mutableStateOf((NaviCache.getByType<String>(commit1OidStrCacheKey) ?:"").ifBlank { Cons.git_AllZeroOidStr }) }
+
+    val commit2OidStr = rememberSaveable(commit2OidStrCacheKey) { (NaviCache.getByType<String>(commit2OidStrCacheKey) ?:"").ifBlank { Cons.git_AllZeroOidStr } }
+
+    val commitForQueryParents = rememberSaveable(commitForQueryParentsCacheKey){ NaviCache.getByType<String>(commitForQueryParentsCacheKey) ?:"" }
 
     val commitParentList = mutableCustomStateListOf(
         keyTag = stateKeyTag,
@@ -117,7 +119,7 @@ fun TreeToTreeChangeListScreen(
     val settings = remember { SettingsUtil.getSettingsSnapshot() }
 
     //取出title desc，存到状态变量里，与页面共存亡就行
-    val titleDesc = rememberSaveable { mutableStateOf((Cache.getByType<String>(Cache.Key.treeToTreeChangeList_titleDescKey))?:"") }
+    val titleDesc = rememberSaveable { mutableStateOf(NaviCache.getByType<String>(titleCacheKey) ?: "") }
 
     //替换成我的cusntomstateSaver，然后把所有实现parcellzier的类都取消实现parcellzier，改成用我的saver
 //    val curRepo = rememberSaveable{ mutableStateOf(RepoEntity()) }
@@ -189,19 +191,55 @@ fun TreeToTreeChangeListScreen(
     val showParentListDropDownMenu = rememberSaveable { mutableStateOf(false) }
 
     val showInfoDialog = rememberSaveable { mutableStateOf(false) }
+    val actuallyLeftName = rememberSaveable { mutableStateOf("") }
+    val actuallyRightName = rememberSaveable { mutableStateOf("") }
+    val actuallyLeftCommitDto = mutableCustomStateOf(stateKeyTag, "actuallyLeftCommitDto") { CommitDto() }
+    val actuallyRightCommitDto = mutableCustomStateOf(stateKeyTag, "actuallyRightCommitDto") { CommitDto() }
+    val initInfoDialog = {
+        runCatching {
+            val curRepo = changeListCurRepo.value
+            val repoId = curRepo.id
+            val actuallyLeftCommit = if(swap.value) commit2OidStr else commit1OidStrState.value
+            val actuallyRightCommit = if(swap.value) commit1OidStrState.value else commit2OidStr
+            actuallyLeftName.value = actuallyLeftCommit
+            actuallyRightName.value = actuallyRightCommit
+
+            Repository.open(curRepo.fullSavePath).use { repo->
+                val (left, right) = Libgit2Helper.getLeftRightCommitDto(repo, actuallyLeftCommit, actuallyRightCommit, repoId, settings)
+                actuallyLeftCommitDto.value = left
+                actuallyRightCommitDto.value = right
+            }
+        }
+
+        //出错一样显示，无所谓，顶多左右提交信息空白或有误
+        showInfoDialog.value = true
+    }
+
     if(showInfoDialog.value) {
         RepoInfoDialog(changeListCurRepo.value, showInfoDialog, prependContent = {
             Row {
-                Text(titleDesc.value, fontWeight = FontWeight.ExtraBold)
+                InDialogTitle(titleDesc.value)
             }
 
-            Spacer(Modifier.height(15.dp))
+            RepoInfoDialogItemSpacer()
 
+            CompareInfo(
+                leftName = actuallyLeftName.value,
+                leftCommitDto = actuallyLeftCommitDto.value,
+                rightName = actuallyRightName.value,
+                rightCommitDto = actuallyRightCommitDto.value,
+            )
+
+            RepoInfoDialogItemSpacer()
+
+            MyHorizontalDivider()
+            RepoInfoDialogItemSpacer()
+
+            //下面会显示仓库信息，这里弄个标题，看着和上面的样式比较搭
             Row {
-                Text(
-                    stringResource(id = R.string.comparing_label) + ": " +Libgit2Helper.getLeftToRightDiffCommitsText(commit1OidStrState.value, commit2OidStr, swap.value)
-                )
+                InDialogTitle(stringResource(R.string.repo))
             }
+
         })
     }
 
@@ -225,79 +263,86 @@ fun TreeToTreeChangeListScreen(
     // end: search states
 
 
+    val changeListErrScrollState = rememberScrollState()
+    val changeListHasErr = rememberSaveable { mutableStateOf(false) }
+    val changeListErrLastPosition = rememberSaveable { mutableStateOf(0) }
+
+
     Scaffold(
         modifier = Modifier.nestedScroll(homeTopBarScrollBehavior.nestedScrollConnection),
         topBar = {
             TopAppBar(
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    titleContentColor = MaterialTheme.colorScheme.primary,
-                ),
+                colors = MyStyleKt.TopBar.getColors(),
                 title = {
                     if(changeListPageFilterModeOn.value) {
                         FilterTextField(filterKeyWord = changeListPageFilterKeyWord, loading = changeListSearching.value)
-                    }else{
+                    }else {
                         val titleText = Libgit2Helper.getLeftToRightDiffCommitsText(commit1OidStrState.value, commit2OidStr, swap.value)
-                        Column(modifier = Modifier
-                            //外面的标题宽180.dp，这里的比外面的宽点，因为这个页面顶栏actions少
-                            .widthIn(max = 200.dp)
-                            .combinedClickable(onLongClick = {
-                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                showInfoDialog.value = true
-                            }) { //onClick
+                        val titleSecondLineText = "[${changeListCurRepo.value.repoName}]"
+                        // 判断父提交是否有效，实现如果是和父提交比较，则可展开下拉菜单，否则不能
+                        val expandable = Libgit2Helper.CommitUtil.mayGoodCommitHash(commitForQueryParents)
 
-//                                当比较模式为比较指定的两个提交时(无parents)，点击不会展开下拉菜单(和parents比较才会展开)
-                                if (Libgit2Helper.CommitUtil.mayGoodCommitHash(commitForQueryParents)) {
-                                    showParentListDropDownMenu.value = true
-                                }
-
-                            }
-                        ) {
-                            Row {
+                        TitleDropDownMenu(
+                            dropDownMenuExpandState = showParentListDropDownMenu,
+                            curSelectedItem = commit1OidStrState.value,
+                            itemList = commitParentList.value.toList(),
+                            titleClickEnabled = true,
+                            switchDropDownMenuShowHide = { showParentListDropDownMenu.apply { value = !value } },
+                            titleFirstLine = {
                                 Text(
                                     text = titleText,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
-                                    fontSize = MyStyleKt.Title.firstLineFontSize
+                                    fontSize = MyStyleKt.Title.firstLineFontSize,
                                 )
-                            }
-                            Row {
-                                Text(text = "["+changeListCurRepo.value.repoName+"]",
+                            },
+                            titleSecondLine = {
+                                Text(
+                                    text = titleSecondLineText,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
-                                    fontSize = MyStyleKt.Title.secondLineFontSize
+                                    fontSize = MyStyleKt.Title.secondLineFontSize,
                                 )
-                            }
-
-                        }
-
-                        DropdownMenu(
-                            expanded = showParentListDropDownMenu.value,
-                            onDismissRequest = { showParentListDropDownMenu.value = false }
-                        ) {
-                            commitParentList.value.toList().forEach {
-                                DropdownMenuItem(
-                                    text = { DropDownMenuItemText(text = Libgit2Helper.getShortOidStrByFull(it), selected = it == commit1OidStrState.value) },
-                                    onClick = {
-
-                                        // close menu
-                                        showParentListDropDownMenu.value=false
-
-                                        val curRepo = changeListCurRepo.value
-
-                                        //切换父提交则退出选择模式(现在20240420没用，但日后可能在TreeToTree页面也添加多选功能，比如可选择文件checkout or hard reset到worktree之类的，所以这里先把需要退出选择模式的逻辑写上)(20240818有用了)
-                                        if(commit1OidStrState.value != it) {
-                                            changeListIsFileSelectionMode.value=false  //退出选择模式
-                                            changeListPageSelectedItemList.value.clear() //清空已选条目
-                                        }
-
-                                        commit1OidStrState.value=it
-
-                                        changeListRequireRefreshFromParentPage(curRepo)
-                                    }
+                            },
+                            titleRightIcon = {
+                                Icon(
+                                    imageVector = if (showParentListDropDownMenu.value) Icons.Filled.ArrowDropDown else Icons.AutoMirrored.Filled.ArrowLeft,
+                                    contentDescription = stringResource(R.string.switch_item),
+//                                    tint = LocalContentColor.current
                                 )
-                            }
-                        }
+                            },
+                            isItemSelected = { it == commit1OidStrState.value },
+                            menuItem = { it, selected ->
+                                DropDownMenuItemText(
+                                    text = Libgit2Helper.getShortOidStrByFull(it),
+                                    selected = selected
+                                )
+                            },
+                            titleOnLongClick = { initInfoDialog() },
+                            itemOnClick = {
+                                // close menu
+                                showParentListDropDownMenu.value=false
+
+                                val curRepo = changeListCurRepo.value
+
+                                //切换父提交则退出选择模式(现在20240420没用，但日后可能在TreeToTree页面也添加多选功能，比如可选择文件checkout or hard reset到worktree之类的，所以这里先把需要退出选择模式的逻辑写上)(20240818有用了)
+                                if(commit1OidStrState.value != it) {
+                                    changeListIsFileSelectionMode.value=false  //退出选择模式
+                                    changeListPageSelectedItemList.value.clear() //清空已选条目
+                                }
+
+                                commit1OidStrState.value=it
+
+                                changeListRequireRefreshFromParentPage(curRepo)
+                            },
+                            titleOnClick = {
+                                // 当比较模式为比较指定的两个提交时(无parents)，点击不会展开下拉菜单(和parents比较才会展开)
+                                if (expandable) {
+                                    showParentListDropDownMenu.value = true
+                                }
+                            },
+                            showExpandIcon = expandable
+                        )
                     }
 
                 },
@@ -385,19 +430,34 @@ fun TreeToTreeChangeListScreen(
         },
         floatingActionButton = {
             if(changelistPageScrolled.value) {
-                GoToTopAndGoToBottomFab(
-                    filterModeOn = changeListPageFilterModeOn.value,
-                    scope = scope,
-                    filterListState = changelistFilterListState,
-                    listState = changeListPageItemListState,
-                    filterListLastPosition = filterLastPosition,
-                    listLastPosition = lastPosition,
-                    showFab = changelistPageScrolled
-                )
+                if(changeListHasErr.value) {
+                    GoToTopAndGoToBottomFab(
+                        scope = scope,
+                        listState = changeListErrScrollState,
+                        listLastPosition = changeListErrLastPosition,
+                        showFab = changelistPageScrolled
+                    )
+                }else {
+                    GoToTopAndGoToBottomFab(
+                        filterModeOn = changeListPageFilterModeOn.value,
+                        scope = scope,
+                        filterListState = changelistFilterListState,
+                        listState = changeListPageItemListState,
+                        filterListLastPosition = filterLastPosition,
+                        listLastPosition = lastPosition,
+                        showFab = changelistPageScrolled
+                    )
+                }
             }
         }
     ) { contentPadding ->
         ChangeListInnerPage(
+//            stateKeyTag = Cache.combineKeys(stateKeyTag, "ChangeListInnerPage"),
+            stateKeyTag = stateKeyTag,
+
+            errScrollState= changeListErrScrollState,
+            hasError = changeListHasErr,
+
             lastSearchKeyword=changeListLastSearchKeyword,
             searchToken=changeListSearchToken,
             searching=changeListSearching,
@@ -422,7 +482,7 @@ fun TreeToTreeChangeListScreen(
             selectedItemList = changeListPageSelectedItemList,
             commit1OidStr=commit1OidStrState.value,
             commit2OidStr=commit2OidStr,
-            commitParentList = commitParentList,
+            commitParentList = commitParentList.value,
             repoId=repoId,
             changeListPageNoRepo=changeListPageNoRepo,
             hasNoConflictItems = changeListPageHasNoConflictItems,  //这选项是worktree和Index页面用的，TreeToTree其实用不到这个选项，只是占位
@@ -439,37 +499,8 @@ fun TreeToTreeChangeListScreen(
             filterList = changeListFilterList,
             lastClickedItemKey = changeListLastClickedItemKey
 
-
-
-//            isDiffToHead=isDiffToHead
-
         )
 
     }
-//    }
-
-    //compose创建时的副作用
-//    LaunchedEffect(currentPage.intValue) {
-//    LaunchedEffect(commit1OidStrState.value + commit2OidStr) {
-//        try {
-//            doJobThenOffLoading {
-//                Repository.open(curRepo)
-//            }
-//        } catch (cancel: Exception) {
-////            ("LaunchedEffect: job cancelled")
-//        }
-//    }
-//
-//
-//    //compose被销毁时执行的副作用
-//    DisposableEffect(Unit) {
-////        ("DisposableEffect: entered main")
-//        onDispose {
-////            ("DisposableEffect: exited main")
-//        }
-//    }
 
 }
-
-
-

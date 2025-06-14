@@ -28,9 +28,16 @@ enum class StateRequestType {
     indexToWorkTree_CommitAll,
 
     /**
+     * 从diff页面返回到changelist(index to worktree)，请求执行提交所有
      * 仅提交index修改
      */
     headToIndex_CommitAll,
+
+    /**
+     * 导入仓库后，跳转到对应仓库。
+     * 此request type携带的data为跳转所需的数据
+     */
+    jumpAfterImport,
 }
 
 //改变值触发执行刷新页面的代码
@@ -50,7 +57,7 @@ fun setStateWithRequestData(state: MutableState<String>, requestType:StateReques
 /**
  * 注意：携带数据的refresh state变量，初始值建议使用非空随机常量，避免覆盖其他页面的请求参数或cache里同名key（一般不会发生，因为只有改变量值时才有可能携带数据然后往cache里存东西，初始值不存）
  */
-fun<T> getRequestDataByState(stateValue:String, getThenDel:Boolean=false):Pair<StateRequestType,T?> {
+fun<T> getRequestDataByState(stateValue:String, getThenDel:Boolean = true):Pair<StateRequestType, T?> {
     //这样不行，不能保证每个请求只执行一次
     if(stateValue.isBlank()) {
         return Pair(StateRequestType.invalid, null)

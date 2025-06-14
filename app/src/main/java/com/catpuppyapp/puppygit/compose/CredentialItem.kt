@@ -16,6 +16,7 @@ import androidx.compose.material.icons.filled.Upload
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -55,6 +56,9 @@ fun CredentialItem(
     val isNone = SpecialCredential.NONE.equals_to(thisItem)
     val isNotMatchByDomainOrNone = !(isMatchByDomain || isNone)
 
+    val defaultFontWeight = remember { MyStyleKt.TextItem.defaultFontWeight() }
+    
+
 //    println("IDX::::::::::"+idx)
     Row(
         //0.9f 占父元素宽度的百分之90
@@ -72,7 +76,7 @@ fun CredentialItem(
                         lastClickedItemKey.value = thisItem.id
 
                         //震动反馈
-                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+//                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
 
                         curCredentialState.value = CredentialEntity()
 
@@ -112,14 +116,14 @@ fun CredentialItem(
             ){
                 val linked = isLinkMode && (linkedFetchId==thisItem.id || linkedPushId==thisItem.id);
 
-                //如果关联模式，对已绑定的前面加个*
+                //x 改成设置高亮颜色了) 如果关联模式，对已绑定的前面加个*
                 Text(text = stringResource(R.string.name) + ": ")
                 Text(
                     text = thisItem.name,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    fontWeight = if(linked) FontWeight.Bold else FontWeight.Light,
-                    color = if(linked) MyStyleKt.DropDownMenu.selectedItemColor else Color.Unspecified,
+                    fontWeight = if(linked) FontWeight.ExtraBold else defaultFontWeight,
+                    color = if(linked) MyStyleKt.DropDownMenu.selectedItemColor() else Color.Unspecified,
 
                 )
 
@@ -151,7 +155,7 @@ fun CredentialItem(
 //            Text(text = thisItem.getTypeStr(),
 //                maxLines = 1,
 //                overflow = TextOverflow.Ellipsis,
-//                fontWeight = FontWeight.Light
+//                fontWeight = defaultFontWeight
 //
 //            )
 //        }
@@ -165,7 +169,7 @@ fun CredentialItem(
                     Text(text = stringResource(R.string.desc) +": ")
                     Text(text = if(isMatchByDomain) stringResource(R.string.credential_match_by_domain_note_short) else stringResource(R.string.no_credential_will_be_used),
                         overflow = TextOverflow.Ellipsis,
-                        fontWeight = FontWeight.Light
+                        fontWeight = defaultFontWeight
 
                     )
                 }
@@ -181,7 +185,7 @@ fun CredentialItem(
                         Text(text = getFormatTimeFromSec(thisItem.baseFields.baseUpdateTime),
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
-                            fontWeight = FontWeight.Light
+                            fontWeight = defaultFontWeight
 
                         )
                     }
@@ -202,6 +206,10 @@ fun CredentialItem(
                     icon = Icons.Filled.Edit,
                     iconContentDesc = stringResource(R.string.edit),
                 ) {
+                    //更新最后点击条目
+                    lastClickedItemKey.value = thisItem.id
+
+                    //跳转到编辑页面
                     AppModel.navController.navigate(Cons.nav_CredentialNewOrEditScreen+"/"+thisItem.id)
                 }
             }

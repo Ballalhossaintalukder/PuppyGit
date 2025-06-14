@@ -5,9 +5,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -16,6 +16,7 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import com.catpuppyapp.puppygit.play.pro.R
 import com.catpuppyapp.puppygit.screen.functions.maybeIsGoodKeyword
+import com.catpuppyapp.puppygit.utils.forEachBetter
 import com.catpuppyapp.puppygit.utils.state.CustomStateSaveable
 
 @Composable
@@ -71,12 +72,10 @@ fun <T> SelectedUnSelectedList(
     filterSelectedItemList: (keyword:String)->List<T>,
     filterUnselectedItemList: (keyword:String)->List<T>,
 ) {
-    MySelectionContainer {
+    MySelectionContainerPlaceHolder {
         if(loading) {
-            LoadingText(modifier = Modifier.height(30.dp).fillMaxWidth(), text = stringResource(R.string.loading))
-        }
-
-        if(loading.not()) {
+            LoadingTextBase(modifier = Modifier.fillMaxWidth().padding(top=20.dp), text = { Text(stringResource(R.string.loading)) })
+        }else {
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -90,10 +89,6 @@ fun <T> SelectedUnSelectedList(
                 Spacer(Modifier.height(10.dp))
 
                 LazyColumn(modifier = Modifier.fillMaxWidth()) {
-                    item {
-                        SettingsTitle(selectedTitleText+"(${selectedItemList.size})")
-                    }
-
 
                     //根据关键字过滤条目
                     val k = filterKeyWord.value.text.lowercase()  //关键字
@@ -110,29 +105,42 @@ fun <T> SelectedUnSelectedList(
                         unselectedItemList
                     }
 
+                    item {
+                        SettingsTitle(selectedTitleText+"(${filteredSelectedList.size})")
+                    }
 
                     if(filteredSelectedList.isEmpty()) {
                         item {
-                            ItemListIsEmpty()
+                            MySelectionContainer {
+                                ItemListIsEmpty()
+                            }
                         }
                     }else {
-                        filteredSelectedList.forEach {
+                        filteredSelectedList.forEachBetter {
                             item {
-                                selectedItemFormatter(it)
+                                MySelectionContainer {
+                                    selectedItemFormatter(it)
+                                }
                             }
                         }
                     }
 
                     item {
-                        SettingsTitle(unselectedTitleText+"(${unselectedItemList.size})")
+                        SettingsTitle(unselectedTitleText+"(${filteredUnselectedList.size})")
                     }
 
                     if(filteredUnselectedList.isEmpty()) {
-                        item { ItemListIsEmpty() }
+                        item {
+                            MySelectionContainer {
+                                ItemListIsEmpty()
+                            }
+                        }
                     }else {
-                        filteredUnselectedList.forEach {
+                        filteredUnselectedList.forEachBetter {
                             item {
-                                unselectedItemFormatter(it)
+                                MySelectionContainer {
+                                    unselectedItemFormatter(it)
+                                }
                             }
                         }
                     }

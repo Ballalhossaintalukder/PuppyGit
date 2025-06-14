@@ -16,12 +16,9 @@ import androidx.compose.material.icons.filled.Domain
 import androidx.compose.material.icons.filled.FilterAlt
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -44,9 +41,11 @@ import com.catpuppyapp.puppygit.compose.FilterTextField
 import com.catpuppyapp.puppygit.compose.GoToTopAndGoToBottomFab
 import com.catpuppyapp.puppygit.compose.InfoDialog
 import com.catpuppyapp.puppygit.compose.LinkOrUnLinkCredentialAndRemoteDialog
-import com.catpuppyapp.puppygit.compose.LoadingText
+import com.catpuppyapp.puppygit.compose.LoadingTextSimple
 import com.catpuppyapp.puppygit.compose.LongPressAbleIconBtn
+import com.catpuppyapp.puppygit.compose.MyHorizontalDivider
 import com.catpuppyapp.puppygit.compose.MyLazyColumn
+import com.catpuppyapp.puppygit.compose.PullToRefreshBox
 import com.catpuppyapp.puppygit.compose.ScrollableColumn
 import com.catpuppyapp.puppygit.compose.ScrollableRow
 import com.catpuppyapp.puppygit.constants.Cons
@@ -59,11 +58,13 @@ import com.catpuppyapp.puppygit.screen.functions.defaultTitleDoubleClick
 import com.catpuppyapp.puppygit.screen.functions.filterModeActuallyEnabled
 import com.catpuppyapp.puppygit.screen.functions.filterTheList
 import com.catpuppyapp.puppygit.screen.functions.triggerReFilter
+import com.catpuppyapp.puppygit.screen.shared.SharedState
 import com.catpuppyapp.puppygit.settings.SettingsUtil
 import com.catpuppyapp.puppygit.style.MyStyleKt
 import com.catpuppyapp.puppygit.utils.AppModel
 import com.catpuppyapp.puppygit.utils.Msg
 import com.catpuppyapp.puppygit.utils.MyLog
+import com.catpuppyapp.puppygit.utils.cache.Cache
 import com.catpuppyapp.puppygit.utils.changeStateTriggerRefreshPage
 import com.catpuppyapp.puppygit.utils.createAndInsertError
 import com.catpuppyapp.puppygit.utils.doJobThenOffLoading
@@ -72,7 +73,6 @@ import com.catpuppyapp.puppygit.utils.state.mutableCustomStateOf
 
 
 private const val TAG = "CredentialManagerScreen"
-private const val stateKeyTag = "CredentialManagerScreen"
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -86,9 +86,9 @@ fun CredentialManagerScreen(
 
     naviUp: () -> Boolean
 ) {
-//    SideEffect {
-//        Msg.msgNotifyHost()
-//    }
+
+    val stateKeyTag = Cache.getSubPageKey(TAG)
+
 
     val homeTopBarScrollBehavior = AppModel.homeTopBarScrollBehavior
     val navController = AppModel.navController
@@ -106,7 +106,7 @@ fun CredentialManagerScreen(
     val listState = rememberLazyListState()
     val curCredential = mutableCustomStateOf(keyTag = stateKeyTag, keyName = "curCredential", initValue = CredentialEntity(id=""))
     val needRefresh = rememberSaveable { mutableStateOf("")}
-    val showLoadingDialog = rememberSaveable { mutableStateOf(true)}
+    val showLoadingDialog = rememberSaveable { mutableStateOf(SharedState.defaultLoadingValue)}
 
     val loadingStrRes = stringResource(R.string.loading)
     val loadingText = rememberSaveable { mutableStateOf(loadingStrRes)}
@@ -280,14 +280,20 @@ fun CredentialManagerScreen(
     val filterLastPosition = rememberSaveable { mutableStateOf(0) }
     val lastPosition = rememberSaveable { mutableStateOf(0) }
 
+    BackHandler {
+        if(filterModeOn.value) {
+            filterModeOn.value = false
+            resetSearchVars()
+        } else {
+            naviUp()
+        }
+    }
+
     Scaffold(
         modifier = Modifier.nestedScroll(homeTopBarScrollBehavior.nestedScrollConnection),
         topBar = {
             TopAppBar(
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,  //标题栏背景色
-                    titleContentColor = MaterialTheme.colorScheme.primary,  //标题栏文字颜色
-                ),
+                colors = MyStyleKt.TopBar.getColors(),
                 title = {
                     if(filterModeOn.value) {
                         FilterTextField(filterKeyWord = filterKeyword, loading = searching.value)
@@ -408,118 +414,117 @@ fun CredentialManagerScreen(
         }
     ) { contentPadding ->
 
-        if(showBottomSheet.value) {
-            BottomSheet(showBottomSheet, sheetState, curCredential.value.name) {
-                BottomSheetItem(sheetState=sheetState, showBottomSheet=showBottomSheet, text=stringResource(R.string.edit)){
-                    //跳转到编辑页面
-                    //在这里可以直接用state curObj取到当前选中条目，curObjInState在长按条目后会被更新为当前被长按的条目
-                    navController.navigate(Cons.nav_CredentialNewOrEditScreen+"/"+curCredential.value.id)
+        PullToRefreshBox(
+            contentPadding = contentPadding,
+            onRefresh = { changeStateTriggerRefreshPage(needRefresh) }
+        ) {
 
+            if(showBottomSheet.value) {
+                BottomSheet(showBottomSheet, sheetState, curCredential.value.name) {
+                    BottomSheetItem(sheetState=sheetState, showBottomSheet=showBottomSheet, text=stringResource(R.string.edit)){
+                        //跳转到编辑页面
+                        //在这里可以直接用state curObj取到当前选中条目，curObjInState在长按条目后会被更新为当前被长按的条目
+                        navController.navigate(Cons.nav_CredentialNewOrEditScreen+"/"+curCredential.value.id)
+
+                    }
+
+                    //改成在关联页面有这个功能了，在这就不显示了
+                    //            BottomSheetItem(sheetState=sheetState, showBottomSheet=showBottomSheet, text=stringResource(R.string.unlink_all)){
+                    //                //显示弹窗，询问将会与所有remotes解除关联，是否确定？
+                    //            }
+
+                    BottomSheetItem(sheetState=sheetState, showBottomSheet=showBottomSheet, text=stringResource(R.string.delete), textColor = MyStyleKt.TextColor.danger()){
+                        showDeleteDialog.value=true
+                    }
                 }
 
-                //改成在关联页面有这个功能了，在这就不显示了
-    //            BottomSheetItem(sheetState=sheetState, showBottomSheet=showBottomSheet, text=stringResource(R.string.unlink_all)){
-    //                //显示弹窗，询问将会与所有remotes解除关联，是否确定？
-    //            }
-
-                BottomSheetItem(sheetState=sheetState, showBottomSheet=showBottomSheet, text=stringResource(R.string.delete), textColor = MyStyleKt.TextColor.danger()){
-                    showDeleteDialog.value=true
-                }
             }
 
-        }
-
-        if (showLoadingDialog.value) {
+            if (showLoadingDialog.value) {
 //            LoadingDialog()  //这个东西太阴间了，还是用LoadingText吧
 
-            LoadingText(text = loadingText.value,contentPadding = contentPadding)
+                LoadingTextSimple(text = loadingText.value, contentPadding = contentPadding)
 
-        }else {
+            }else {
 
-            //根据关键字过滤条目
-            val keyword = filterKeyword.value.text.lowercase()  //关键字
-            val enableFilter = filterModeActuallyEnabled(filterModeOn.value, keyword)
+                //根据关键字过滤条目
+                val keyword = filterKeyword.value.text.lowercase()  //关键字
+                val enableFilter = filterModeActuallyEnabled(filterModeOn.value, keyword)
 
-            val lastNeedRefresh = rememberSaveable { mutableStateOf("") }
-            val list = filterTheList(
-                needRefresh = filterResultNeedRefresh.value,
-                lastNeedRefresh = lastNeedRefresh,
+                val lastNeedRefresh = rememberSaveable { mutableStateOf("") }
+                val list = filterTheList(
+                    needRefresh = filterResultNeedRefresh.value,
+                    lastNeedRefresh = lastNeedRefresh,
 
-                enableFilter = enableFilter,
-                keyword = keyword,
-                lastKeyword = lastKeyword,
-                searching = searching,
-                token = token,
-                activityContext = activityContext,
-                filterList = filterList.value,
-                list = list.value,
-                resetSearchVars = resetSearchVars,
-                match = { idx:Int, it: CredentialEntity ->
-                    it.name.lowercase().contains(keyword) || it.value.lowercase().contains(keyword)
-                }
-            )
+                    enableFilter = enableFilter,
+                    keyword = keyword,
+                    lastKeyword = lastKeyword,
+                    searching = searching,
+                    token = token,
+                    activityContext = activityContext,
+                    filterList = filterList.value,
+                    list = list.value,
+                    resetSearchVars = resetSearchVars,
+                    match = { idx:Int, it: CredentialEntity ->
+                        it.name.lowercase().contains(keyword) || it.value.lowercase().contains(keyword)
+                    }
+                )
 
-            val listState = if(enableFilter) filterListState else listState
+                val listState = if(enableFilter) filterListState else listState
 //            if(enableFilter) {  //更新filter列表state
 //                filterListState.value = listState
 //            }
 
-            //更新是否启用filter
-            enableFilterState.value = enableFilter
+                //更新是否启用filter
+                enableFilterState.value = enableFilter
 
-            MyLazyColumn(
-                contentPadding = contentPadding,
-                list = list,
-                listState = listState,
-                requireForEachWithIndex = true,
-                requirePaddingAtBottom = true
-            ) {idx, value->
-                CredentialItem(
-                    showBottomSheet = showBottomSheet,
-                    curCredentialState = curCredential,
-                    idx = idx,
-                    thisItem = value,
-                    isLinkMode = isLinkMode,
-                    linkedFetchId = remote.value.credentialId,
-                    linkedPushId = remote.value.pushCredentialId,
-                    lastClickedItemKey = lastClickedItemKey
-                ) {
+                MyLazyColumn(
+                    contentPadding = contentPadding,
+                    list = list,
+                    listState = listState,
+                    requireForEachWithIndex = true,
+                    requirePaddingAtBottom = true
+                ) {idx, value->
+                    CredentialItem(
+                        showBottomSheet = showBottomSheet,
+                        curCredentialState = curCredential,
+                        idx = idx,
+                        thisItem = value,
+                        isLinkMode = isLinkMode,
+                        linkedFetchId = remote.value.credentialId,
+                        linkedPushId = remote.value.pushCredentialId,
+                        lastClickedItemKey = lastClickedItemKey
+                    ) {
 
-                    //这里value和it和传给CredentialItem的thisItem值都一样，只是参数传来传去而已
+                        //这里value和it和传给CredentialItem的thisItem值都一样，只是参数传来传去而已
 
-                    if(remoteId.isEmpty()) {  //若remoteId为空，跳转到remote和凭据绑定页面
-                        // 点击跳转到关联列表，传1表示显示的是关联列表
-                        navController.navigate(Cons.nav_CredentialRemoteListScreen+"/"+it.id+"/1")
-                    }else {  //若remoteId不为空，则代表为此remoteId绑定凭据，点击条目弹窗
-                        //为弹窗准备参数
-                        onClickCurItem.value = it  //虽然这里是被点击的条目，但其实用保存长按条目的状态变量curCredential也可以，不过为了避免混淆，没用那个
-                        requireDoLink.value = true
-                        targetAll.value=false
+                        if(remoteId.isEmpty()) {  //若remoteId为空，跳转到remote和凭据绑定页面
+                            // 点击跳转到关联列表，传1表示显示的是关联列表
+                            navController.navigate(Cons.nav_CredentialRemoteListScreen+"/"+it.id+"/1")
+                        }else {  //若remoteId不为空，则代表为此remoteId绑定凭据，点击条目弹窗
+                            //为弹窗准备参数
+                            onClickCurItem.value = it  //虽然这里是被点击的条目，但其实用保存长按条目的状态变量curCredential也可以，不过为了避免混淆，没用那个
+                            requireDoLink.value = true
+                            targetAll.value=false
 
-                        remoteDtoForCredential.value = RemoteDtoForCredential(
-                            remoteId = remoteId,
-                            credentialId = remote.value.credentialId,
-                            pushCredentialId = remote.value.pushCredentialId
-                        )
+                            remoteDtoForCredential.value = RemoteDtoForCredential(
+                                remoteId = remoteId,
+                                credentialId = remote.value.credentialId,
+                                pushCredentialId = remote.value.pushCredentialId
+                            )
 
-                        linkOrUnLinkDialogTitle.value = activityContext.getString(R.string.link)+" '${it.name}'"
-                        //显示弹窗
-                        showLinkOrUnLinkDialog.value=true
+                            linkOrUnLinkDialogTitle.value = activityContext.getString(R.string.link)+" '${it.name}'"
+                            //显示弹窗
+                            showLinkOrUnLinkDialog.value=true
+                        }
                     }
+
+                    MyHorizontalDivider()
+
                 }
-
-                HorizontalDivider()
-
             }
         }
-    }
 
-    BackHandler {
-        if(filterModeOn.value) {
-            filterModeOn.value = false
-        } else {
-            naviUp()
-        }
     }
 
     //compose创建时的副作用

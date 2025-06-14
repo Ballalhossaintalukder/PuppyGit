@@ -33,7 +33,7 @@ fun drawerContent(
     drawTextList: List<String>,
     drawIdList: List<Int>,
     drawIconList: List<ImageVector>,
-    refreshPageList:List<()->Unit>,
+    drawerItemOnClick:List<()->Unit>,
     showExit:Boolean, // 是否在末尾显示退出按钮
     filesPageKeepFilterResultOnce:MutableState<Boolean>,
 
@@ -42,19 +42,19 @@ fun drawerContent(
         var drawTextList = drawTextList
         var drawIdList = drawIdList
         var drawIconList = drawIconList
-        var refreshPageList = refreshPageList
+        var drawerItemOnClick = drawerItemOnClick
 
         //添加退出按钮
         if(showExit) {
             drawTextList = drawTextList.toMutableList()
             drawIdList = drawIdList.toMutableList()
             drawIconList = drawIconList.toMutableList()
-            refreshPageList = refreshPageList.toMutableList()
+            drawerItemOnClick = drawerItemOnClick.toMutableList()
 
             (drawTextList as MutableList).add(stringResource(R.string.exit))
             (drawIdList as MutableList).add(Cons.selectedItem_Exit)
             (drawIconList as MutableList).add(Icons.AutoMirrored.Filled.ExitToApp)
-            (refreshPageList as MutableList).add(AppModel.exitApp)
+            (drawerItemOnClick as MutableList).add(AppModel.exitApp)
         }
 
         val m = Modifier.padding(5.dp)
@@ -78,7 +78,7 @@ fun drawerContent(
                         filesPageKeepFilterResultOnce.value = true
                     }
 
-                    refreshPageList[index]()
+                    drawerItemOnClick[index]()
                     currentHomeScreen.intValue = id
                     scope.launch {
                         drawerState.apply {

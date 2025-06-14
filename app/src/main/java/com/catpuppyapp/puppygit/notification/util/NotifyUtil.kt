@@ -11,6 +11,7 @@ import com.catpuppyapp.puppygit.notification.NormalNotify
 import com.catpuppyapp.puppygit.notification.base.NotifyBase
 import com.catpuppyapp.puppygit.play.pro.MainActivity
 import com.catpuppyapp.puppygit.utils.AppModel
+import com.catpuppyapp.puppygit.utils.forEachBetter
 import kotlin.random.Random
 
 object NotifyUtil {
@@ -26,7 +27,7 @@ object NotifyUtil {
      * @param appContext better use application context, but activityContext or serviceContext should be fine although
      */
     fun initAllNotify(appContext: Context) {
-        notifyList.forEach {
+        notifyList.forEachBetter {
             it.init(appContext)
         }
     }
@@ -50,7 +51,7 @@ object NotifyUtil {
         intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
 
         //添加参数
-        extras.forEach { (k, v) ->
+        extras.forEachBetter { k, v ->
             intent.putExtra(k, v)
         }
 

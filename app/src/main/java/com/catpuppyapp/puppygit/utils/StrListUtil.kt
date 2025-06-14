@@ -6,7 +6,7 @@ object StrListUtil {
 
     fun strToList(str:String, splitSign:String):List<String> {
         val list = mutableListOf<String>()
-        str.split(splitSign).forEach {
+        str.split(splitSign).forEachBetter {
             val s = it.trim()
             if(s.isNotBlank()) {
                 list.add(s)
@@ -18,7 +18,7 @@ object StrListUtil {
 
     fun listToStr(list:List<String>, splitSign: String):String {
         val sb = StringBuilder()
-        list.forEach { sb.append(it).append(splitSign) }
+        list.forEachBetter { sb.append(it).append(splitSign) }
 
         return sb.removeSuffix(splitSign).toString()
     }

@@ -1,5 +1,6 @@
 package com.catpuppyapp.puppygit.settings
 
+import com.catpuppyapp.puppygit.utils.fileopenhistory.FileOpenHistoryMan
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -17,7 +18,7 @@ data class Editor (
       * how much file opened history and last edit position will remembered
       * if change this value, require restart app for affect
       */
-    val fileOpenHistoryLimit:Int = 50,
+    val fileOpenHistoryLimit:Int = FileOpenHistoryMan.defaultHistoryMaxCount,
 
     //打开文件时是否定位到上次编辑列（或者说恢复光标位置到上次编辑的列）
     //注意：如果有删除文本但没保存，这个定位会不准，但经我测试，没遇到会导致app崩溃的情况，所以问题不大
@@ -53,6 +54,11 @@ data class Editor (
     /**
      * recent file list max limit, should less than FileHistoryLimit, but if over it, will not cause an err，超了历史记录数也不会报错，只是顶多显示历史记录那么多个文件
      */
-    var recentFilesLimit:Int = 20,
+    var recentFilesLimit:Int = FileOpenHistoryMan.defaultHistoryMaxCount,
+
+    /**
+     * 是否开启补丁模式，若开启，编辑器会高亮显示+和-开头的行
+     */
+    var patchModeOn:Boolean = false,
 
 )

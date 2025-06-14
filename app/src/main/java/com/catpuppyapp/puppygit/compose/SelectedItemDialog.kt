@@ -1,15 +1,18 @@
 package com.catpuppyapp.puppygit.compose
 
 
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DeleteOutline
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
@@ -28,7 +31,10 @@ import com.catpuppyapp.puppygit.play.pro.R
 import com.catpuppyapp.puppygit.style.MyStyleKt
 import com.catpuppyapp.puppygit.utils.Msg
 import com.catpuppyapp.puppygit.utils.doJobThenOffLoading
+import com.catpuppyapp.puppygit.utils.forEachBetter
 
+
+private val trailingIconSize = 40.dp
 
 @Composable
 fun <T> SelectedItemDialog(
@@ -61,9 +67,11 @@ fun <T> SelectedItemDialog(
 
 /**
  * 相比第一版，提供更多自定义的可能性，可用 Compose组件自定义文本和尾部图标
+ *
+ * 为什么本方法是private: 之前直接用可复制弹窗实现，但后来改成了每行文本用各自的SelectionContainer，而被selection container包围的内容无法用Box的对齐，导致文字无法居中，所以把这个方法改成private，然后在“必经之路” SelecteeItemDialog3上做手脚了
  */
 @Composable
-fun <T> SelectedItemDialog2(
+private fun <T> SelectedItemDialog2(
     selectedItems:List<T>,
     title:String,
     text:@Composable BoxScope.(T) -> Unit,
@@ -73,13 +81,13 @@ fun <T> SelectedItemDialog2(
     onCancel:()->Unit,
     onCopy:()->Unit
 ) {
-    CopyableDialog2(
+    ConfirmDialog3(
         title = title,
 //            text = selectedItemsShortDetailsStr.value,
         requireShowTextCompose = true,
         textCompose = {
             ScrollableColumn {
-                selectedItems.forEach {
+                selectedItems.forEachBetter {
                     Box(
                         modifier = Modifier.fillMaxWidth(),
                     ) {
@@ -88,12 +96,12 @@ fun <T> SelectedItemDialog2(
                         trailIcon(it)
                     }
 
-                    HorizontalDivider()
+                    MyHorizontalDivider()
                 }
 
             }
         },
-        cancelCompose = {
+        customCancel = {
             ScrollableRow {
                 //清空按钮
                 if(selectedItems.isNotEmpty()) {
@@ -127,6 +135,7 @@ fun <T> SelectedItemDialog2(
 
         //仅有条目时才可复制
         okBtnEnabled = selectedItems.isNotEmpty(),
+        okBtnText = stringResource(R.string.copy),
     ) {  //点击拷贝按钮的回调
         onCopy()
     }
@@ -145,7 +154,6 @@ fun <T> SelectedItemDialog3(
 
     //自定义text
     text:@Composable RowScope.(T) -> Unit,
-    textContainerModifier: BoxScope.() -> Modifier = { Modifier.fillMaxWidth(.8f).padding(start = 5.dp).align(Alignment.CenterStart) },
     textFormatterForCopy:(T)->String,
 
     //清空条目列表
@@ -165,21 +173,28 @@ fun <T> SelectedItemDialog3(
         title = title,
         text = {
             Row(
-                modifier = textContainerModifier(),
+                modifier = Modifier.fillMaxWidth().padding(start = 5.dp, end = trailingIconSize).align(Alignment.CenterStart).horizontalScroll(rememberScrollState()),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                text(it)
+                MySelectionContainer {
+                    text(it)
+                }
             }
         },
         trailIcon = {
-            IconButton(
-                modifier = Modifier.fillMaxWidth(.2f).align(Alignment.CenterEnd),
-                onClick = { switchItemSelected(it) }
+            Row(
+                modifier = Modifier.size(trailingIconSize).align(Alignment.CenterEnd),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(
-                    imageVector = Icons.Filled.DeleteOutline,
-                    contentDescription = stringResource(R.string.trash_bin_icon_for_delete_item)
-                )
+                IconButton(
+                    onClick = { switchItemSelected(it) }
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.DeleteOutline,
+                        contentDescription = stringResource(R.string.trash_bin_icon_for_delete_item)
+                    )
+                }
             }
         },
         clearAll = clearAll,
@@ -191,7 +206,7 @@ fun <T> SelectedItemDialog3(
             doJobThenOffLoading {
                 val lb = Cons.lineBreak
                 val sb = StringBuilder()
-                selectedItems.forEach {
+                selectedItems.forEachBetter {
                     sb.append(textFormatterForCopy(it)).append(lb)
                 }
 
