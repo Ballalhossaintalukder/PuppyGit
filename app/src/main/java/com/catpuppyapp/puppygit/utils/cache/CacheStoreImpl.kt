@@ -120,8 +120,12 @@ open class CacheStoreImpl(
     }
     //这个keyPrefix是否包含keySeparator取决于调用者
     override fun clearByKeyPrefix(keyPrefix: String) {
+        clearByPredicate { it.startsWith(keyPrefix) }
+    }
+
+    override fun clearByPredicate(predicate:(key:String)->Boolean) {
         for(k in storage.keys) {
-            if(k.startsWith(keyPrefix)) {
+            if(predicate(k)) {
                 del(k)
 
 //                if(requireDel) {
@@ -131,7 +135,6 @@ open class CacheStoreImpl(
 //                }
             }
         }
-
     }
 
 }

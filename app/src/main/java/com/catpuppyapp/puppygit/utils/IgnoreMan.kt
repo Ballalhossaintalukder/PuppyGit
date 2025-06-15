@@ -73,7 +73,7 @@ object IgnoreMan {
         filerWriter.buffered().use { writer ->
             // if no this head line and file was not ends with new line, content will concat as unexpected
             writer.write("\n$commentBegin $curTime\n")  // newLine + timestamp
-            lines.forEach { ln ->
+            lines.forEachBetter { ln ->
                 writer.write(ln+"\n")
             }
         }

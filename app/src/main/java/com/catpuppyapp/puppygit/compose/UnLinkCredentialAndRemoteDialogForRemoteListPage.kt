@@ -32,7 +32,7 @@ fun UnLinkCredentialAndRemoteDialogForRemoteListPage(
 
     AlertDialog(
         title = {
-            Text(stringResource(R.string.unlink))
+            DialogTitle(stringResource(R.string.unlink))
         },
         text = {
             ScrollableColumn {

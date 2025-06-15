@@ -10,24 +10,28 @@ import com.github.git24j.core.Diff.Line.OriginType
 
 private const val TAG = "CompareLinePair"
 
-object CompareLinePairHelper {
-    val clipboardLineNum:Int = -10
-    val clipboardLineOriginType:String="clipboard_origin_type"
-    val clipboardLineKey:String="clipboard_key"
+//行号从1开始，小于等于0皆无效
+private const val invalidLineNum = 0
 
-    fun lineNumValid(lineNum:Int):Boolean {
-        return lineNum > 0
-    }
+object CompareLinePairHelper {
+    //剪贴板用个无效的行号即可
+    const val clipboardLineNum:Int = -10
+    const val clipboardLineOriginType:String="clipboard_origin_type"
+    const val clipboardLineKey:String="clipboard_key"
+
+//    fun lineNumValid(lineNum:Int):Boolean {
+//        return lineNum > invalidLineNum
+//    }
 }
 
 
 data class CompareLinePair (
     var key:String = getShortUUID(),
-    var line1Num:Int=0,  // < 1 is invalid
-    var line1:String="",
+    var line1Num:Int=invalidLineNum,
+    var line1:String?=null,
     var line1OriginType:String="",
-    var line2Num:Int=0,
-    var line2:String="",
+    var line2Num:Int=invalidLineNum,
+    var line2:String?=null,
     var line2OriginType:String="",
 
     var line1Key:String="",
@@ -37,21 +41,22 @@ data class CompareLinePair (
 //    var line1IsLogicAdd:Boolean = false,
     var compareResult:IndexModifyResult?=null,
 
-    var consumeCount:Int = 0
+//    var consumeCount:Int = 0
 ) {
 
 
     fun isEmpty():Boolean {
 //        return line1.isEmpty() && line2.isEmpty()
-        return line1Num == 0
+        //行号1为初始化的值，代表没选中过任何东西，即此pair为空
+        return line1Num == invalidLineNum
     }
 
     fun line1ReadyForCompare():Boolean {
-        return line1.isNotEmpty()
+        return line1 != null
     }
 
     fun line2ReadyForCompare():Boolean {
-        return line2.isNotEmpty()
+        return line2 != null
     }
 
     fun readyForCompare():Boolean {
@@ -61,11 +66,13 @@ data class CompareLinePair (
     fun isCompared():Boolean {
         return compareResult != null
     }
+
     fun compare(betterCompare:Boolean, matchByWords:Boolean, map:MutableMap<String, CompareLinePairResult>) {
         // not ready
         if(readyForCompare().not()) {
             return
         }
+
         // compared
         if(isCompared()) {
             return
@@ -108,6 +115,8 @@ data class CompareLinePair (
 //        } else {
 //            line2
 //        }
+        val line1 = line1 ?: ""
+        val line2 = line2 ?: ""
 
         val cmpResult = CmpUtil.compare(
             add = StringCompareParam(line1, line1.length),
@@ -133,8 +142,8 @@ data class CompareLinePair (
 
     fun clear() {
 //        consumeCount=0
-        line1Num=0
-        line2Num=0
+        line1Num=invalidLineNum
+        line2Num=invalidLineNum
         line1 = ""
         line2 = ""
         line1OriginType = ""

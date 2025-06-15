@@ -29,6 +29,8 @@ interface SimilarCompare {
      * @param ignoreEndOfNewLine if true, will ignore end of line break '\n', only ignore '\n'
      *          and only ignore when '\n' at end of line, if both has '\n', will treat '\n' as no-modified, else modified,
      *          but it will not effect the `matched` of `IndexModifyResult`, so, modified or no-modified, maybe not effect for view (因为新行的匹配状态不会影响结果是否匹配，所以显示上可能没差)
+     * @param treatNoWordMatchAsNoMatchedWhenMatchByWord if true, will treat as no matched when match by words and only non-word (e.g. punctuations) chars matched
+     * 
      * @author Bandeapart1964 of catpuppyapp
      */
     fun<T:CharSequence> doCompare(
@@ -42,7 +44,9 @@ interface SimilarCompare {
         search: Search = Search.INSTANCE,
         betterSearch: Search = Search.INSTANCE_BETTER_MATCH_BUT_SLOW,
         matchByWords:Boolean,
-        ignoreEndOfNewLine:Boolean = true
+        ignoreEndOfNewLine:Boolean = true,
+        degradeToCharMatchingIfMatchByWordFailed:Boolean = false,
+        treatNoWordMatchAsNoMatchedWhenMatchByWord:Boolean = false,
     ): IndexModifyResult
 
 }

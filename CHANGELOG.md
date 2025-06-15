@@ -1,6 +1,274 @@
 
 
 ---
+1.1.2.7v103 - 20250606:
+- fix: sometimes commit item not update after reset
+- add Thanks list in About screen
+- support fetch remotes at Branches screen
+- update depend libs (libgit2 to 1.9.1, openssl to 3.5.0)
+- update UI libs
+- Diff: optimize default match strategy
+- limit file names length of commit msg template
+- improve UI (issue #66)
+- Automation: support set pull interval and push delay for each repo
+- Editor support Ctrl+S/Ctrl+W/Ctrl+F to save/close/find the file
+
+
+
+- 修复提交条目在重置后不更新的bug
+- 关于页面添加感谢列表
+- 支持在分支页面下载远程仓库
+- 更新依赖库 (libgit2 to 1.9.1, openssl to 3.5.0)
+- 更新UI库
+- Diff: 优化默认匹配策略
+- 限制模板提交信息的文件名字数
+- 提升 UI (issue #66)
+- 自动化：支持为每个仓库设置拉取间隔和推送延迟
+- 编辑器支持 Ctrl+S/Ctrl+W/Ctrl+F 执行 保存/关闭/查找 文件
+
+
+---
+1.1.2.6v102 - 20250605:
+- fix sometimes commit info not update after create tag or branch
+
+
+
+- 修复某些情况下提交信息在创建tag或分支后不更新的bug
+
+
+---
+1.1.2.5v101 - 20250605:
+- fix repos loading slow
+
+
+
+- 修复仓库页面加载缓慢
+
+
+---
+1.1.2.4v100 - 20250605:
+- adjust time format for file list item
+
+
+
+- 调整文件列表条目的时间格式
+
+
+---
+1.1.2.3v99 - 20250604:
+- can choose checkout left or right when compare two commits
+- adjust time format for repo card
+
+
+
+- 比较两个提交时可选检出左边或右边的文件
+- 调整仓库卡片时间格式
+
+
+---
+1.1.2.2v98 - 20250530:
+- restore ime visible when return Editor
+- support Arabic language (thx https://github.com/Hussain96o)
+
+
+
+- 返回Editor时恢复显示软键盘
+- 支持阿拉伯语 (感谢 https://github.com/Hussain96o)
+
+
+---
+1.1.2.1v97 - 20250530:
+- support compare left/right commit to local at commits changelist
+- support set commit msg template
+- fix: compare two difference commits mis-considered they are same
+
+
+- 在提交的修改列表支持比较左侧/右侧提交和本地文件差异
+- 支持设置提交信息模板
+- 修复比较提交时误判两个不同的提交为相同
+
+
+---
+1.1.2.0v96 - 20250524:
+- long press commit hash in RepoCard will copy it
+- support filter Repo list by storage path and update time
+- support import local Repo from top bar of Repos screen
+- request manage storage permission when import repos from local
+
+
+
+- 长按仓库卡片提交hash可拷贝
+- 仓库列表支持按完整路径和更新时间过滤
+- 支持从仓库页面的顶栏菜单导入本地仓库
+- 从本地导入仓库时请求存储权限
+
+
+
+---
+1.1.1.9v95 - 20250521:
+- optimize line change type update logic for Editor
+
+
+
+- 优化文本编辑器行修改状态的更新逻辑
+
+
+---
+1.1.1.8v94 - 20250520:
+- remove unused function
+- fix: go to top/bottom buttons not work when showing err message
+
+
+
+- 移除无用函数
+- 修复：回到顶部和底部按钮在页面显示错误信息时无效
+
+---
+1.1.1.7v93 - 20250520:
+- fix: dialog button disable color invalid in some cases
+- add easter egg at About page
+
+
+
+- 修复某些情况弹窗按钮禁用时颜色失效
+- 关于页面添加彩蛋
+
+
+---
+1.1.1.6v92 - 20250520:
+- add forget master password option in settings
+
+
+
+- 在设置页面添加忘记主密码的选项
+
+
+---
+1.1.1.5v91 - 20250519:
+- fix: bugs related to the master password updating
+
+
+
+- 修复更新主密码相关的bug
+
+
+---
+1.1.1.4v90 - 20250519:
+- support viewing commit history graphically
+- support force push with lease
+
+
+
+- 支持图形化预览提交历史
+- 强制推送支持with lease
+
+
+---
+1.1.1.3v89 - 20250513:
+- adjust Editor style
+- improve UI for some screens
+
+
+
+- 调整文本编辑器样式
+- 提升一些页面的UI
+
+
+---
+1.1.1.2v88 - 20250510:
+- popup keyboard when rename file and go to path at Files
+- optimize Editor reload check logic
+- Editor: fix change type indicator position wrong when RTL layout enabled
+
+
+
+- 在文件管理器重命名文件和跳转路径时弹出键盘
+- 优化文本编辑器重载检测逻辑
+- 文本编辑器：修复修改类型指示器在RTL布局下位置错误
+
+
+---
+1.1.1.1v87 - 20250509:
+- Files now display thumbnail for video
+
+
+
+- 文件管理器现在可以为视频显示缩略图了
+
+---
+1.1.1.0v86 - 20250508:
+- minor bugs fixed
+
+
+
+- 小bug修正
+
+
+---
+1.1.0.9v85 - 20250508:
+- show icon for apks and images in the file list
+- minor bugs fixed
+
+
+
+- 文件列表显示apk和图片文件的图标
+- 小bug修正
+
+---
+
+1.1.0.8v84 - 20250502:
+- Differences screen support multi files
+- show random loading text when launching
+- improve UI
+- fix bugs
+
+
+
+- 差异页面支持多文件
+- 启动时显示随机加载文本
+- 提升UI
+- 修复bug
+
+
+
+忘了写到更新日志的新功能：
+- 下拉刷新(pull to refresh)
+- 文本编辑器预览补丁模式(patch mode of Editor)
+
+---
+
+1.1.0.7v83 - 20250428:
+- ChangeList and FileHistory screens: return from Diff screen will scroll list to make last viewed item visible
+- fix: on Tablet, Repos screen layout may become weired after rotated device
+
+
+
+- 修改列表和文件历史页面：从Diff页面返回后将滚动列表以使最后查看条目可见
+- 修复仓库页面布局在旋转屏幕后可能错乱的bug
+
+---
+
+1.1.0.6v82 - 20250427:
+- fix: Editor load file twice when open file
+- fix: if compare to ref which include '/', then app will crash
+- fix: bugs of screen navigate
+- fix: rotation screen lost state
+- show a crash Activity when compose crashed
+- reduce memory use
+
+
+
+- 修复文本编辑器打开文件会加载两次的bug
+- 修复比较引用包含'/'时app会崩溃的bug
+- 修复页面导航相关的bug
+- 修复旋转屏幕会丢失状态的bug
+- 在compose崩溃时显示一个崩溃页面
+- 减少内存占用
+
+
+注：app崩溃显示crash Activity的新功能忘了写到发行的changelog里，仅在此记录
+
+---
 
 1.1.0.5v81 - 20250426:
 - fix: navigator state err cause app crashed

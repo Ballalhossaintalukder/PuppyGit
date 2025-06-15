@@ -255,19 +255,20 @@ object ChangeListFunctions {
 
                     amend = amendCommit,
                     overwriteAuthorWhenAmend = overwriteAuthor,
-                    settings = settings
+                    settings = settings,
+                    cleanRepoStateIfSuccess = false,
                 )
 
             }
 
             if(ret.hasError()) {  //创建commit失败
-                MyLog.d(TAG, "#doCommit, createCommit failed, has error:"+ret.msg)
+                MyLog.d(TAG, "#doCommit, createCommit failed, has error: "+ret.msg)
 
                 Msg.requireShowLongDuration(ret.msg)
 
                 //显示的时候只显示简短错误信息，例如"请先解决冲突！"，存的时候存详细点，存上什么操作导致的错误，例如：“merge continue err:请先解决冲突”
                 val errPrefix= activityContext.getString(R.string.commit_err)
-                createAndInsertError(repoId, "$errPrefix:${ret.msg}")
+                createAndInsertError(repoId, "$errPrefix: ${ret.msg}")
 
                 //若出错，必刷新页面
                 if(requireCloseBottomBar) {
@@ -279,8 +280,10 @@ object ChangeListFunctions {
                 return@doCommit false
             }else {  //创建成功
                 MyLog.d(TAG, "#doCommit, createCommit success")
+
                 //如果没stage所有冲突条目，不能执行commit，函数入口有判断，所以如果能执行到这里，肯定是stage了所有冲突条目
                 Libgit2Helper.cleanRepoState(repo)  //清理仓库状态，例如存在冲突的时候如果创建完不清理状态，会一直处于merge state，就是pc git 显示 merging的情况
+
 
                 //更新仓库状态变量，要不然标题可能还是merge时的红色
                 repoState.intValue = repo.state()?.bit?: Cons.gitRepoStateInvalid  //如果state是null，返回一个无效值
@@ -367,7 +370,7 @@ object ChangeListFunctions {
                 //记录到日志
                 //显示提示
                 //保存数据库(给用户看的，消息尽量简单些)
-                showErrAndSaveLog(TAG, "#doFetch() err:"+e.stackTraceToString(), "fetch err:"+e.localizedMessage, requireShowToast, curRepoFromParentPage.id)
+                showErrAndSaveLog(TAG, "#doFetch() err: "+e.stackTraceToString(), "fetch err: "+e.localizedMessage, requireShowToast, curRepoFromParentPage.id)
 
                 return@doFetch false
             }
@@ -492,7 +495,7 @@ object ChangeListFunctions {
             //log
             showErrAndSaveLog(
                 logTag = TAG,
-                logMsg = "#doMerge(trueMergeFalseRebase=$trueMergeFalseRebase) err:"+e.stackTraceToString(),
+                logMsg = "#doMerge(trueMergeFalseRebase=$trueMergeFalseRebase) err: "+e.stackTraceToString(),
                 showMsg = "${if(trueMergeFalseRebase) "merge" else "rebase"} err: "+e.localizedMessage,
                 showMsgMethod = requireShowToast,
                 repoId = curRepoFromParentPage.id,
@@ -512,7 +515,10 @@ object ChangeListFunctions {
         activityContext:Context,
         loadingText:MutableState<String>,
         bottomBarActDoneCallback:(String, RepoEntity)->Unit,
-        dbContainer: AppContainer
+        dbContainer: AppContainer,
+        forcePush_pushWithLease: Boolean = false,
+        forcePush_expectedRefspecForLease:String = "",
+
     ) : Boolean {
         try {
 //            MyLog.d(TAG, "#doPush: start")
@@ -532,9 +538,23 @@ object ChangeListFunctions {
                         return@doPush false
                     }
                 }
+
                 MyLog.d(TAG, "#doPush: upstream.remote="+upstream!!.remote+", upstream.branchFullRefSpec="+upstream!!.branchRefsHeadsFullRefSpec)
 
-                loadingText.value = activityContext.getString(R.string.pushing)
+                //如果是force push with lease，检查下提交是否和期望匹配
+                if(force && forcePush_pushWithLease) {
+                    loadingText.value = activityContext.getString(R.string.checking)
+
+                    Libgit2Helper.forcePushLeaseCheckPassedOrThrow(
+                        repoEntity = curRepoFromParentPage,
+                        repo = repo,
+                        forcePush_expectedRefspecForLease = forcePush_expectedRefspecForLease,
+                        upstream = upstream,
+                    )
+
+                }
+
+                loadingText.value = activityContext.getString(if(force) R.string.force_pushing else R.string.pushing)
 
                 //执行到这里，必定有上游，push
                 val credential = Libgit2Helper.getRemoteCredential(

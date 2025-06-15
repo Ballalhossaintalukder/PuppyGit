@@ -5,6 +5,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -18,13 +19,13 @@ import com.catpuppyapp.puppygit.play.pro.R
 @Composable
 fun InLineIcon(
     icon: ImageVector,
-    tooltipText: String,
+    tooltipText: String,  //若为empty，不显示长按提示文本
     iconContentDesc: String? = tooltipText,
     iconModifier: Modifier = Modifier.size(16.dp),
     pressedCircleSize: Dp = 24.dp,
     enabled: Boolean = true,
-    iconColor: Color? = null,
-    onClick: () -> Unit
+    iconColor: Color = LocalContentColor.current,
+    onClick: (() -> Unit)? = null
 ) {
     LongPressAbleIconBtn(
         tooltipText = tooltipText,
@@ -33,10 +34,9 @@ fun InLineIcon(
         iconModifier = iconModifier,
         enabled = enabled,
         iconColor = iconColor,
-        pressedCircleSize = pressedCircleSize
-    ) {
-        onClick()
-    }
+        pressedCircleSize = pressedCircleSize,
+        onClick = onClick,
+    )
 }
 
 

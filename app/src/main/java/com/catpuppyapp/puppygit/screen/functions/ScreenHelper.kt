@@ -3,6 +3,7 @@ package com.catpuppyapp.puppygit.screen.functions
 import android.content.Context
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.staggeredgrid.LazyStaggeredGridState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableIntState
 import androidx.compose.runtime.MutableState
@@ -11,9 +12,12 @@ import androidx.compose.ui.platform.ClipboardManager
 import com.catpuppyapp.puppygit.constants.Cons
 import com.catpuppyapp.puppygit.constants.LineNum
 import com.catpuppyapp.puppygit.constants.PageRequest
+import com.catpuppyapp.puppygit.dev.DevFeature
 import com.catpuppyapp.puppygit.dto.UndoStack
 import com.catpuppyapp.puppygit.fileeditor.texteditor.state.TextEditorState
+import com.catpuppyapp.puppygit.git.DiffableItem
 import com.catpuppyapp.puppygit.play.pro.R
+import com.catpuppyapp.puppygit.screen.shared.DiffFromScreen
 import com.catpuppyapp.puppygit.screen.shared.FileChooserType
 import com.catpuppyapp.puppygit.screen.shared.FilePath
 import com.catpuppyapp.puppygit.utils.AppModel
@@ -22,15 +26,17 @@ import com.catpuppyapp.puppygit.utils.Libgit2Helper
 import com.catpuppyapp.puppygit.utils.Msg
 import com.catpuppyapp.puppygit.utils.MyLog
 import com.catpuppyapp.puppygit.utils.UIHelper
-import com.catpuppyapp.puppygit.utils.cache.Cache
+import com.catpuppyapp.puppygit.utils.cache.NaviCache
+import com.catpuppyapp.puppygit.utils.changeStateTriggerRefreshPage
 import com.catpuppyapp.puppygit.utils.doJobThenOffLoading
 import com.catpuppyapp.puppygit.utils.doJobWithMainContext
 import com.catpuppyapp.puppygit.utils.generateRandomString
-import com.catpuppyapp.puppygit.utils.getRandomUUID
+import com.catpuppyapp.puppygit.utils.getShortUUID
 import com.catpuppyapp.puppygit.utils.replaceStringResList
 import com.catpuppyapp.puppygit.utils.state.CustomStateSaveable
 import com.catpuppyapp.puppygit.utils.withMainContext
 import kotlinx.coroutines.CoroutineScope
+import java.io.File
 
 private const val TAG = "ScreenHelper"
 
@@ -95,10 +101,10 @@ suspend fun goToFileHistoryByRelativePathWithMainContext(repoId:String, relative
 }
 
 fun naviToFileHistoryByRelativePath(repoId:String, relativePathUnderRepo:String) {
-    Cache.set(Cache.Key.fileHistory_fileRelativePathKey, relativePathUnderRepo)
+    val fileRelativePathKey = NaviCache.setThenReturnKey(relativePathUnderRepo)
     //go to file history page
     doJobWithMainContext {
-        AppModel.navController.navigate(Cons.nav_FileHistoryScreen + "/" + repoId)
+        AppModel.navController.navigate(Cons.nav_FileHistoryScreen + "/" + repoId+"/"+fileRelativePathKey)
     }
 }
 
@@ -122,30 +128,41 @@ fun getClipboardText(clipboardManager:ClipboardManager):String? {
     }
 }
 
-fun openFileWithInnerSubPageEditor(filePath:String, mergeMode:Boolean, readOnly:Boolean) {
-    Cache.set(Cache.Key.subPageEditor_filePathKey, filePath)
-    val goToLine = LineNum.lastPosition
-    val initMergeMode = if(mergeMode) "1" else "0"
-    val initReadOnly = if(readOnly) "1" else "0"
+fun openFileWithInnerSubPageEditor(
+    context: Context,
+    filePath:String,
+    mergeMode:Boolean,
+    readOnly:Boolean,
+    goToLine:Int = LineNum.lastPosition,
+    onlyGoToWhenFileExists: Boolean = false
+) {
+    doJobWithMainContext job@{
+        if(onlyGoToWhenFileExists && File(filePath).exists().not()) {
+            Msg.requireShowLongDuration(context.getString(R.string.file_doesnt_exist))
+            return@job
+        }
 
-    AppModel.subEditorPreviewModeOnWhenDestroy.value = false
+        val filePathKey = NaviCache.setThenReturnKey(filePath)
 
-    doJobWithMainContext {
-        AppModel.navController.navigate(Cons.nav_SubPageEditor + "/$goToLine/$initMergeMode/$initReadOnly")
+        val initMergeMode = if(mergeMode) "1" else "0"
+        val initReadOnly = if(readOnly) "1" else "0"
+
+
+        AppModel.navController.navigate(Cons.nav_SubPageEditor + "/$goToLine/$initMergeMode/$initReadOnly/$filePathKey")
     }
 }
 
-
+/**
+ * @param shortName short hash or tag name or branch name
+ */
 fun fromTagToCommitHistory(fullOid:String, shortName:String, repoId:String){
-    //点击条目跳转到分支的提交历史记录页面
-    Cache.set(Cache.Key.commitList_fullOidKey, fullOid)
-    Cache.set(Cache.Key.commitList_shortBranchNameKey, shortName)  //short hash or tag name or branch name
-    val useFullOid = "1"
-    val isHEAD = "0"
-
-    doJobWithMainContext {
-        AppModel.navController.navigate(Cons.nav_CommitListScreen + "/" + repoId + "/" +useFullOid  + "/" + isHEAD)
-    }
+    goToCommitListScreen(
+        repoId = repoId,
+        fullOid = fullOid,
+        shortBranchName = shortName,
+        useFullOid = true,
+        isHEAD = false,
+    )
 }
 
 
@@ -157,6 +174,10 @@ fun defaultTitleDoubleClick(coroutineScope: CoroutineScope, listState: LazyListS
 }
 
 fun defaultTitleDoubleClick(coroutineScope: CoroutineScope, listState: ScrollState, lastPosition: MutableState<Int>)  {
+    UIHelper.switchBetweenTopAndLastVisiblePosition(coroutineScope, listState, lastPosition)
+}
+
+fun defaultTitleDoubleClick(coroutineScope: CoroutineScope, listState: LazyStaggeredGridState, lastPosition: MutableState<Int>)  {
     UIHelper.switchBetweenTopAndLastVisiblePosition(coroutineScope, listState, lastPosition)
 }
 
@@ -225,7 +246,7 @@ fun generateNewTokenForSearch():String {
 }
 
 fun triggerReFilter(filterResultNeedRefresh:MutableState<String>) {
-    filterResultNeedRefresh.value = getRandomUUID()
+    filterResultNeedRefresh.value = getShortUUID()
 }
 
 @Composable
@@ -313,6 +334,8 @@ fun getFilesScreenTitle(currentPath:String, activityContext: Context):String {
         activityContext.getString(R.string.internal_storage)
     }else if(trimedSlashCurPath == FsUtils.getExternalStorageRootPathNoEndsWithSeparator()) {
         activityContext.getString(R.string.external_storage)
+    }else if(trimedSlashCurPath == FsUtils.getInnerStorageRootPathNoEndsWithSeparator()) {
+        activityContext.getString(R.string.internal_storage)+"(Inner)"
     }else {
         runCatching { FsUtils.splitParentAndName(currentPath).second }.getOrDefault("").ifEmpty { activityContext.getString(R.string.files) }
     }
@@ -321,7 +344,8 @@ fun getFilesScreenTitle(currentPath:String, activityContext: Context):String {
 fun getEditorStateOnChange(
     editorPageTextEditorState:CustomStateSaveable<TextEditorState>,
     lastTextEditorState:CustomStateSaveable<TextEditorState>,
-    undoStack:UndoStack
+    undoStack:UndoStack,
+    resetLastCursorAtColumn:()->Unit,
 ):(newState: TextEditorState, trueSaveToUndoFalseRedoNullNoSave:Boolean?, clearRedoStack:Boolean) -> Unit {
 
     return { newState: TextEditorState, trueSaveToUndoFalseRedoNullNoSave:Boolean?, clearRedoStack:Boolean ->
@@ -334,6 +358,9 @@ fun getEditorStateOnChange(
         // last state == null || 不等于新state的filesId，则入栈
         //这个fieldsId只是个粗略判断，即使一样也不能保证fields完全一样
         if(lastState.maybeNotEquals(newState)) {
+            // if content changed, reset remembered last cursor at column，then next time navigate line by Down/Up key will update the column to the expect value
+            // 如果内容改变，重置记录的光标所在列，这样下次按键盘上下键导航的位置就会重新更新为期望的值
+            resetLastCursorAtColumn()
 //                    if(lastTextEditorState.value?.fields != newState.fields) {
             //true或null，存undo; false存redo。null本来是在选择行之类的场景的，没改内容，可以不存，但我后来感觉存上比较好
             val saved = if(trueSaveToUndoFalseRedoNullNoSave != false) {  // null or true
@@ -373,5 +400,133 @@ fun getInitTextEditorState():TextEditorState {
 suspend fun goToStashPage(repoId:String) {
     withMainContext {
         AppModel.navController.navigate(Cons.nav_StashListScreen+"/"+repoId)
+    }
+}
+
+fun goToTreeToTreeChangeList(title:String, repoId: String, commit1:String, commit2:String, commitForQueryParents:String) {
+    doJobWithMainContext {
+        val commit1OidStrCacheKey = NaviCache.setThenReturnKey(commit1)
+        val commit2OidStrCacheKey = NaviCache.setThenReturnKey(commit2)
+        val commitForQueryParentsCacheKey = NaviCache.setThenReturnKey(commitForQueryParents)
+        //当前比较的描述信息的key，用来在界面显示这是在比较啥，值例如“和父提交比较”或者“比较两个提交”之类的
+        val titleCacheKey = NaviCache.setThenReturnKey(title)
+
+        // url 参数： 页面导航id/repoId/treeoid1/treeoid2/desckey
+        AppModel.navController.navigate(
+            //注意是 parentTreeOid to thisObj.treeOid，也就是 旧提交to新提交，相当于 git diff abc...def，比较的是旧版到新版，新增或删除或修改了什么，反过来的话，新增删除之类的也就反了
+            "${Cons.nav_TreeToTreeChangeListScreen}/$repoId/$commit1OidStrCacheKey/$commit2OidStrCacheKey/$commitForQueryParentsCacheKey/$titleCacheKey"
+        )
+    }
+}
+
+fun goToCommitListScreen(repoId: String, fullOid:String, shortBranchName:String, useFullOid:Boolean, isHEAD:Boolean) {
+    doJobWithMainContext {
+        val fullOidCacheKey = NaviCache.setThenReturnKey(fullOid)
+        val shortBranchNameCacheKey = NaviCache.setThenReturnKey(shortBranchName)
+
+        //注：如果fullOidKey传null，会变成字符串 "null"，然后查不出东西，返回空字符串，与其在导航组件取值时做处理，不如直接传空字符串，不做处理其实也行，只要“null“作为cache key取不出东西就行，但要是不做处理万一字符串"null"作为cache key能查出东西，就歇菜了，总之，走正常流程取得有效cache key，cache value传空字符串，即可
+        AppModel.navController.navigate(Cons.nav_CommitListScreen + "/" + repoId +"/" + (if(useFullOid) "1" else "0") + "/" + (if(isHEAD) "1" else "0") +"/"+fullOidCacheKey+"/"+shortBranchNameCacheKey)
+    }
+}
+
+fun goToDiffScreen(
+//    relativePathList:List<String>,
+    diffableList:List<DiffableItem>,
+    repoId: String,
+    fromTo: String,
+    commit1OidStr:String,
+    commit2OidStr:String,
+    isDiffToLocal:Boolean,
+    curItemIndexAtDiffableList:Int,
+    localAtDiffRight:Boolean,
+    fromScreen:String,
+) {
+    doJobWithMainContext {
+//        val relativePathCacheKey = NaviCache.setThenReturnKey(relativePathList)
+
+        //设置条目列表
+//        val invalidCacheKey = getRandomUUID(10)
+        //等于null说明目标页面不需要此列表，所以不用设置
+        val diffableListCacheKey = NaviCache.setThenReturnKey(diffableList) ;
+
+//        val isMultiMode = if(fromScreen != DiffFromScreen.FILE_HISTORY.code) 1 else 0
+        val isMultiMode:Boolean = if(fromScreen != DiffFromScreen.FILE_HISTORY.code) DevFeature.singleDiff.state.value.not() else false;
+
+        AppModel.navController.navigate(
+            Cons.nav_DiffScreen +
+                    "/" + repoId +
+                    "/" + fromTo +
+                    "/" + commit1OidStr +
+                    "/" + commit2OidStr +
+                    "/" + (if(isDiffToLocal) 1 else 0)
+                    + "/" + curItemIndexAtDiffableList
+                    +"/" + (if(localAtDiffRight) 1 else 0)
+
+                    +"/" + fromScreen
+
+                    +"/"+diffableListCacheKey
+                    +"/"+(if(isMultiMode) 1 else 0)
+        )
+    }
+}
+
+/**
+ * repoId 若为空字符串则代表新建，否则编辑已存在仓库
+ */
+fun goToCloneScreen(repoId: String="") {
+    doJobWithMainContext {
+        AppModel.navController.navigate(
+            Cons.nav_CloneScreen+"/${repoId.ifBlank { Cons.dbInvalidNonEmptyId }}"
+        )
+    }
+}
+
+
+fun getFilesGoToPath(
+    lastPressedPath: MutableState<String>,
+    getCurrentPath:()->String,
+    updateCurrentPath:(String)->Unit,
+    needRefresh: MutableState<String>
+): (String)->Unit {
+    val funName = "getFilesGoToPath"
+
+    return { newPath:String ->
+        val oldPath = getCurrentPath()
+
+        try {
+            try {
+                //为了找上次路径的结束位置的起始索引
+                val startIndexForFindEndOfLastPath = newPath.length + 1;
+                lastPressedPath.value = if(newPath.length < oldPath.length && startIndexForFindEndOfLastPath < oldPath.length && oldPath.startsWith(newPath)) {
+                    // e.g. newPath = /abc/def, oldPath = /abc/def/ghi,
+                    // newPath.length+1, so the cursor at 'g', which is our expect to find the target path
+                    //这里不可能越界，因为 if 有判断 `startIndexForFindEndOfLastPath < oldPath.length`
+                    val indexOfSlash = oldPath.indexOf(Cons.slashChar, startIndex = startIndexForFindEndOfLastPath)
+                    //截出当前目录在新目录中的path，例如当前目录为 /abc/def 新目录为 /abc，则找到def，若当前目录为 /abc/def/ghi，新目录为 /abc，则截取 /abc/def
+                    oldPath.substring(0, if(indexOfSlash < 0) oldPath.length else indexOfSlash)
+                } else {
+                    oldPath
+                }
+            }catch (e: Exception) {
+                MyLog.d(TAG, "#$funName: resolve `lastPressedPath` failed! oldPath='$oldPath', newPath='$newPath', err=${e.stackTraceToString()}")
+            }
+
+            if(AppModel.devModeOn) {
+                MyLog.v(TAG, "#$funName: lastPressedPath: ${lastPressedPath.value}")
+            }
+
+            updateCurrentPath(newPath)
+            changeStateTriggerRefreshPage(needRefresh)
+        }catch (e: Exception) {
+            MyLog.e(TAG, "#$funName: change path failed! oldPath='$oldPath', newPath='$newPath', err=${e.stackTraceToString()}")
+            Msg.requireShowLongDuration("err: change dir failed")
+        }
+
+    }
+}
+
+fun goToErrScreen(repoId:String) {
+    doJobWithMainContext {
+        AppModel.navController.navigate(Cons.nav_ErrorListScreen + "/" + repoId)
     }
 }

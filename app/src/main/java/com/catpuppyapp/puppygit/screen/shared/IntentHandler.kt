@@ -32,7 +32,7 @@ object IntentHandler {
         val intent = intent.value ?: return;
 
         //data 或 extras是必须条件，若两者任有其一，则此intent需要消费
-        if(intent.extras != null || intent.data != null) {
+        if(needConsume(intent)) {
             MyLog.d(TAG, "will navigate to HomeScreen to handle new Intent")
 
             intentConsumed.value = false
@@ -50,4 +50,6 @@ object IntentHandler {
 //            ActivityUtil.restartActivityByIntent(this, intent)
         }
     }
+
+    fun needConsume(intent:Intent?) = intent?.extras != null || intent?.data != null;
 }

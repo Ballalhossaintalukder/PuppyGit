@@ -4,10 +4,16 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.pm.PackageManager
+import android.media.MediaMetadataRetriever
 import android.os.Build
 import android.widget.Toast
 import androidx.compose.runtime.MutableState
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.TextRange
 import androidx.core.content.ContextCompat
+import androidx.core.graphics.drawable.toBitmapOrNull
 import com.catpuppyapp.puppygit.constants.Cons
 import com.catpuppyapp.puppygit.data.entity.ErrorEntity
 import com.catpuppyapp.puppygit.data.entity.RepoEntity
@@ -19,6 +25,7 @@ import com.catpuppyapp.puppygit.screen.shared.FuckSafFile
 import com.catpuppyapp.puppygit.settings.AppSettings
 import com.catpuppyapp.puppygit.settings.DirViewAndSort
 import com.catpuppyapp.puppygit.settings.SettingsUtil
+import com.github.git24j.core.Repository
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -26,6 +33,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.net.URI
@@ -214,6 +222,48 @@ fun boolToDbInt(b:Boolean):Int {
     return if(b) Cons.dbCommonTrue else Cons.dbCommonFalse
 }
 
+
+/**
+ * @param originDateTimeFormatted "yyyy-MM-dd HH:mm:ss" formatted date time expected
+ *
+ * @return same date return "HH:mm:ss"; same year return "MM-dd HH:mm:ss"; else return fully origin date time
+ */
+fun getShortTimeIfPossible(originDateTimeFormatted:String) : String {
+    return try {
+        val nowFormatted = getNowInSecFormatted()
+        val nowDateTime = nowFormatted.split(' ')
+        val nowYmd = nowDateTime[0]
+
+        val originDateTime = originDateTimeFormatted.split(' ')
+        val originYmd = originDateTime[0]
+        val originHms = originDateTime[1]
+
+        if(nowYmd == originYmd) { // same date
+            // HH:mm:ss
+            originHms
+        }else {
+            val nowYmdArr = nowYmd.split('-')
+            val originYmdArr = originYmd.split('-')
+            if(nowYmdArr[0] == originYmdArr[0]) {  // same year
+                // MM-dd HH:mm:ss
+                "${originYmdArr[1]}-${originYmdArr[2]} $originHms"
+            }else { // year and date totally difference, return fully origin date time
+                // yyyy-MM-dd HH:mm:ss
+                originDateTimeFormatted
+            }
+        }
+    }catch (e: Exception) {
+        MyLog.e(TAG, "#getShortTimeIfPossible(String) err: originDateTimeFormatted=$originDateTimeFormatted, err=${e.localizedMessage}")
+        ""
+    }
+}
+
+/**
+ * @param sec utc+0 seconds expected, this param should not add offset, will be add when formatting
+ */
+fun getShortTimeIfPossible(sec: Long) : String {
+    return getShortTimeIfPossible(getFormatTimeFromSec(sec))
+}
 
 /**
  * @return secs from utc
@@ -637,13 +687,21 @@ fun isRepoReadyAndPathExist(r: RepoEntity?): Boolean {
         return false
     }
 
-    if (r.workStatus != Cons.dbRepoWorkStatusNotReadyNeedClone
-        && r.workStatus != Cons.dbRepoWorkStatusNotReadyNeedInit
+    //首先把仓库的gitRepoState更新一下，不然万一没更新状态，gitRepoState会是null，会导致后面误判仓库无效
+    runCatching {
+        Repository.open(r.fullSavePath)?.use { repo->
+            r.gitRepoState = repo.state()
+        }
+    }
+
+    if (Libgit2Helper.isRepoStatusReady(r)
         && r.isActive == Cons.dbCommonTrue
         && r.fullSavePath.isNotBlank()
+
+        //过滤地址有效但仓库无效的仓库
+        && r.gitRepoState != null
     ) {
-        val f = File(r.fullSavePath)
-        if (f.exists()) {
+        if (File(r.fullSavePath).exists()) {
             return true;
         }
     }
@@ -661,7 +719,7 @@ fun setErrMsgForTriggerNotify(hasErrState:MutableState<Boolean>,errMsgState:Muta
 fun doJobThenOffLoading(
     loadingOn: (String)->Unit={},
     loadingOff: ()->Unit={},
-    loadingText: String="Loading...",  //这个最好别使用appContext.getString(R.string.loading)，万一appContext都还没初始化就调用此方法，会报错，不过目前20240426为止，只有在appContext赋值给AppModel对应字段后才会调用此方法，所以实际上没我担心的这个问题，根本不会发生
+    loadingText: String="Loading…",  //这个最好别使用appContext.getString(R.string.loading)，万一appContext都还没初始化就调用此方法，会报错，不过目前20240426为止，只有在appContext赋值给AppModel对应字段后才会调用此方法，所以实际上没我担心的这个问题，根本不会发生
     coroutineDispatcher: CoroutineDispatcher = Dispatchers.IO,
     job: suspend ()->Unit
 ): Job? {
@@ -671,28 +729,28 @@ fun doJobThenOffLoading(
             try {
                 loadingOn(loadingText)
             }catch (e:Exception) {
-                Msg.requireShowLongDuration("loadOn err:"+e.localizedMessage)
+                Msg.requireShowLongDuration("loadOn err: "+e.localizedMessage)
                 MyLog.e(TAG, "#doJobThenOffLoading(): #loadingOn error!\n" + e.stackTraceToString())
             }finally {
                 //执行操作
                 try {
                     job()
                 }catch (e:Exception) {
-                    Msg.requireShowLongDuration("job err:"+e.localizedMessage)
+                    Msg.requireShowLongDuration("job err: "+e.localizedMessage)
                     MyLog.e(TAG, "#doJobThenOffLoading(): #job error!\n" + e.stackTraceToString())
                 }finally {
                     try {
                         //最后解除loading
                         loadingOff()  //x 20240426job被trycatch包裹，实际上这个已经是百分百会解除了，索性放到finally里，百分百解除的意义更明确)这个要不要放到finally里？要不然一出异常，loading就无法解除了，不过解除不了也好，省得用户误操作
                     }catch (e:Exception) {
-                        Msg.requireShowLongDuration("loadOff err:"+e.localizedMessage)
+                        Msg.requireShowLongDuration("loadOff err: "+e.localizedMessage)
                         MyLog.e(TAG, "#doJobThenOffLoading(): #loadingOff error!\n" + e.stackTraceToString())
                     }
                 }
             }
         }
     }catch (e:Exception) {
-        Msg.requireShowLongDuration("coroutine err:"+e.localizedMessage)
+        Msg.requireShowLongDuration("coroutine err: "+e.localizedMessage)
         MyLog.e(TAG, "#doJobThenOffLoading(): #launch error!\n" + e.stackTraceToString())
         null
     }
@@ -743,7 +801,7 @@ fun replaceStringResList(strRes:String, strWillReplacedList:List<String>):String
 }
 
 fun getStrShorterThanLimitLength(src:String, limit:Int=12):String {
-    return if(src.length<limit) src else src.substring(0, limit)+"..."
+    return if(src.length > limit) src.substring(0, limit)+"…" else src
 }
 
 suspend fun createAndInsertError(repoId:String, errMsg: String) {
@@ -844,8 +902,8 @@ fun<T> doActIfIndexGood(idx:Int, list:List<T>, act:(T)-> Unit):Ret<T?> {
         }
         return Ret.createError(null, "err:invalid index for list", Ret.ErrCode.invalidIdxForList)
     }catch (e:Exception) {
-        MyLog.e(TAG, "#doActIfIndexGood() err:"+e.stackTraceToString())
-        return Ret.createError(null, "err:"+e.localizedMessage, Ret.ErrCode.doActForItemErr)
+        MyLog.e(TAG, "#doActIfIndexGood() err: "+e.stackTraceToString())
+        return Ret.createError(null, "err: "+e.localizedMessage, Ret.ErrCode.doActForItemErr)
     }
 
 }
@@ -1018,7 +1076,7 @@ fun <T> updateSelectedList(
         val stillSelectedList = mutableListOf<T>()
 
 //                一般选中条目的列表元素会比所有条目列表少，所以选中条目在外部，这样有可能减少循环次数
-        selectedItemList.forEach { oldSelected ->
+        selectedItemList.forEachBetter { oldSelected ->
             val found = itemList.find { match(oldSelected, it) }
             //如果选中条目仍在条目列表存在，则视为有效选中项
             if (found != null) {
@@ -1076,6 +1134,15 @@ fun copyTextToClipboard(context: Context, text: String, label:String="label") {
     clipboard.setPrimaryClip(clip) // 设置剪贴板内容
 }
 
+fun copyAndShowCopied(
+    context:Context,
+    clipboardManager: androidx.compose.ui.platform.ClipboardManager,
+    text:String
+) {
+    clipboardManager.setText(AnnotatedString(text))
+    Msg.requireShow(context.getString(R.string.copied))
+}
+
 fun genHttpHostPortStr(host:String, port:String, https:Boolean = false) : String {
     //如果host 是 0.0.0.0 换成 127.0.0.1，否则使用原ip
     val host = if(host == Cons.zero000Ip) Cons.localHostIp else host
@@ -1113,3 +1180,106 @@ suspend fun isLocked(mutex: Mutex):Boolean {
     delay(1)
     return mutex.isLocked
 }
+
+suspend fun doActWithLockIfFree(mutex: Mutex, whoCalled:String, act: suspend ()->Unit) {
+    val logPrefix = "#doActWithLockIfFree, called by '$whoCalled'";
+
+    if(isLocked(mutex)) {
+        if(AppModel.devModeOn) {
+            MyLog.d(TAG, "$logPrefix: lock is busy, task will not run")
+        }
+
+        return
+    }
+
+    if(AppModel.devModeOn) {
+        MyLog.d(TAG, "$logPrefix: lock is free, will run task")
+    }
+
+    // run task
+    mutex.withLock { act() }
+
+    if(AppModel.devModeOn) {
+        MyLog.d(TAG, "$logPrefix: task completed")
+    }
+
+}
+
+suspend fun apkIconOrNull(context:Context, apkPath:String, iconSizeInPx:Int): ImageBitmap? {
+    return try {
+        val pm = context.packageManager
+
+        //未考证：第2个参数是个flag值，可获取附加信息，如不需要可设为0
+//        val appInfo = pm.getPackageArchiveInfo(apkPath, PackageManager.GET_ACTIVITIES)!!
+        val appInfo = pm.getPackageArchiveInfo(apkPath, 0)!!
+
+        delay(1)
+
+        // https://stackoverflow.com/a/14313280
+        appInfo.applicationInfo!!.let {
+            // 这两行是关键
+            it.sourceDir = apkPath
+            it.publicSourceDir = apkPath
+
+            // appName
+//            val appName = it.loadLabel(pm).toString()
+
+            // appIcon
+            val icon = it.loadIcon(pm).toBitmapOrNull(width = iconSizeInPx, height = iconSizeInPx)!!.asImageBitmap()
+
+            delay(1)
+
+            icon
+        }
+
+    }catch (e: Exception) {
+//        MyLog.d(TAG, "#apkIconOrNull() err: ${e.stackTraceToString()}")
+        //这种日志没什么好记的，就算获取失败，我也没什么好改的，简单打印下错误信息就行
+        e.printStackTrace()
+        null
+    }
+}
+
+suspend fun getVideoThumbnail(videoPath: String): ImageBitmap? {
+    return try {
+        val retriever = MediaMetadataRetriever()
+
+        delay(1)
+
+        try {
+            // 设置数据源
+            retriever.setDataSource(videoPath)
+            // 获取缩略图，参数为时间戳（单位为微秒），可以设置为0获取视频的第一帧
+            // 假设常见的每秒24帧，获取第1200帧，就是50000000微秒
+            val frame = retriever.getFrameAtTime(50000000, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)!!.asImageBitmap()
+
+            delay(1)
+
+            frame
+        } catch (e: Exception) {
+//            MyLog.d(TAG, "#getVideoThumbnail() err: ${e.stackTraceToString()}")
+            e.printStackTrace()
+            null
+        } finally {
+            retriever.release()
+        }
+    }catch (e: Exception) {
+        e.printStackTrace()
+        null
+    }
+}
+
+
+fun paddingLineNumber(lineNum:String, expectLength:Int): String {
+    return lineNum.padStart(expectLength, ' ')
+}
+
+fun getRangeForRenameFile(fileName:String):TextRange {
+    val lastIndexOfDot = fileName.lastIndexOf('.')
+
+    // 如果'.'在文件名开头或没有'.'，选中整个文件名；否则选中'.'之前的部分，不包括'.'本身
+    return TextRange(0, if(lastIndexOfDot > 0) lastIndexOfDot else fileName.length)
+}
+
+fun appendSecondsUnit(str:String) = str+"s";
+

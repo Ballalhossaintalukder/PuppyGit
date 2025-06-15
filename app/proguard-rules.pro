@@ -20,6 +20,9 @@
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
 
+# 保留jni包的东西，有可能在c里用，所以不能精简，要不然变量名就找不到了
+-keep class com.catpuppyapp.puppygit.jni.** { *; }
+
 # keep git24j package, else will crash immediate when running
 -keep class com.github.git24j.core.** { *; }
 -dontwarn javax.annotation.CheckForNull

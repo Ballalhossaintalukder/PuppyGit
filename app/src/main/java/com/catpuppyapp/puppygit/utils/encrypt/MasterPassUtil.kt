@@ -1,11 +1,12 @@
 package com.catpuppyapp.puppygit.utils.encrypt
 
 import android.content.Context
+import com.catpuppyapp.puppygit.settings.AppSettings
 import com.catpuppyapp.puppygit.settings.SettingsUtil
 import com.catpuppyapp.puppygit.utils.AppModel
 import com.catpuppyapp.puppygit.utils.HashUtil
 import com.catpuppyapp.puppygit.utils.MyLog
-import com.catpuppyapp.puppygit.utils.PrefMan
+import com.catpuppyapp.puppygit.utils.pref.PrefMan
 import io.ktor.util.decodeBase64String
 import io.ktor.util.encodeBase64
 
@@ -21,7 +22,7 @@ object MasterPassUtil {
 
     private fun encode(masterPass:String):String {
         if(masterPass.isEmpty()) {
-            return ""
+            return masterPass
         }
 
         return masterPass.encodeBase64()
@@ -39,23 +40,27 @@ object MasterPassUtil {
     /**
      * 保存新的主密码，若为空字符串(isEmpty, not Blank!)则清空。
      * 注：保存前应先调用 goodToSave() 检查下编码是否会出错。
+     *
+     * @return 返回包含最新密码hash的设置项，由于设置项更新有一定延迟，所以若不在这里返回，可能无法及时更新页面的settings对象
      */
-    fun save(appContext: Context, newMasterPass: String) {
+    fun save(appContext: Context = AppModel.realAppContext, newMasterPass: String): AppSettings {
         //存编码后的值
         PrefMan.set(appContext, PrefMan.Key.masterPass, encode(newMasterPass))
 
         //存hash
         // update master password hash
-        SettingsUtil.update {
-            if(newMasterPass.isEmpty()) { // 空字符串代表清空了密码，不必算hash
-                it.masterPasswordHash = newMasterPass
+        val newSettingsWithNewPass = SettingsUtil.update(requireReturnSnapshotOfUpdatedSettings = true) {
+            it.masterPasswordHash = if(newMasterPass.isEmpty()) { // 空字符串代表清空了密码，不必算hash
+                newMasterPass
             }else {  // 非空字符串，计算hash
-                it.masterPasswordHash = HashUtil.hash(newMasterPass)
+                HashUtil.hash(newMasterPass)
             }
-        }
+        }!!
 
         // update in-memory master password
         AppModel.masterPassword.value = newMasterPass
+
+        return newSettingsWithNewPass
     }
 
     fun get(appContext: Context):String {
@@ -67,6 +72,13 @@ object MasterPassUtil {
             MyLog.e(TAG, "get() failed: ${e.stackTraceToString()}")
             return ""
         }
+    }
+
+    /**
+     * 忘记密码时用来清除主密码，后果是用旧密码加密的凭据密码不再可用，直到更新后用新密码重新加密
+     */
+    fun clear(appContext: Context = AppModel.realAppContext) {
+        save(appContext, "")
     }
 
 }

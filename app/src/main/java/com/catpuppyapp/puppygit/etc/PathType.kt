@@ -5,9 +5,9 @@ import com.catpuppyapp.puppygit.utils.FsUtils.contentUriPathPrefix
 import com.catpuppyapp.puppygit.utils.FsUtils.fileUriPathPrefix
 
 enum class PathType {
-   INVALID,
+   INVALID,  // empty or blank or other invalid path
    CONTENT_URI, // starts with "content://"
-   FILE_URI,  // starts with "file://"
+   FILE_URI,  // starts with "file://", very rare use now in android
    ABSOLUTE  // stars with "/"
 
    ;

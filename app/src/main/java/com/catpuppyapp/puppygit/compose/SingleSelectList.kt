@@ -1,43 +1,43 @@
 package com.catpuppyapp.puppygit.compose
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowLeft
 import androidx.compose.material.icons.filled.ArrowDropDown
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableIntState
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import com.catpuppyapp.puppygit.style.MyStyleKt
 import com.catpuppyapp.puppygit.utils.UIHelper
+import com.catpuppyapp.puppygit.utils.dropDownItemContainerColor
 import com.catpuppyapp.puppygit.utils.isGoodIndexForList
-import com.catpuppyapp.puppygit.utils.state.mutableCustomStateOf
 
-private const val stateKeyTag = "SingleSelectList"
 //下拉单选框，不过好像在弹窗使用会崩溃，可能是谷歌bug(20241003 fixed)
 //@OptIn(ExperimentalFoundationApi::class)
 //@Deprecated("may crashed if use this in dialog")  // 20241003 update: new version of jetpack compose are fixed this bug
@@ -66,31 +66,41 @@ fun<T> SingleSelectList(
 ) {
     val expandDropdownMenu = rememberSaveable { mutableStateOf(false) }
 
-    val containerSize = mutableCustomStateOf(stateKeyTag, "containerSize") { IntSize.Zero }
+    val containerSize = remember { mutableStateOf(IntSize.Zero) }
 
-    Card(
+    val density = LocalDensity.current
+
+    Surface (
         //0.9f 占父元素宽度的百分之90
-        modifier = outterModifier
-            .padding(bottom = 10.dp)
+        modifier = Modifier
             .padding(horizontal = MyStyleKt.defaultHorizontalPadding)
             .clickable {
                 expandDropdownMenu.value = !expandDropdownMenu.value
             }
             .onSizeChanged {
+                // unit is pixel
                 containerSize.value = it
             }
+            .then(outterModifier)
         ,
-        colors = CardDefaults.cardColors(
-            containerColor = UIHelper.defaultCardColor(),
-        ),
-        elevation = CardDefaults.cardElevation(
-            defaultElevation = 3.dp
-        )
+
+//        colors = CardDefaults.cardColors(
+//            containerColor = UIHelper.defaultCardColor(),
+//        ),
+
+//        elevation = CardDefaults.cardElevation(
+//            defaultElevation = 3.dp
+//        )
 
     ) {
         //用box的好处是如果整体宽度过小，不会把右边的箭头顶没，但箭头会和文本内容重叠
         Box(
             modifier = Modifier
+
+                // selected item container (not dropdown menu)
+                // 已选择容器的颜色 (不是下拉菜单的已选择，而是展示已选择条目的那个容器，点击可展开菜单的那个）
+                .background(UIHelper.defaultCardColor())
+
                 .padding(horizontal = 10.dp)
                 .defaultMinSize(minHeight = 50.dp)
                 .fillMaxWidth()
@@ -124,8 +134,11 @@ fun<T> SingleSelectList(
 
 
         DropdownMenu(
-            //限制最小宽度153dp，不然有时候真的太小连“Verbose”都显示不全，不知道为什么
-            modifier = dropDownMenuModifier.width((containerSize.value.width/2).coerceAtLeast(MyStyleKt.DropDownMenu.minWidth).dp),
+            //I forgot whey limit the width, actually is unnecessary
+//            modifier = dropDownMenuModifier.width((containerSize.value.width/2).coerceAtLeast(MyStyleKt.DropDownMenu.minWidth).dp),
+//            modifier = dropDownMenuModifier.widthIn(min = MyStyleKt.DropDownMenu.minWidth),
+            modifier = dropDownMenuModifier.width(UIHelper.pxToDpAtLeast0(containerSize.value.width, density)),
+//            modifier = dropDownMenuModifier,
 
             expanded = expandDropdownMenu.value,
             onDismissRequest = { expandDropdownMenu.value=false }
@@ -138,7 +151,13 @@ fun<T> SingleSelectList(
 //                continue
 //            }
 
-                Column {
+                val selected = menuItemSelected(index, value)
+
+                Column(
+                    modifier = Modifier
+                        .dropDownItemContainerColor(selected)
+                        .fillMaxSize()
+                ) {
                     Row(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
@@ -147,7 +166,7 @@ fun<T> SingleSelectList(
                             text = {
                                 DropDownMenuItemText(
                                     text = menuItemFormatter(index, value),
-                                    selected = menuItemSelected(index, value)
+                                    selected = selected
                                 )
                             },
                             onClick ={
@@ -177,9 +196,9 @@ fun<T> SingleSelectList(
 
                     }
 
-                    if(index != lastIndex) {
-                        HorizontalDivider()
-                    }
+//                    if(index != lastIndex) {
+//                        MyHorizontalDivider()
+//                    }
                 }
 
             }

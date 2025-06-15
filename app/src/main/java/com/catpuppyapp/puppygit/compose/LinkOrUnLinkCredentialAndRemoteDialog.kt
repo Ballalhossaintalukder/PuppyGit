@@ -35,7 +35,7 @@ fun LinkOrUnLinkCredentialAndRemoteDialog(
 
     AlertDialog(
         title = {
-            Text(title.ifEmpty { if (requireDoLink) stringResource(R.string.link) else stringResource(R.string.unlink) })
+            DialogTitle(title.ifEmpty { if (requireDoLink) stringResource(R.string.link) else stringResource(R.string.unlink) })
         },
         text = {
             ScrollableColumn {

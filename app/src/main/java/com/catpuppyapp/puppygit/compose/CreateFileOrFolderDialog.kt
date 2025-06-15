@@ -1,11 +1,8 @@
 package com.catpuppyapp.puppygit.compose
 
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -13,23 +10,19 @@ import androidx.compose.material.icons.filled.Error
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableIntState
 import androidx.compose.runtime.MutableState
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import com.catpuppyapp.puppygit.constants.Cons
 import com.catpuppyapp.puppygit.play.pro.R
-import com.catpuppyapp.puppygit.style.MyStyleKt
 
 
 @Deprecated("use `CreateFileOrFolderDialog2` instead")
@@ -63,7 +56,7 @@ fun CreateFileOrFolderDialog(
 
     AlertDialog(
         title = {
-            Text(stringResource(R.string.create))
+            DialogTitle(stringResource(R.string.create))
         },
         text = {
             ScrollableColumn {
@@ -108,34 +101,12 @@ fun CreateFileOrFolderDialog(
                 )
 
                 Spacer(modifier = Modifier.padding(15.dp))
-                for ((idx, optext) in fileTypeOptions.toList().withIndex()) {
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .heightIn(min = MyStyleKt.RadioOptions.minHeight)
-
-                            .selectable(
-                                selected = (selectedFileTypeOption.intValue == idx),
-                                onClick = {
-                                    //更新选择值
-                                    selectedFileTypeOption.intValue = idx
-                                },
-                                role = Role.RadioButton
-                            )
-                            .padding(horizontal = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        RadioButton(
-                            selected = (selectedFileTypeOption.intValue == idx),
-                            onClick = null // null recommended for accessibility with screenreaders
-                        )
-                        Text(
-                            text = optext,
-                            style = MaterialTheme.typography.bodyLarge,
-                            modifier = Modifier.padding(start = 10.dp)
-                        )
-                    }
-                }
+                SingleSelection(
+                    itemList = fileTypeOptions,
+                    selected = {idx, item -> selectedFileTypeOption.intValue == idx},
+                    text = {idx, item -> item},
+                    onClick = {idx, item -> selectedFileTypeOption.intValue = idx}
+                )
 
             }
         },
@@ -152,15 +123,17 @@ fun CreateFileOrFolderDialog(
             }
         },
         confirmButton = {
+            val enabled = fileName.value.isNotEmpty() && !hasErr()
+
             TextButton(
-                enabled = fileName.value.isNotEmpty() && !hasErr(),
+                enabled = enabled,
                 onClick = {
                     doCreate()
                 },
             ) {
                 Text(
                     text = okBtnText,
-                    color = okTextColor,
+                    color = if(enabled) okTextColor else Color.Unspecified,
                 )
             }
         },

@@ -7,6 +7,7 @@ import com.catpuppyapp.puppygit.utils.MyLog
 import com.catpuppyapp.puppygit.utils.getFileAttributes
 import com.catpuppyapp.puppygit.utils.getFormatTimeFromSec
 import com.catpuppyapp.puppygit.utils.getHumanReadableSizeStr
+import com.catpuppyapp.puppygit.utils.getShortTimeIfPossible
 import com.catpuppyapp.puppygit.utils.mime.MimeType
 import com.catpuppyapp.puppygit.utils.mime.guessFromFile
 import java.io.File
@@ -29,7 +30,24 @@ data class FileItemDto (
     var isHidden:Boolean = false,
     var folderCount:Int=0,
     var fileCount:Int=0
-){
+) {
+
+    var cachedShortLastModifiedTime:String? = null
+        private set
+        get() = field ?: getShortTimeIfPossible(lastModifiedTime).let { field = it; it }
+
+
+    fun getShortDesc():String {
+        // folder doesn't show size as default,
+        //  cause need recursive calculate,
+        //  may cause expensive cpu overhead
+        return if(isDir) {
+            cachedShortLastModifiedTime ?: ""
+        }else {  // is file
+            "$cachedShortLastModifiedTime, $sizeInHumanReadable"
+        }
+    }
+
     fun toFile():File {
         return File(fullPath)
     }

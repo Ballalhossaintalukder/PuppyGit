@@ -7,9 +7,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import com.catpuppyapp.puppygit.style.MyStyleKt
 import com.catpuppyapp.puppygit.ui.theme.Theme
 
 @Composable
@@ -18,7 +18,8 @@ fun FieldIcon(
     isSelected: Boolean,
     modifier: Modifier = Modifier
 ) {
-    val inDarkTheme = Theme.inDarkTheme
+//    val inDarkTheme = Theme.inDarkTheme
+
     Box(modifier = modifier) {
         when {
             isMultipleSelection && isSelected -> {
@@ -26,7 +27,7 @@ fun FieldIcon(
             }
             isSelected -> {
 //                这个菜单图标在行号下面，当没选中行时，应该尽量降低存在感，DarkMode下要比行号暗（但不要暗到看不见），正常模式下要比行号亮（但不要刺眼）
-                MenuIcon(modifier = Modifier.align(Alignment.Center), color = if(inDarkTheme) MyStyleKt.TextColor.lineNum_forEditorInDarkTheme else MyStyleKt.TextColor.lineNum_forEditorInLightTheme)
+                MenuIcon(modifier = Modifier.align(Alignment.Center), color = Color.Gray)
             }
         }
     }
@@ -55,7 +56,7 @@ fun FieldIcon(
     Box(modifier = modifier) {
         if (focused){
             // 这个菜单图标在行号下面，当没选中行时，应该尽量降低存在感，DarkMode下要比行号暗（但不要暗到看不见），正常模式下要比行号亮（但不要刺眼）
-            MenuIcon(modifier = Modifier.align(Alignment.Center), color = if(inDarkTheme) MyStyleKt.TextColor.lineNum_forEditorInDarkTheme else MyStyleKt.TextColor.lineNum_forEditorInLightTheme)
+            MenuIcon(modifier = Modifier.align(Alignment.Center), color = Color.Gray)
         }
     }
 }

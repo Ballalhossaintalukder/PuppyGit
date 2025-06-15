@@ -40,8 +40,16 @@ android {
         //ndk编译的库不能大于minSdk值，否则会不支持
         minSdk = 26 //26，安卓8(Oreo, O)
         targetSdk = 35
-        versionCode = 81
-        versionName = "1.1.0.5"
+        versionCode = 103
+        versionName = "1.1.2.7"
+
+
+        //这两个file provider的值必须一样
+        //可以在代码里用`BuildConfig.变量名`使用的值
+        // 4个引号的原因：三个是raw string，另外一个是为了赋值变量时包含引号，不然会直接裸值替换上去，就不是String类型了
+        buildConfigField("String", "FILE_PROVIDIER_AUTHORITY", """"$applicationId.file_provider"""")
+        //可以在xml里用“@string/变量名”使用的值，目前在 `AndroidManifest.xml` 里使用了
+        resValue("string", "file_provider_authority", "$applicationId.file_provider")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -122,7 +130,8 @@ android {
 dependencies {
     // start: temporary markdown dependencies, remove when 'compose-markdown' support custom coilStore(for load image from relative path)
     val markwonVersion = "4.6.2"
-    implementation("androidx.appcompat:appcompat:1.7.0")
+    val coilVersion = "2.6.0"
+    implementation("androidx.appcompat:appcompat:1.7.1")
     implementation("io.noties.markwon:core:$markwonVersion")
     implementation("io.noties.markwon:ext-strikethrough:$markwonVersion")
     implementation("io.noties.markwon:ext-tables:$markwonVersion")
@@ -130,10 +139,13 @@ dependencies {
     implementation("io.noties.markwon:linkify:$markwonVersion")
     implementation("io.noties.markwon:ext-tasklist:$markwonVersion")
     implementation("com.github.jeziellago:Markwon:58aa5aba6a")
-    api("io.coil-kt:coil:2.6.0")
-    api("io.coil-kt:coil-gif:2.6.0")
     // end: temporary markdown dependencies
 
+    // 文件管理器显示图片缩略图
+    implementation("io.coil-kt:coil:$coilVersion")
+    implementation("io.coil-kt:coil-compose:$coilVersion")
+    implementation("io.coil-kt:coil-gif:$coilVersion")
+    implementation("io.coil-kt:coil-svg:$coilVersion")
 
     // markdown preview support, enable this after it support load relative path resources
 //    implementation("com.github.jeziellago:compose-markdown:change_to_the_latest_version")
@@ -162,8 +174,11 @@ dependencies {
 //    // implementation("androidx.ads:ads-identifier:1.0.0-alpha05")
 
 
-    implementation("androidx.documentfile:documentfile:1.0.1")
-    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
+    implementation("androidx.documentfile:documentfile:1.1.0")
+    val lifecycleVersion = "2.9.1"
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:$lifecycleVersion")
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:$lifecycleVersion")
+
     //implementation("androidx.appcompat:appcompat-resources:1.6.1")
     //    val work_version = "2.9.0"
 //    // Kotlin + coroutines
@@ -175,7 +190,7 @@ dependencies {
 //    implementation("com.github.kaleidot725:text-editor-compose:0.6.0")
 
     // room start
-    val room_version = "2.6.1"
+    val room_version = "2.7.1"
     implementation("androidx.room:room-runtime:$room_version")
     annotationProcessor("androidx.room:room-compiler:$room_version")
     // To use Kotlin Symbol Processing (KSP)
@@ -196,7 +211,7 @@ dependencies {
 
     // javax NonNull annotation for git24j
     implementation("com.google.code.findbugs:jsr305:3.0.2")
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.8.1")
 // https://mvnrepository.com/artifact/org.eclipse.jgit/org.eclipse.jgit
 //    implementation("org.eclipse.jgit:org.eclipse.jgit:v6.6.1.202309021850-r")
 // https://mvnrepository.com/artifact/org.eclipse.jgit/org.eclipse.jgit.pgm
@@ -205,7 +220,7 @@ dependencies {
 // 不过不知道里面的类是否能直接用？比如我想用clone命令，可不可以直接调用这里的Clone类？
 //    implementation("org.eclipse.jgit:org.eclipse.jgit.pgm:6.8.0.202311291450-r")
 //    implementation(files("libs/git24j-1.0.4.20241114.jar"))
-    implementation("androidx.navigation:navigation-compose:2.8.8")
+    implementation("androidx.navigation:navigation-compose:2.9.0")
 
     //查询支付状态的api，如果前端取消订单后不久就过期，就不需要这个了，否则需要
 //    implementation("com.google.auth:google-auth-library-oauth2-http:1.23.0")
@@ -216,11 +231,21 @@ dependencies {
 //    implementation("org.danilopianini:khttp:1.6.2")
 
 //    implementation("androidx.compose.material3:material3-android:1.2.0-beta02")
+
+
+
+
+    //启动屏幕
+    implementation("androidx.core:core-splashscreen:1.0.1")
+
+
+    //对应组件的实际版本号，参见：https://developer.android.com/develop/ui/compose/bom/bom-mapping
+    val composeBom = platform("androidx.compose:compose-bom:2025.06.00")
+
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
-    implementation("androidx.core:core-ktx:1.15.0")
-    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
+    implementation("androidx.core:core-ktx:1.16.0")
     implementation("androidx.activity:activity-compose:1.10.1")
-    implementation(platform("androidx.compose:compose-bom:2025.02.00"))
+    implementation(composeBom)
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-graphics")
     implementation("androidx.compose.ui:ui-tooling-preview")
@@ -228,14 +253,25 @@ dependencies {
 //    implementation("androidx.compose.compiler:compiler:1.5.12")
 //    implementation("androidx.compose.compiler:compiler-hosted:1.5.12")
 
-    implementation("androidx.compose.material3:material3:1.3.1")
-    implementation ("androidx.compose.material:material-icons-extended:1.7.8")
+    //一般用composeBom里的默认版本就行，若想使用特定版本可在后面加 ":版本号"
+    implementation("androidx.compose.material3:material3")
+    implementation("androidx.compose.material:material-icons-extended")
 
 
+    // sora editor:
+    // https://github.com/Rosemoe/sora-editor/blob/main/README.zh-cn.md
+//    implementation(platform("io.github.Rosemoe.sora-editor:bom:0.23.5"))
+//    implementation("io.github.Rosemoe.sora-editor:editor")
+//    implementation("io.github.Rosemoe.sora-editor:language-textmate")
+//    implementation("io.github.Rosemoe.sora-editor:language-java")
+//    implementation("io.github.Rosemoe.sora-editor:language-treesitter")
+
+
+    testImplementation(composeBom)
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.6.1")
-    androidTestImplementation(platform("androidx.compose:compose-bom:2025.02.00"))
+    androidTestImplementation(composeBom)
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")

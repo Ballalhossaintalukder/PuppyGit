@@ -27,6 +27,7 @@ import androidx.compose.ui.window.Dialog
 import com.catpuppyapp.puppygit.play.pro.R
 import com.catpuppyapp.puppygit.utils.FsUtils
 import com.catpuppyapp.puppygit.utils.Msg
+import com.catpuppyapp.puppygit.utils.forEachBetter
 import com.catpuppyapp.puppygit.utils.mime.MimeType
 import com.catpuppyapp.puppygit.utils.mime.guessFromFileName
 import com.catpuppyapp.puppygit.utils.mime.intentType
@@ -84,7 +85,7 @@ fun OpenAsDialog(
         ) {
             Column(modifier = Modifier
                 .fillMaxWidth()
-                .padding(10.dp)
+                .padding(10.dp)  //这个padding可以有，而且就应该在滚动修饰符上面，不然文字靠近弹窗边框，难看
                 .verticalScroll(rememberScrollState())
                 ,
             ) {
@@ -118,13 +119,13 @@ fun OpenAsDialog(
 
 //                    Spacer(modifier = Modifier.height(10.dp))
                     //加这个分割线看着想标题，让人感觉不可点击，不好，所以去掉了
-//                    HorizontalDivider(color = color)
+//                    MyHorizontalDivider(color = color)
 
                 }
 
                 Spacer(modifier = Modifier.height(10.dp))
 
-                mimeTypeList.forEach { (mimeType, text) ->
+                mimeTypeList.forEachBetter { (mimeType, text) ->
                     Row(
                         modifier = Modifier
                             .height(itemHeight)

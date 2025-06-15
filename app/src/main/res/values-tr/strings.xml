@@ -701,7 +701,7 @@
     <string name="invalid_path">geçersiz yol</string>
     <string name="path">Yol</string>
     <string name="overwrite_if_exist">Varsa Üzerine Yaz</string>
-    <string name="will_overwrite_if_branch_already_exists">dal zaten varsa üzerine yazılacak</string>
+    <string name="will_overwrite_if_branch_already_exists">Dal zaten varsa üzerine yazılacak</string>
     <string name="just_checkout">Sadece Çıkış Yap</string>
     <string name="checkout_new">Yeni Çıkış Yap</string>
     <string name="checkout_old">Eski Çıkış Yap</string>
@@ -796,7 +796,7 @@
     <string name="path_under_repo">Depo Altındaki Yol</string>
     <string name="submodules">Alt Modüller</string>
     <string name="cloned">Klonlandı</string>
-    <string name="not_clone">Klonlanmadı</string>
+    <string name="not_cloned">Klonlanmadı</string>
     <string name="will_clone_selected_submodules_are_you_sure">Seçilen alt modüller klonlanacak, emin misiniz?</string>
     <string name="re_clone">Yeniden Klonla</string>
     <string name="re_clone_submodules_warning_text">Diskteki alt modül dosyalarını silecek ve ardından tekrar klonlayacak</string>
@@ -1164,5 +1164,27 @@
     <!-- new at 20250420 -->
     <string name="link_all">Tümünü Bağla</string>
 
+    <!-- new at 20250427 -->
+    <string name="append_a_line">Bir Satır Ekle</string>
+    <string name="restart_app">Uygulamayı Yeniden Başlatma</string>
+
+    <!-- new at 20250501 -->
+    <string name="expand_all">Tümünü Genişlet</string>
+    <string name="collapse_all">Tümünü Daralt</string>
+    <string name="patch_mode">Yamanlama Modu</string>
+
+    <!-- new at 20250513 -->
+    <string name="no_commit">Hiç Commit Yok</string>
+    <string name="repo_no_commit_note">Repo\'nuzda henüz hiçbir commit yok, lütfen bazı dosyalar oluşturun ve ardından bunları commit edin.</string>
+
+    <!-- new at 20250516 -->
+    <string name="expected_refspec">Beklenen Refspec</string>
+    <string name="push_force_with_lease_note">Yalnızca upstream\'in en son commit\'i beklenenle aynı olduğunda zorla itme yapılacak</string>
+    <string name="checking">Kontrol ediliyor…</string>
+    <string name="nodes">Düğümler</string>
+    <string name="note_pat_instead_of_password">Not: Eğer 2FA\'yı etkinleştirdiyseniz, parola yerine Kişisel Erişim Jetonu (Personal Access Token) kullanmanız gerekir. Bu jetonun, depo içeriği (Contents) ve iş akışları (Workflows) üzerinde okuma ve yazma izinlerine sahip olması gerekmektedir.</string>
+    <string name="graph">Grafiği</string>
+    <string name="commit_msg_template">Commit Mesajı Şablonu</string>
+    <string name="leave_empty_to_use_global_settings">Genel ayarları kullanmak için boş bırakın</string>
 
 </resources>

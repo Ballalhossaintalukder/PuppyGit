@@ -7,21 +7,30 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Notes
+import androidx.compose.material.icons.filled.Commit
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.outlined.Cloud
+import androidx.compose.material.icons.outlined.Folder
+import androidx.compose.material.icons.outlined.GridView
+import androidx.compose.material.icons.outlined.LocationOn
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.catpuppyapp.puppygit.git.SubmoduleDto
 import com.catpuppyapp.puppygit.play.pro.R
+import com.catpuppyapp.puppygit.style.MyStyleKt
 import com.catpuppyapp.puppygit.utils.Libgit2Helper
 import com.catpuppyapp.puppygit.utils.UIHelper
 
@@ -39,6 +48,8 @@ fun SubmoduleItem(
     val activityContext = LocalContext.current
     val haptic = LocalHapticFeedback.current
 
+    val defaultFontWeight = remember { MyStyleKt.TextItem.defaultFontWeight() }
+
     Column(
         //0.9f 占父元素宽度的百分之90
         modifier = Modifier
@@ -55,7 +66,7 @@ fun SubmoduleItem(
                     lastClickedItemKey.value = thisObj.name
 
                     //震动反馈
-                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+//                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
 
                     onLongClick(thisObj)
                 },
@@ -82,11 +93,18 @@ fun SubmoduleItem(
             verticalAlignment = Alignment.CenterVertically,
 
         ){
-            Text(text = stringResource(R.string.name) +": ")
+
+            InLineIcon(
+                icon = Icons.Outlined.GridView,
+                tooltipText = stringResource(R.string.submodule)
+            )
+
+//            Text(text = stringResource(R.string.name) +": ")
+
             Text(text = thisObj.name,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                fontWeight = FontWeight.Light
+                fontWeight = defaultFontWeight
 
             )
         }
@@ -95,11 +113,18 @@ fun SubmoduleItem(
             verticalAlignment = Alignment.CenterVertically,
 
         ){
-            Text(text = stringResource(R.string.url) +": ")
+
+            InLineIcon(
+                icon = Icons.Outlined.Cloud,
+                tooltipText = stringResource(R.string.url)
+            )
+
+//            Text(text = stringResource(R.string.url) +": ")
+
             Text(text = thisObj.remoteUrl,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                fontWeight = FontWeight.Light
+                fontWeight = defaultFontWeight
 
             )
         }
@@ -108,11 +133,18 @@ fun SubmoduleItem(
             verticalAlignment = Alignment.CenterVertically,
 
         ){
-            Text(text = stringResource(R.string.path) +": ")
+
+            InLineIcon(
+                icon = Icons.Outlined.Folder,
+                tooltipText = stringResource(R.string.path)
+            )
+
+//            Text(text = stringResource(R.string.path) +": ")
+
             Text(text = thisObj.relativePathUnderParent,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                fontWeight = FontWeight.Light
+                fontWeight = defaultFontWeight
             )
         }
 
@@ -120,22 +152,36 @@ fun SubmoduleItem(
             verticalAlignment = Alignment.CenterVertically,
 
         ){
-            Text(text = stringResource(R.string.target) +": ")
-            Text(text = Libgit2Helper.getShortOidStrByFull(thisObj.targetHash),
+
+            InLineIcon(
+                icon = Icons.Filled.Commit,
+                tooltipText = stringResource(R.string.target)
+            )
+
+//            Text(text = stringResource(R.string.target) +": ")
+
+            Text(text = thisObj.getShortTargetHashCached(),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                fontWeight = FontWeight.Light
+                fontWeight = defaultFontWeight
             )
         }
         Row (
             verticalAlignment = Alignment.CenterVertically,
 
         ){
-            Text(text = stringResource(R.string.location) +": ")
+
+            InLineIcon(
+                icon = Icons.Outlined.LocationOn,
+                tooltipText = stringResource(R.string.location)
+            )
+
+//            Text(text = stringResource(R.string.location) +": ")
+
             Text(text = thisObj.location.toString(),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                fontWeight = FontWeight.Light
+                fontWeight = defaultFontWeight
             )
         }
 
@@ -144,11 +190,17 @@ fun SubmoduleItem(
 
         ){
 
-            Text(text = stringResource(R.string.status) +": ")
+            InLineIcon(
+                icon = Icons.Filled.Info,
+                tooltipText = stringResource(R.string.status)
+            )
+
+//            Text(text = stringResource(R.string.status) +": ")
+
             Text(text = thisObj.getStatus(activityContext),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                fontWeight = FontWeight.Light,
+                fontWeight = defaultFontWeight,
                 color = thisObj.getStatusColor()
             )
         }
@@ -157,11 +209,18 @@ fun SubmoduleItem(
             Row (
                 verticalAlignment = Alignment.CenterVertically,
             ){
-                Text(text = stringResource(R.string.other) +": ")
+
+                InLineIcon(
+                    icon = Icons.AutoMirrored.Filled.Notes,
+                    tooltipText = stringResource(R.string.other)
+                )
+
+//                Text(text = stringResource(R.string.other) +": ")
+
                 Text(text = thisObj.getOther(),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    fontWeight = FontWeight.Light,
+                    fontWeight = defaultFontWeight,
                 )
             }
         }

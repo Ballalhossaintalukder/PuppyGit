@@ -29,6 +29,7 @@ import com.catpuppyapp.puppygit.utils.AppModel
 import com.catpuppyapp.puppygit.utils.Libgit2Helper
 import com.catpuppyapp.puppygit.utils.Msg
 import com.catpuppyapp.puppygit.utils.doJobThenOffLoading
+import com.catpuppyapp.puppygit.utils.forEachBetter
 import com.github.git24j.core.Repository
 
 @Composable
@@ -105,7 +106,7 @@ fun TagFetchPushDialog(
                     val remoteDb = AppModel.dbContainer.remoteRepository
                     val credentialDb = AppModel.dbContainer.credentialRepository
 
-                    selectedRemoteList.forEach {
+                    selectedRemoteList.forEachBetter {
                         val remote = remoteDb.getByRepoIdAndRemoteName(repoId, it)  //无条目不跳过，只是不查凭据了
 
                         //其实这里fetch时不用查push，push时不用查fetch，但我为了简化逻辑，直接两个都查了
@@ -134,7 +135,7 @@ fun TagFetchPushDialog(
                         onSuccess()
                     } else {  // push, but may require delete
                         val pushRefSpecs = mutableListOf<String>()
-                        selectedTagsList.forEach { pushRefSpecs.add(if(delRemote) ":${it.name}" else "${it.name}:${it.name}") }
+                        selectedTagsList.forEachBetter { pushRefSpecs.add(if(delRemote) ":${it.name}" else "${it.name}:${it.name}") }
 
                         // push
                         val failedList = Libgit2Helper.pushTags(repo, remoteAndCredentials, pushRefSpecs)
@@ -156,7 +157,7 @@ fun TagFetchPushDialog(
 
     AlertDialog(
         title = {
-            Text(title)
+            DialogTitle(title)
         },
         text = {
             Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
@@ -217,7 +218,7 @@ fun TagFetchPushDialog(
                 onClick = { onOk(force.value) },
                 enabled = enableOk
             ) {
-                Text(text = stringResource(if(requireDel) R.string.delete else if(trueFetchFalsePush) R.string.fetch else R.string.push), color = if(requireDel) MyStyleKt.TextColor.danger() else Color.Unspecified)
+                Text(text = stringResource(if(requireDel) R.string.delete else if(trueFetchFalsePush) R.string.fetch else R.string.push), color = if(enableOk && requireDel) MyStyleKt.TextColor.danger() else Color.Unspecified)
             }
         },
         dismissButton = {

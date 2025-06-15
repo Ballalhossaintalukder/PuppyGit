@@ -1,32 +1,24 @@
 package com.catpuppyapp.puppygit.screen.content.homescreen.scaffold.actions
 
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Column
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.FilterAlt
-import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Key
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.navigation.NavHostController
+import com.catpuppyapp.puppygit.compose.AddRepoDropDownMenu
 import com.catpuppyapp.puppygit.compose.LongPressAbleIconBtn
 import com.catpuppyapp.puppygit.constants.Cons
 import com.catpuppyapp.puppygit.data.entity.RepoEntity
-import com.catpuppyapp.puppygit.dev.DevFeature
-import com.catpuppyapp.puppygit.dev.importRepoTestPassed
-import com.catpuppyapp.puppygit.dev.proFeatureEnabled
 import com.catpuppyapp.puppygit.play.pro.R
-import com.catpuppyapp.puppygit.style.MyStyleKt
-import com.catpuppyapp.puppygit.utils.AppModel
 import com.catpuppyapp.puppygit.utils.changeStateTriggerRefreshPage
 import com.catpuppyapp.puppygit.utils.state.CustomStateSaveable
 
@@ -48,9 +40,8 @@ fun RepoPageActions(
      */
 
 
-    val dropDownMenuExpendState = rememberSaveable { mutableStateOf(false)}
+    val dropDownMenuExpandState = rememberSaveable { mutableStateOf(false)}
 
-    val closeMenu = {dropDownMenuExpendState.value = false}
 
     LongPressAbleIconBtn(
         tooltipText = stringResource(R.string.filter),
@@ -71,61 +62,37 @@ fun RepoPageActions(
     }
 
     LongPressAbleIconBtn(
-        tooltipText = stringResource(R.string.clone),
-        icon = Icons.Filled.Add,
-        iconContentDesc = stringResource(id = R.string.clone),
+        tooltipText = stringResource(R.string.user_info),
+        icon = Icons.Filled.Person,
+        iconContentDesc = stringResource(R.string.user_info),
     ) {
-//                                setShowCloneDialog(true)
-        // if id is blank or null path to "CloneScreen/null", else path to "CloneScreen/repoId"
-        navController.navigate(Cons.nav_CloneScreen+"/null")  //不传repoId，就是null，等于新建模式
+        showGlobalUsernameAndEmailDialog.value=true
     }
 
     LongPressAbleIconBtn(
-        //这种需展开的菜单，禁用内部的选项即可
-//        enabled = enableAction.value,
+        tooltipText = stringResource(R.string.credential_manager),
+        icon = Icons.Filled.Key,
+        iconContentDesc = stringResource(R.string.credential_manager),
+    ) {
+        navController.navigate(Cons.nav_CredentialManagerScreen+"/${Cons.dbInvalidNonEmptyId}")
+    }
 
-        tooltipText = stringResource(R.string.menu),
-        icon = Icons.Filled.MoreVert,
-        iconContentDesc = stringResource(R.string.menu),
-        onClick = {
-            //切换菜单展开状态
-            dropDownMenuExpendState.value = !dropDownMenuExpendState.value
-        }
-    )
-
-    //菜单列表
-    Row(modifier = Modifier.padding(top = MyStyleKt.TopBar.dropDownMenuTopPaddingSize)) {
-//        val enableMenuItem = enableAction.value && !changeListPageNoRepo.value  && !hasTmpStatus
-
-        //菜单列表
-        DropdownMenu(
-            expanded = dropDownMenuExpendState.value,
-            onDismissRequest = { closeMenu() }
+    Column {
+        LongPressAbleIconBtn(
+            tooltipText = stringResource(R.string.clone),
+            icon = Icons.Filled.Add,
+            iconContentDesc = stringResource(R.string.clone),
         ) {
-            if(AppModel.devModeOn && proFeatureEnabled(importRepoTestPassed)) {
-                DropdownMenuItem(
-                    text = { Text(DevFeature.appendDevPrefix(stringResource(R.string.import_repo))) },
-                    onClick = {
-                        closeMenu()
-                        showImportRepoDialog.value = true
-                    }
-                )
-            }
-
-            DropdownMenuItem(
-                text = { Text(stringResource(R.string.user_info)) },
-                onClick = {
-                    closeMenu()
-                    showGlobalUsernameAndEmailDialog.value=true
-                }
-            )
-            DropdownMenuItem(
-                text = { Text(stringResource(R.string.credential_manager)) },
-                onClick = {
-                    closeMenu()
-                    navController.navigate(Cons.nav_CredentialManagerScreen+"/${Cons.dbInvalidNonEmptyId}")
-                }
-            )
+            dropDownMenuExpandState.value = !dropDownMenuExpandState.value
         }
+
+        AddRepoDropDownMenu(
+            showMenu = dropDownMenuExpandState.value,
+            closeMenu = { dropDownMenuExpandState.value = false },
+            importOnClick = {
+                showImportRepoDialog.value = true
+            }
+        )
+
     }
 }

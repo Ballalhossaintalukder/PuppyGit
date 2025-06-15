@@ -2,7 +2,9 @@ package com.catpuppyapp.puppygit.utils
 
 import android.content.Context
 import com.catpuppyapp.puppygit.constants.LangCode
+import com.catpuppyapp.puppygit.constants.StrCons
 import com.catpuppyapp.puppygit.play.pro.R
+import com.catpuppyapp.puppygit.utils.pref.PrefMan
 
 
 object LanguageUtil {
@@ -14,6 +16,7 @@ object LanguageUtil {
         LangCode.auto,
 
         // order by a-z
+        LangCode.ar,
         LangCode.en,
         LangCode.ru,
         LangCode.tr,
@@ -55,20 +58,24 @@ object LanguageUtil {
         }
 
         // order by a-z
+        if(languageCode == LangCode.ar) {
+            return StrCons.langName_Arabic
+        }
+
         if(languageCode == LangCode.en) {
-            return context.getString(R.string.lang_name_english)
+            return StrCons.langName_English
         }
 
         if(languageCode == LangCode.ru) {
-            return context.getString(R.string.lang_name_russian)
+            return StrCons.langName_Russian
         }
 
         if(languageCode == LangCode.zh_cn) {
-            return context.getString(R.string.lang_name_chinese_simplified)
+            return StrCons.langName_ChineseSimplified
         }
 
         if(languageCode == LangCode.tr) {
-            return context.getString(R.string.lang_name_turkish)
+            return StrCons.langName_Turkish
         }
 
         // add other language here
@@ -80,7 +87,7 @@ object LanguageUtil {
     }
 
     /**
-     * e.g. input zh-rCN return Pair("zh", "CN")
+     * e.g. input "zh-rCN" return Pair("zh", "CN")
      */
     fun splitLanguageCode(languageCode:String):Pair<String,String> {
         val codes = languageCode.split("-r")

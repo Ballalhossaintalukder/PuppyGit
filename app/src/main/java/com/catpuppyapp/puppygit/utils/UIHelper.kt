@@ -2,11 +2,13 @@ package com.catpuppyapp.puppygit.utils
 
 import android.content.Context
 import android.content.res.Configuration
-import android.util.DisplayMetrics
 import androidx.compose.foundation.ScrollState
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.staggeredgrid.LazyStaggeredGridState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckBox
 import androidx.compose.material.icons.filled.CheckBoxOutlineBlank
@@ -16,13 +18,14 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableState
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.catpuppyapp.puppygit.constants.Cons
 import com.catpuppyapp.puppygit.dto.DeviceWidthHeight
 import com.catpuppyapp.puppygit.fileeditor.texteditor.view.ExpectConflictStrDto
@@ -33,46 +36,51 @@ import com.catpuppyapp.puppygit.ui.theme.Theme
 import com.github.git24j.core.Repository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+import kotlin.random.Random
 
 private const val TAG = "UIHelper"
 
 object UIHelper {
 
+    // if this in the text list of bottom bar, will show a divider.
+    // note: multi neighbor place holder will merged to one
+    // 如果在bottom bar的more menu里有这个条目，会为其后的一个菜单项显示一个分割线。
+    // 注：多个连续divider会合并为一个
+    const val bottomBarDividerPlaceHolder = "bottomBarDividerPlaceHolder_13195755"
+
     object Size {
         @Composable
-        fun height(): Int {
-            val configuration = LocalConfiguration.current
+        fun height(configuration:Configuration = AppModel.getCurActivityConfig()): Int {
             return configuration.screenHeightDp
         }
         @Composable
-        fun width(): Int {
-            val configuration = LocalConfiguration.current
+        fun width(configuration:Configuration = AppModel.getCurActivityConfig()): Int {
             return configuration.screenWidthDp
         }
         @Composable
-        fun heightDp(): Dp {
-            return height().dp
+        fun heightDp(configuration:Configuration = AppModel.getCurActivityConfig()): Dp {
+            return height(configuration).dp
         }
         @Composable
-        fun widthDp():Dp {
-            return width().dp
+        fun widthDp(configuration:Configuration = AppModel.getCurActivityConfig()):Dp {
+            return width(configuration).dp
         }
 
         //编辑器的虚拟空间，用来把最后一行顶上去的，返回一个Pair，值1是宽，值2是高
         @Composable
-        fun editorVirtualSpace():Pair<Dp, Dp> {
+        fun editorVirtualSpace(configuration:Configuration = AppModel.getCurActivityConfig()):Pair<Dp, Dp> {
             //注：高度如果减的值太小，TopBar固定时，内容会被TopBar盖住，经我测试减100无论隐藏还是显示TopBar都能正常显示内容
-            return Pair(widthDp(), (height()-100).dp)
+            return Pair(widthDp(configuration), (height(configuration)-100).dp)
         }
 
         /**
          * 获取键盘高度。
          * 注：(?) 需要在Activity#onCreate()执行 `WindowCompat.setDecorFitsSystemWindows(window, false)` 才能获取到有效高度，
-         * 否则只能获取到0，但我没充分验证。
+         * 否则只能获取到0，但我没充分测试。
          */
         @Composable
-        fun getImeHeightInDp():Dp {
-            val imeHeightInDp = with(LocalDensity.current) { WindowInsets.ime.getBottom(this).toDp() }
+        fun getImeHeightInDp(density:Density = LocalDensity.current):Dp {
+            val imeHeightInDp = with(density) { WindowInsets.ime.getBottom(this).toDp() }
             return imeHeightInDp
         }
     }
@@ -89,9 +97,10 @@ object UIHelper {
         return if(inDarkTheme) MyStyleKt.TextColor.disable_DarkTheme else MyStyleKt.TextColor.disable
     }
 
-    //不太重要的字体颜色
+
+    //给不太重要的文案用的颜色
     fun getSecondaryFontColor(inDarkTheme:Boolean=Theme.inDarkTheme): Color {
-        return if(inDarkTheme) MyStyleKt.TextColor.darkThemeSecondaryFontColor else MyStyleKt.TextColor.secondaryFontColor
+        return if(inDarkTheme) Color.DarkGray else Color.Gray
     }
 
     /**
@@ -185,11 +194,42 @@ object UIHelper {
         coroutineScope.launch { listState.scrollToItem(Math.max(0, index)) }
     }
 
+    fun scrollToItem(coroutineScope: CoroutineScope, listState: LazyStaggeredGridState, index:Int)  {
+        coroutineScope.launch { listState.scrollToItem(Math.max(0, index)) }
+    }
+
     fun scrollTo(coroutineScope: CoroutineScope, listState: ScrollState, index:Int)  {
         coroutineScope.launch { listState.scrollTo(Math.max(0, index)) }
     }
 
+    /**
+     * @param offset 是用来做偏移的，目的是让要显示的条目不在顶端，尽量靠近视觉中心(一般是屏幕中间)
+     */
+    fun <T> scrollByPredicate(scope:CoroutineScope, list: List<T>, listState:LazyListState, offset:Int = -2, predicate:(idx:Int, item:T)->Boolean) {
+        for((idx, item) in list.withIndex()) {
+            if(predicate(idx, item)) {
+                //滚动到当前条目前两个条目不然当前条目在顶端看着不太舒服
+                UIHelper.scrollToItem(scope, listState, idx+offset)
+                break
+            }
+        }
+    }
+
     fun switchBetweenTopAndLastVisiblePosition(coroutineScope: CoroutineScope, listState: LazyListState, lastPosition:MutableState<Int>)  {
+        val lastVisibleLine = listState.firstVisibleItemIndex
+        val notAtTop = lastVisibleLine != 0
+        // if 不在顶部，go to 顶部 else go to 上次编辑位置
+        val position = if(notAtTop) {
+            lastPosition.value = lastVisibleLine
+            0
+        } else {
+            lastPosition.value
+        }
+
+        scrollToItem(coroutineScope, listState, position)
+    }
+
+    fun switchBetweenTopAndLastVisiblePosition(coroutineScope: CoroutineScope, listState: LazyStaggeredGridState, lastPosition:MutableState<Int>)  {
         val lastVisibleLine = listState.firstVisibleItemIndex
         val notAtTop = lastVisibleLine != 0
         // if 不在顶部，go to 顶部 else go to 上次编辑位置
@@ -342,6 +382,10 @@ object UIHelper {
     }
 
 
+    fun getDividerColor(inDarkTheme: Boolean = Theme.inDarkTheme):Color {
+        return if (inDarkTheme) Color.DarkGray.copy(alpha = 0.2f) else Color.LightGray.copy(alpha = 0.2f)
+    }
+
     fun getChangeTypeColor(type: String):Color {
         if(type == Cons.gitStatusNew) {
             return if(Theme.inDarkTheme) MyStyleKt.ChangeListItemColor.changeTypeAdded_darkTheme else MyStyleKt.ChangeListItemColor.changeTypeAdded
@@ -360,20 +404,17 @@ object UIHelper {
     }
 
 
-    fun getDeviceWidthHeightInDp(context: Context): DeviceWidthHeight {
-        val metrics: DisplayMetrics = context.resources.displayMetrics
-        val widthInDp = metrics.widthPixels / metrics.density
-        val heightInDp = metrics.heightPixels / metrics.density
-        MyLog.d(TAG, "#getDeviceWidthHeightInDp: widthInDp=$widthInDp, heightInDp=$heightInDp")
-        return DeviceWidthHeight(widthInDp, heightInDp)
+    @Composable
+    fun getDeviceWidthHeightInDp(configuration: Configuration = AppModel.getCurActivityConfig()): DeviceWidthHeight {
+        return DeviceWidthHeight(configuration.screenWidthDp.toFloat(), configuration.screenHeightDp.toFloat())
     }
 
     fun getRepoItemWidth(): Float {
         return 392f
     }
 
-    fun getRepoItemsCountEachRow():Int {
-        val count = AppModel.deviceWidthHeight.width / getRepoItemWidth()
+    fun getRepoItemsCountEachRow(screenWidth: Float):Int {
+        val count = screenWidth / getRepoItemWidth()
         return count.toInt().coerceAtLeast(1)
     }
 
@@ -383,7 +424,7 @@ object UIHelper {
 
 
     fun getRunningStateColor(runningStatus: Boolean?):Color {
-        return if (runningStatus == null) MyStyleKt.TextColor.error() else if (runningStatus) MyStyleKt.TextColor.highlighting_green else Color.Unspecified
+        return if (runningStatus == null) MyStyleKt.TextColor.error() else if (runningStatus) MyStyleKt.TextColor.getHighlighting() else Color.Unspecified
     }
 
 
@@ -405,16 +446,40 @@ object UIHelper {
         return LocalLayoutDirection.current == LayoutDirection.Rtl
     }
 
+    fun spToPx(sp: TextUnit, density: Density):Float {
+        return with(density) { sp.toPx() }
+    }
+
     fun spToPx(sp: Float, density: Density): Float {
-        return with(density) { sp.toSp().toPx() }
+        return spToPx(sp.sp, density)
     }
 
     fun spToPx(sp: Int, density: Density): Float {
-        return spToPx(sp.toFloat(), density)
+        return spToPx(sp.sp, density)
+    }
+
+    fun dpToPx(dp: Dp, density:Density): Float {
+        return with(density) { dp.toPx() }
+    }
+
+    fun dpToPx(dp:Float, density:Density): Float {
+        return dpToPx(dp.dp, density)
     }
 
     fun dpToPx(dp:Int, density:Density): Float {
-        return with(density) { dp.toDp().toPx() }
+        return dpToPx(dp.dp, density)
+    }
+
+    fun pxToDp(px:Float, density:Density): Dp {
+        return with(density) { px.toDp() }
+    }
+
+    fun pxToDp(px:Int, density:Density): Dp {
+        return with(density) { px.toDp() }
+    }
+
+    fun pxToDpAtLeast0(px:Int, density:Density): Dp {
+        return with(density) { px.coerceAtLeast(0).toDp() }
     }
 
     /**
@@ -434,7 +499,84 @@ object UIHelper {
      * 检测是横屏还是竖屏：返回 true 则竖屏，false横屏，不一定准，有可能是 ORIENTATION_UNDEFINED，不过一般都准
      */
     @Composable
-    fun isPortrait(configuration: Configuration = LocalConfiguration.current):Boolean {
+    fun isPortrait(configuration: Configuration = AppModel.getCurActivityConfig()):Boolean {
         return configuration.orientation == Configuration.ORIENTATION_PORTRAIT
     }
+
+
+    fun getHunkColor(inDarkTheme: Boolean = Theme.inDarkTheme) = if(inDarkTheme) MyStyleKt.Diff.hunkHeaderColorBgInDarkTheme else MyStyleKt.Diff.hunkHeaderColorBgInLightTheme;
+
+
+    // 需要加点偏移量不然会太高
+    @Composable
+    fun getSoftkeyboardHeightInDp(density: Density = LocalDensity.current, offsetInDp: Int = 0): Dp {
+        // 获取键盘高度，单位px
+        val keyboardHeight = WindowInsets.ime.getBottom(density).coerceAtLeast(0)
+
+        // 将键盘高度转换为 dp
+        return with(density) { (keyboardHeight.toDp().value.toInt() + offsetInDp).coerceAtLeast(0).dp }
+    }
+
+
+    @Composable
+    fun getNaviBarsPadding(
+        density: Density = LocalDensity.current,
+        direction: LayoutDirection=LocalLayoutDirection.current,
+    ): PaddingValues {
+
+        val naviBarsTopHeight = WindowInsets.navigationBars.getTop(density).coerceAtLeast(0)
+        val naviBarsBottomHeight = WindowInsets.navigationBars.getBottom(density).coerceAtLeast(0)
+        val naviBarsLeftHeight = WindowInsets.navigationBars.getLeft(density, direction).coerceAtLeast(0)
+        val naviBarsRightHeight = WindowInsets.navigationBars.getRight(density, direction).coerceAtLeast(0)
+
+        return with(density) {
+            PaddingValues(
+                top = naviBarsTopHeight.toDp(),
+                bottom = naviBarsBottomHeight.toDp(),
+                start = naviBarsLeftHeight.toDp(),
+                end = naviBarsRightHeight.toDp(),
+            )
+        }
+
+    }
+
+
+    // 参数为null的将随机生成其值
+    fun getRandomColor(
+        alpha:Int? = null,
+        red:Int? = null,
+        green:Int? = null,
+        blue:Int? = null
+    ):Color {
+        val alpha = alpha ?: Random.nextInt(256) // 0-255
+        val red = red ?: Random.nextInt(256)   // 0-255
+        val green = green ?: Random.nextInt(256) // 0-255
+        val blue = blue ?: Random.nextInt(256)  // 0-255
+
+        return Color(
+            alpha = alpha,
+            red = red,
+            green = green,
+            blue = blue,
+        )
+    }
+
+    fun getRandomColorForDrawNode(
+        alpha:Int,
+
+        // 避免生成黑色或白色
+        range: IntRange = 40..201,
+    ):Color {
+        val red = Random.nextInt(range.start, range.endInclusive)
+        val green = Random.nextInt(range.start, range.endInclusive)
+        val blue = Random.nextInt(range.start, range.endInclusive)
+
+        return Color(
+            alpha = alpha,
+            red = red,
+            green = green,
+            blue = blue,
+        )
+    }
+
 }

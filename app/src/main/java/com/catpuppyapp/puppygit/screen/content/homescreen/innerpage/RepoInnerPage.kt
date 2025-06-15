@@ -1,7 +1,6 @@
 package com.catpuppyapp.puppygit.screen.content.homescreen.innerpage
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,7 +25,6 @@ import androidx.compose.material.icons.filled.Publish
 import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -44,6 +42,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
@@ -51,24 +51,28 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.catpuppyapp.puppygit.compose.AddRepoDropDownMenu
 import com.catpuppyapp.puppygit.compose.AskGitUsernameAndEmailDialog
 import com.catpuppyapp.puppygit.compose.AskGitUsernameAndEmailDialogWithSelection
 import com.catpuppyapp.puppygit.compose.BottomBar
-import com.catpuppyapp.puppygit.compose.DefaultPaddingText
-import com.catpuppyapp.puppygit.compose.ClickableText
 import com.catpuppyapp.puppygit.compose.ConfirmDialog
 import com.catpuppyapp.puppygit.compose.ConfirmDialog2
 import com.catpuppyapp.puppygit.compose.CopyableDialog
+import com.catpuppyapp.puppygit.compose.CopyableDialog2
+import com.catpuppyapp.puppygit.compose.DefaultPaddingText
+import com.catpuppyapp.puppygit.compose.FullScreenScrollableColumn
 import com.catpuppyapp.puppygit.compose.InternalFileChooser
 import com.catpuppyapp.puppygit.compose.MyCheckBox
+import com.catpuppyapp.puppygit.compose.MyHorizontalDivider
 import com.catpuppyapp.puppygit.compose.MyLazyColumn
 import com.catpuppyapp.puppygit.compose.MySelectionContainer
 import com.catpuppyapp.puppygit.compose.PageCenterIconButton
+import com.catpuppyapp.puppygit.compose.PullToRefreshBox
 import com.catpuppyapp.puppygit.compose.RepoCard
 import com.catpuppyapp.puppygit.compose.ScrollableColumn
 import com.catpuppyapp.puppygit.compose.SelectedItemDialog
@@ -88,10 +92,11 @@ import com.catpuppyapp.puppygit.screen.functions.triggerReFilter
 import com.catpuppyapp.puppygit.screen.shared.SharedState
 import com.catpuppyapp.puppygit.server.bean.ConfigBean
 import com.catpuppyapp.puppygit.settings.AppSettings
+import com.catpuppyapp.puppygit.settings.PackageNameAndRepo
+import com.catpuppyapp.puppygit.settings.PackageNameAndRepoSettings
 import com.catpuppyapp.puppygit.settings.SettingsUtil
 import com.catpuppyapp.puppygit.style.MyStyleKt
 import com.catpuppyapp.puppygit.ui.theme.Theme
-import com.catpuppyapp.puppygit.utils.ActivityUtil
 import com.catpuppyapp.puppygit.utils.AppModel
 import com.catpuppyapp.puppygit.utils.ComposeHelper
 import com.catpuppyapp.puppygit.utils.FsUtils
@@ -100,14 +105,17 @@ import com.catpuppyapp.puppygit.utils.Msg
 import com.catpuppyapp.puppygit.utils.MyLog
 import com.catpuppyapp.puppygit.utils.RepoStatusUtil
 import com.catpuppyapp.puppygit.utils.UIHelper
+import com.catpuppyapp.puppygit.utils.cache.Cache
 import com.catpuppyapp.puppygit.utils.changeStateTriggerRefreshPage
 import com.catpuppyapp.puppygit.utils.createAndInsertError
 import com.catpuppyapp.puppygit.utils.dbIntToBool
 import com.catpuppyapp.puppygit.utils.doActIfIndexGood
 import com.catpuppyapp.puppygit.utils.doJobThenOffLoading
+import com.catpuppyapp.puppygit.utils.forEachBetter
+import com.catpuppyapp.puppygit.utils.forEachIndexedBetter
 import com.catpuppyapp.puppygit.utils.genHttpHostPortStr
+import com.catpuppyapp.puppygit.utils.getFormatTimeFromSec
 import com.catpuppyapp.puppygit.utils.getSecFromTime
-import com.catpuppyapp.puppygit.utils.getStoragePermission
 import com.catpuppyapp.puppygit.utils.isLocked
 import com.catpuppyapp.puppygit.utils.isRepoReadyAndPathExist
 import com.catpuppyapp.puppygit.utils.replaceStringResList
@@ -123,11 +131,15 @@ import kotlinx.coroutines.sync.withLock
 import java.io.File
 
 private const val TAG = "RepoInnerPage"
-private const val stateKeyTag = "RepoInnerPage"
+
+private const val invalidIdx = -1
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RepoInnerPage(
+    stateKeyTag:String,
+
     requireInnerEditorOpenFile:(filePath:String, expectReadOnly:Boolean)->Unit,
 
     lastSearchKeyword:MutableState<String>,
@@ -174,6 +186,8 @@ fun RepoInnerPage(
 
 
 ) {
+    val stateKeyTag = Cache.getComponentKey(stateKeyTag, TAG)
+
     val activityContext = LocalContext.current
     val exitApp = AppModel.exitApp;
     val navController = AppModel.navController;
@@ -187,7 +201,8 @@ fun RepoInnerPage(
 
     // 这两个变量不用 rememberSaveable，如果设备配置改变，就希望这两个值重新计算
     val itemWidth = remember { UIHelper.getRepoItemWidth() }
-    val repoCountEachRow = remember { UIHelper.getRepoItemsCountEachRow() }
+    val configuration = AppModel.getCurActivityConfig()
+    val repoCountEachRow = remember(configuration.screenWidthDp) { UIHelper.getRepoItemsCountEachRow(configuration.screenWidthDp.toFloat()) }
 
 
     val clipboardManager = LocalClipboardManager.current
@@ -202,19 +217,17 @@ fun RepoInnerPage(
 
     val inDarkTheme = Theme.inDarkTheme
 
-    val requireBlinkIdx = rememberSaveable{mutableIntStateOf(-1)}
+    val requireBlinkIdx = rememberSaveable { mutableIntStateOf(-1) }
 
-    val isLoading = rememberSaveable { mutableStateOf(true)}
-    val loadingText = rememberSaveable { mutableStateOf(activityContext.getString(R.string.loading))}
-    val loadingOn = {text:String->
-        loadingText.value = text
-
-        // disable this feel better, else screen will blank then restore, feel sick
-//        isLoading.value=true
+    val isInitLoading = rememberSaveable { mutableStateOf(SharedState.defaultLoadingValue) }
+    val initLoadingText = rememberSaveable { mutableStateOf(activityContext.getString(R.string.loading)) }
+    val initLoadingOn = {text:String->
+        initLoadingText.value = text
+        isInitLoading.value = true
     }
-    val loadingOff = {
-        isLoading.value=false
-        loadingText.value = ""
+    val initLoadingOff = {
+        isInitLoading.value = false
+        initLoadingText.value = ""
     }
 
 
@@ -353,9 +366,9 @@ fun RepoInnerPage(
 
 
 
-    val showSetCurRepoGitUsernameAndEmailDialog = rememberSaveable { mutableStateOf( false)}
-    val curRepoUsername = rememberSaveable { mutableStateOf("")}
-    val curRepoEmail = rememberSaveable { mutableStateOf( "")}
+    val showSetCurRepoGitUsernameAndEmailDialog = rememberSaveable { mutableStateOf(false) }
+    val curRepoUsername = rememberSaveable { mutableStateOf("") }
+    val curRepoEmail = rememberSaveable { mutableStateOf("") }
 
     //这个不是显示global的，是针对单或多个仓库的
     val showSetUserInfoDialog = showSetUserInfoDialog@{repos:List<RepoEntity> ->
@@ -383,7 +396,7 @@ fun RepoInnerPage(
 
                 // save email and username
                 doJobThenOffLoading {
-                    userInfoRepoList.value.toList().forEach { curRepo ->
+                    userInfoRepoList.value.toList().forEachBetter { curRepo ->
 //                    MyLog.d(TAG, "curRepo.value.fullSavePath::"+curRepo.value.fullSavePath)
                         Repository.open(curRepo.fullSavePath).use { repo ->
                             //save email and username
@@ -424,10 +437,11 @@ fun RepoInnerPage(
             requireShowTextCompose = true,
             textCompose = {
                 MySelectionContainer {
-                    Column(modifier = Modifier
-                        .verticalScroll(rememberScrollState())
-                        .fillMaxWidth()
-                        .padding(5.dp)
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(5.dp)
+                            .verticalScroll(rememberScrollState())
                     ) {
                         InternalFileChooser(activityContext, path = importRepoPath)
 
@@ -450,12 +464,12 @@ fun RepoInnerPage(
         ) {
             val importRepoPath = importRepoPath.value
 
-            doJobThenOffLoading(loadingOn, loadingOff, activityContext.getString(R.string.importing)) {
+            doJobThenOffLoading {
                 try {
                     val newPathRet = FsUtils.userInputPathToCanonical(importRepoPath)
 
                     if(newPathRet.hasError()) {
-                        Msg.requireShow(activityContext.getString(R.string.invalid_path))
+                        Msg.requireShowLongDuration(activityContext.getString(R.string.invalid_path))
                         return@doJobThenOffLoading
                     }
 
@@ -476,7 +490,12 @@ fun RepoInnerPage(
                     }
 
 
+                    // close dialog
                     showImportRepoDialog.value = false
+
+                    // start import
+                    Msg.requireShowLongDuration(activityContext.getString(R.string.importing))
+
 
                     val importRepoResult = AppModel.dbContainer.repoRepository.importRepos(dir=newPath, isReposParent=isReposParentFolderForImport.value)
 
@@ -486,7 +505,7 @@ fun RepoInnerPage(
 
                 }catch (e:Exception) {
                     MyLog.e(TAG, "import repo from ReposPage err: "+e.stackTraceToString())
-                    Msg.requireShowLongDuration("err:${e.localizedMessage}")
+                    Msg.requireShowLongDuration("err: ${e.localizedMessage}")
                 }finally {
                     changeStateTriggerRefreshPage(needRefreshRepoPage)
 
@@ -677,7 +696,7 @@ fun RepoInnerPage(
 //                        repoDtoList[idx].tmpStatus=""  //err状态，tmpStatus本来就没值，不用设
         doJobThenOffLoading {
             //更新仓库状态为待克隆
-            repoList.forEach { curRepo ->
+            repoList.forEachBetter { curRepo ->
                 val repoLock = Libgit2Helper.getRepoLock(curRepo.id)
                 if(isLocked(repoLock)) {
                     return@doJobThenOffLoading
@@ -784,7 +803,7 @@ fun RepoInnerPage(
         doActIfIndexGood(idx,repoList) {
 //            it.tmpStatus = status
             //必须copy一下，要不然还得刷新页面才能显示状态（ps：刷新页面显示状态是通过map存临时状态实现的，比这个操作重量级，应能避免则避免）
-            repoList[idx]=it.copy(tmpStatus = status)
+            repoList[idx] = it.copyAllFields(it.copy(tmpStatus = status), settings)
 //            repoList.requireRefreshView()
         }
         //设置仓库临时状态(把临时状态设置到缓存里，不退出app都有效，目的是为了使重新查列表后临时状态亦可见)，这样重新加载页面时依然能看到临时状态
@@ -841,7 +860,7 @@ fun RepoInnerPage(
         //仓库名
         val suffix = ", "
         val sb = StringBuilder()
-        expectDelRepos.forEach { sb.append(it.repoName).append(suffix) }
+        expectDelRepos.forEachBetter { sb.append(it.repoName).append(suffix) }
         willDeleteRepoNames.value = sb.removeSuffix(suffix).toString()
 
         //添加到待删除列表
@@ -938,7 +957,14 @@ fun RepoInnerPage(
             doJobThenOffLoading {
                 var curRepo:RepoEntity? = null
                 try {
-                    deleteList.value.toList().forEach { willDeleteRepo ->
+                    val settings = SettingsUtil.getSettingsSnapshot()
+
+                    var updatedPackageNameAndRepoIdMap = settings.automation.packageNameAndRepoIdsMap
+                    val tmpPackageNameAndRepoIdMap = mutableMapOf<String, List<String>>()
+                    var updatedPackageNameAndRepoSettingsMap = settings.automation.packageNameAndRepoAndSettingsMap
+                    val tmpPackageNameAndRepoSettingsMap = mutableMapOf<String, PackageNameAndRepoSettings>()
+
+                    deleteList.value.toList().forEachBetter { willDeleteRepo ->
                         curRepo = willDeleteRepo
 
                         val repoDb = AppModel.dbContainer.repoRepository
@@ -948,7 +974,30 @@ fun RepoInnerPage(
                             requireDelFilesOnDisk = requireDelFilesOnDisk,
                             requireTransaction = requireTransaction
                         )
+
+                        // update settings and app linked info
+                        for(i in updatedPackageNameAndRepoIdMap) {
+                            tmpPackageNameAndRepoIdMap.put(i.key, i.value.filter { it != willDeleteRepo.id })
+                        }
+                        updatedPackageNameAndRepoIdMap = tmpPackageNameAndRepoIdMap.toMutableMap()
+                        tmpPackageNameAndRepoIdMap.clear()
+
+                        // update settings of app and repo pair
+                        for(i in updatedPackageNameAndRepoSettingsMap) {
+                            val keySuffix = PackageNameAndRepo(repoId = willDeleteRepo.id).toKeySuffix()
+                            if(!i.key.endsWith(keySuffix)) {
+                                tmpPackageNameAndRepoSettingsMap.put(i.key, i.value)
+                            }
+                        }
+                        updatedPackageNameAndRepoSettingsMap = tmpPackageNameAndRepoSettingsMap.toMutableMap()
+                        tmpPackageNameAndRepoSettingsMap.clear()
+
                     }
+
+                    // save updated settings
+                    settings.automation.packageNameAndRepoIdsMap = updatedPackageNameAndRepoIdMap
+                    settings.automation.packageNameAndRepoAndSettingsMap = updatedPackageNameAndRepoSettingsMap
+                    SettingsUtil.updateSettings(settings)
 
                     Msg.requireShow(activityContext.getString(R.string.success))
 
@@ -966,9 +1015,11 @@ fun RepoInnerPage(
     }
 
     val showRenameDialog = rememberSaveable { mutableStateOf(false)}
-    val repoNameForRenameDialog = rememberSaveable { mutableStateOf( "")}
+    val repoNameForRenameDialog = mutableCustomStateOf(stateKeyTag, "repoNameForRenameDialog") { TextFieldValue("") }
     val errMsgForRenameDialog = rememberSaveable { mutableStateOf("")}
     if(showRenameDialog.value) {
+        val focusRequester = remember { FocusRequester() }
+
         val curRepo = curRepo.value
 
         ConfirmDialog(
@@ -979,6 +1030,7 @@ fun RepoInnerPage(
                     TextField(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .focusRequester(focusRequester)
                         ,
                         value = repoNameForRenameDialog.value,
                         singleLine = true,
@@ -1013,10 +1065,10 @@ fun RepoInnerPage(
             },
             okBtnText = stringResource(R.string.ok),
             cancelBtnText = stringResource(R.string.cancel),
-            okBtnEnabled = repoNameForRenameDialog.value.isNotBlank() && errMsgForRenameDialog.value.isEmpty() && repoNameForRenameDialog.value != curRepo.repoName,
+            okBtnEnabled = repoNameForRenameDialog.value.text.isNotBlank() && errMsgForRenameDialog.value.isEmpty() && repoNameForRenameDialog.value.text != curRepo.repoName,
             onCancel = {showRenameDialog.value = false}
         ) {
-            val newName = repoNameForRenameDialog.value
+            val newName = repoNameForRenameDialog.value.text
             val repoId = curRepo.id
 
             doJobThenOffLoading {
@@ -1048,6 +1100,8 @@ fun RepoInnerPage(
                 }
             }
         }
+
+        LaunchedEffect(Unit) { runCatching { focusRequester.requestFocus() } }
     }
 
 
@@ -1098,7 +1152,7 @@ fun RepoInnerPage(
 
             val unshallowingText = activityContext.getString(R.string.unshallowing)
 
-            unshallowList.value.toList().forEach { curRepo ->
+            unshallowList.value.toList().forEachBetter { curRepo ->
                 doJobThenOffLoading {
                     val curRepoId = curRepo.id
                     val curRepoIdx = -1  //这个index不使用了，改用repoid更新仓库了
@@ -1306,8 +1360,11 @@ fun RepoInnerPage(
         SetUpstreamDialog(
             callerTag = TAG,
             curRepo = curRepo,
-            loadingOn = loadingOn,
-            loadingOff = loadingOff,
+
+            // very fast, no need show loading
+            loadingOn = {},
+            loadingOff = {},
+
             onOkText = upstreamDialogOnOkText.value,
             remoteList = upstreamRemoteOptionsList.value,
             isCurrentBranchOfRepo = true,
@@ -1329,11 +1386,11 @@ fun RepoInnerPage(
                 val curBranchShortName = curBranchShortNameForSetUpstreamDialog.value
 
                 //显示通知
-                Msg.requireShowLongDuration("clear upstream err:" + e.localizedMessage)
+                Msg.requireShowLongDuration("clear upstream err: " + e.localizedMessage)
                 //给用户看到错误
                 createAndInsertError(
                     repoId,
-                    "clear upstream for '$curBranchShortName' err:" + e.localizedMessage
+                    "clear upstream for '$curBranchShortName' err: " + e.localizedMessage
                 )
                 //给开发者debug看的错误
                 MyLog.e(
@@ -1364,22 +1421,22 @@ fun RepoInnerPage(
                 val remote = try {
                     remoteList[selectedRemoteIndex]
                 } catch (e: Exception) {
-                    MyLog.e(TAG,"err when get remote by index from remote list of '$repoName': remoteIndex=$selectedRemoteIndex, remoteList=$remoteList\nerr info:${e.stackTraceToString()}")
+                    MyLog.e(TAG,"err when get remote by index from remote list of '$repoName': remoteIndex=$selectedRemoteIndex, remoteList=$remoteList\nerr info: ${e.stackTraceToString()}")
                     Msg.requireShowLongDuration(activityContext.getString(R.string.err_selected_remote_is_invalid))
                     return@onErr
                 }
 
                 //显示通知
-                Msg.requireShowLongDuration("set upstream err:" + e.localizedMessage)
+                Msg.requireShowLongDuration("set upstream err: " + e.localizedMessage)
                 //给用户看到错误
                 createAndInsertError(
                     repoId,
-                    "set upstream for '$curBranchShortName' err:" + e.localizedMessage
+                    "set upstream for '$curBranchShortName' err: " + e.localizedMessage
                 )
                 //给开发者debug看的错误
                 MyLog.e(
                     TAG,
-                    "set upstream for '$curBranchShortName' of '$repoName' err! user input branch is '$upstreamShortName', selected remote is $remote, user checked use same name with local is '$upstreamSameWithLocal'\nerr:" + e.stackTraceToString()
+                    "set upstream for '$curBranchShortName' of '$repoName' err! user input branch is '$upstreamShortName', selected remote is $remote, user checked use same name with local is '$upstreamSameWithLocal'\nerr: " + e.stackTraceToString()
                 )
 
 
@@ -1437,7 +1494,7 @@ fun RepoInnerPage(
                             }
                         }
 
-                        HorizontalDivider(Modifier.padding(top = 10.dp, bottom = 10.dp))
+                        MyHorizontalDivider(Modifier.padding(top = 10.dp, bottom = 10.dp))
 
                         Box(
                             modifier = Modifier.fillMaxWidth(),
@@ -1468,7 +1525,7 @@ fun RepoInnerPage(
                             }
                         }
 
-                        HorizontalDivider(Modifier.padding(top = 10.dp, bottom = 10.dp))
+                        MyHorizontalDivider(Modifier.padding(top = 10.dp, bottom = 10.dp))
 
                         Box(
                             modifier = Modifier.fillMaxWidth(),
@@ -1524,7 +1581,7 @@ fun RepoInnerPage(
             textCompose = {
                 MySelectionContainer {
                     ScrollableColumn {
-                        apiConfigBeanList.value.forEach {
+                        apiConfigBeanList.value.forEachBetter {
                             val pullurl = it.api.pull_example
                             val pushurl = it.api.push_example
                             val syncurl = it.api.sync_example
@@ -1563,7 +1620,7 @@ fun RepoInnerPage(
                                 }
                             }
 
-                            HorizontalDivider()
+                            MyHorizontalDivider()
 
                             Box(
                                 modifier = Modifier.fillMaxWidth(),
@@ -1594,7 +1651,7 @@ fun RepoInnerPage(
                                 }
                             }
 
-                            HorizontalDivider()
+                            MyHorizontalDivider()
 
                             Box(
                                 modifier = Modifier.fillMaxWidth(),
@@ -1626,7 +1683,7 @@ fun RepoInnerPage(
                                 }
                             }
 
-                            HorizontalDivider()
+                            MyHorizontalDivider()
 
                             Spacer(Modifier.height(30.dp))
 
@@ -1745,8 +1802,27 @@ fun RepoInnerPage(
         doActIfRepoGoodOrElse(curRepo, act, {})
     }
 
+    // No HEAD，但怕用户看不懂，所以说 no commit
+    val showNoCommitDialog = rememberSaveable { mutableStateOf(false) }
+    val repoNameOfNoCommitDialog = rememberSaveable { mutableStateOf("") }
 
-    val invalidIdx = remember { -1 }
+    // 传仓库对象，现在用不到，日后可能用到
+    val initNoCommitDialog = {curRepo:RepoEntity ->
+        repoNameOfNoCommitDialog.value = curRepo.repoName
+        showNoCommitDialog.value = true
+    }
+
+    if(showNoCommitDialog.value) {
+        CopyableDialog2(
+            title = repoNameOfNoCommitDialog.value,
+            text = stringResource(R.string.repo_no_commit_note),
+            onCancel = { showNoCommitDialog.value = false },
+            cancelBtnText = stringResource(R.string.ok),
+            //隐藏ok键
+            okCompose = {}
+        ) { }  // ok不执行操作，反正已经隐藏了
+    }
+
 
     val showSelectedItemsShortDetailsDialog = rememberSaveable { mutableStateOf(false)}
 //    val selectedItemsShortDetailsStr = rememberSaveable { mutableStateOf("")}
@@ -1785,6 +1861,7 @@ fun RepoInnerPage(
             quitSelectionMode()
         } else if(repoPageFilterModeOn.value) {
             repoPageFilterModeOn.value = false
+            resetSearchVars()
         }else {
             backHandlerOnBack()
         }
@@ -1812,249 +1889,243 @@ fun RepoInnerPage(
 //
 //    }
 
-    if (!isLoading.value && repoList.value.isEmpty()) {  //无仓库，显示添加按钮
-        PageCenterIconButton(
-            contentPadding = contentPadding,
-            onClick = {
-                //不传repoId，就是null，等于新建模式
-                navController.navigate(Cons.nav_CloneScreen+"/null")
-            },
-            icon = Icons.Filled.Add,
-            iconDesc = stringResource(R.string.add_a_repo),
-            text = stringResource(R.string.add_a_repo),
-        )
-    }
+    PullToRefreshBox(
+        contentPadding = contentPadding,
+        onRefresh = { changeStateTriggerRefreshPage(needRefreshRepoPage) }
+    ) {
 
+        if (repoList.value.isEmpty()) {  //无仓库，显示添加按钮
+            if(isInitLoading.value) {
+                FullScreenScrollableColumn(contentPadding) {
+                    Text(initLoadingText.value)
+                }
+            }else {  // loading finished, but the repo list still empty
+                val dropDownMenuExpandState = rememberSaveable { mutableStateOf(false) }
 
-    // 向下滚动监听，开始
-//    val firstVisible = remember { derivedStateOf { if(enableFilterState.value) filterListState.value.firstVisibleItemIndex else repoPageListState.firstVisibleItemIndex } }
-//    ScrollListener(
-//        nowAt = firstVisible.value,
-//        onScrollUp = {repoPageScrollingDown.value = false}
-//    ) { // onScrollDown
-//        repoPageScrollingDown.value = true
-//    }
+                PageCenterIconButton(
+                    contentPadding = contentPadding,
+                    onClick = {
+                        dropDownMenuExpandState.value = !dropDownMenuExpandState.value
 
-//
-//    val lastAt = remember { mutableIntStateOf(0) }
-//    val lastIsScrollDown = remember { mutableStateOf(false) }
-//    val forUpdateScrollState = remember {
-//        derivedStateOf {
-//            val nowAt = if(enableFilterState.value) {
-//                filterListState.firstVisibleItemIndex
-//            } else {
-//                repoPageListState.firstVisibleItemIndex
-//            }
-//
-//            val scrolledDown = nowAt > lastAt.intValue  // scroll down
-////            val scrolledUp = nowAt < lastAt.intValue
-//
-//            val scrolled = nowAt != lastAt.intValue  // scrolled
-//            lastAt.intValue = nowAt
-//
-//            // only update state when this scroll down and last is not scroll down, or this is scroll up and last is not scroll up
-//            if(scrolled && ((lastIsScrollDown.value && !scrolledDown) || (!lastIsScrollDown.value && scrolledDown))) {
-//                repoPageScrolled.value = true
-//            }
-//
-//            lastIsScrollDown.value = scrolledDown
-//        }
-//    }.value
-    // 向下滚动监听，结束
-
-
-    if(!isLoading.value && repoList.value.isNotEmpty()) {  //有仓库
-
-        //根据关键字过滤条目
-        val keyword = repoPageFilterKeyWord.value.text.lowercase()  //关键字
-        val enableFilter = filterModeActuallyEnabled(repoPageFilterModeOn.value, keyword)
-
-        val lastNeedRefresh = rememberSaveable { mutableStateOf("") }
-        val filteredListTmp = filterTheList(
-            needRefresh = filterResultNeedRefresh.value,
-            lastNeedRefresh = lastNeedRefresh,
-            enableFilter = enableFilter,
-            keyword = keyword,
-            lastKeyword = lastSearchKeyword,
-            searching = searching,
-            token = searchToken,
-            activityContext = activityContext,
-            filterList = filterList.value,
-            list = repoList.value,
-            resetSearchVars = resetSearchVars,
-            match = { idx:Int, it: RepoEntity ->
-                it.repoName.lowercase().contains(keyword)
-                        || it.parentRepoName.lowercase().contains(keyword)
-                        || it.latestUncheckedErrMsg.lowercase().contains(keyword)
-                        || it.tmpStatus.lowercase().contains(keyword)
-                        || it.createErrMsg.lowercase().contains(keyword)
-                        || it.getOther().lowercase().contains(keyword)
-                        || it.getRepoStateStr(activityContext).lowercase().contains(keyword)
+                        //由于弹窗有隐形遮罩，所以其实点击设为true即可，不需要设为切换，
+                        // 之后就算再点图标，其实也不会点到图标上而是点到遮罩上，
+                        // 而是会触发弹窗的on dismiss，然后隐藏弹窗
+//                        dropDownMenuExpandState.value = true
+                    },
+                    icon = Icons.Filled.Add,
+                    text = stringResource(R.string.add_a_repo),
+                    attachContent = {
+                        AddRepoDropDownMenu(
+                            showMenu = dropDownMenuExpandState.value,
+                            closeMenu = { dropDownMenuExpandState.value = false },
+                            importOnClick = {
+                                showImportRepoDialog.value = true
+                            }
+                        )
+                    }
+                )
             }
-        )
+
+        }else {  //有仓库
+            //根据关键字过滤条目
+            val keyword = repoPageFilterKeyWord.value.text.lowercase()  //关键字
+            val enableFilter = filterModeActuallyEnabled(repoPageFilterModeOn.value, keyword)
+
+            val lastNeedRefresh = rememberSaveable { mutableStateOf("") }
+            val filteredListTmp = filterTheList(
+                needRefresh = filterResultNeedRefresh.value,
+                lastNeedRefresh = lastNeedRefresh,
+                enableFilter = enableFilter,
+                keyword = keyword,
+                lastKeyword = lastSearchKeyword,
+                searching = searching,
+                token = searchToken,
+                activityContext = activityContext,
+                filterList = filterList.value,
+                list = repoList.value,
+                resetSearchVars = resetSearchVars,
+                match = { idx:Int, it: RepoEntity ->
+                    it.repoName.lowercase().contains(keyword)
+                            || it.branch.lowercase().contains(keyword)
+                            || it.lastCommitHash.lowercase().contains(keyword)
+                            || it.upstreamBranch.lowercase().contains(keyword)
+                            || it.parentRepoName.lowercase().contains(keyword)
+                            || it.fullSavePath.lowercase().contains(keyword)
+                            || getFormatTimeFromSec(it.lastUpdateTime).lowercase().contains(keyword)
+                            || it.latestUncheckedErrMsg.lowercase().contains(keyword)
+                            || it.tmpStatus.lowercase().contains(keyword)
+                            || it.createErrMsgForView(activityContext).lowercase().contains(keyword)
+                            || it.getOther().lowercase().contains(keyword)
+                            || it.getRepoStateStr(activityContext).lowercase().contains(keyword)
+                }
+            )
 
 
-        //若一行只有一个条目，fillMaxWidth()
-        val requireFillMaxWidth = repoCountEachRow == 1
-        //如果repoCountEachRow==1，永远不需要padding，因为list.size是整数，而任何整数以1取模结果都为0
-        val paddingItemCount = filteredListTmp.size % repoCountEachRow
-        val needPaddingItems = paddingItemCount != 0
+            //若一行只有一个条目，fillMaxWidth()
+            val requireFillMaxWidth = repoCountEachRow == 1
+            //如果repoCountEachRow==1，永远不需要padding，因为list.size是整数，而任何整数以1取模结果都为0
+            val paddingItemCount = filteredListTmp.size % repoCountEachRow
+            val needPaddingItems = paddingItemCount != 0
 
-        val filteredList =  filteredListTmp.chunked(repoCountEachRow)
-        val lastChunkListIndex = filteredList.lastIndex
+            val filteredList =  filteredListTmp.chunked(repoCountEachRow)
+            val lastChunkListIndex = filteredList.lastIndex
 
 
-        val listState = if(enableFilter) filterListState else repoPageListState
+            val listState = if(enableFilter) filterListState else repoPageListState
 
-        //更新是否启用filter
-        enableFilterState.value = enableFilter
+            //更新是否启用filter
+            enableFilterState.value = enableFilter
 
-        MyLazyColumn(
-            contentPadding = contentPadding,
-            list = filteredList,
-            listState = listState,
-            requireForEachWithIndex = true,
-            requirePaddingAtBottom = true
-        ) {chunkedListIdx, chunkedList ->
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
-                chunkedList.forEachIndexed { subListIdx, element ->
-                    val idx = chunkedListIdx * repoCountEachRow + subListIdx
-                    //状态小于errValStart意味着一切正常；状态大于等于errValStart，意味着出错，禁用长按功能，直接把可以执行的操作例如删除仓库和编辑仓库之类的显示在卡片上，方便用户处置出错的仓库
-                    // 如果有必要细分状态，可以改成这样: if(it.workStatus==cloningStatus) go cloningCard, else if other status, go other card, else go normal RepoCard
+            MyLazyColumn(
+                contentPadding = contentPadding,
+                list = filteredList,
+                listState = listState,
+                requireForEachWithIndex = true,
+                requirePaddingAtBottom = true
+            ) {chunkedListIdx, chunkedList ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    chunkedList.forEachIndexedBetter { subListIdx, element ->
+                        val idx = chunkedListIdx * repoCountEachRow + subListIdx
+                        //状态小于errValStart意味着一切正常；状态大于等于errValStart，意味着出错，禁用长按功能，直接把可以执行的操作例如删除仓库和编辑仓库之类的显示在卡片上，方便用户处置出错的仓库
+                        // 如果有必要细分状态，可以改成这样: if(it.workStatus==cloningStatus) go cloningCard, else if other status, go other card, else go normal RepoCard
 
-                    //未出错的仓库
-                    RepoCard(
-                        itemWidth = itemWidth,
-                        requireFillMaxWidth = requireFillMaxWidth,
-                        showBottomSheet = showBottomSheet,
-                        curRepo = curRepo,
-                        curRepoIndex = curRepoIndex,
-                        repoDto = element,
-                        repoDtoIndex = idx,
-                        isSelectionMode = isSelectionMode.value,
-                        itemSelected = containsForSelected(selectedItems.value, element),
-                        titleOnClick = repoCardTitleOnClick,
+                        //未出错的仓库和已出错的仓库都弄一起了，在组件内部会判断
+                        RepoCard(
+                            itemWidth = itemWidth,
+                            requireFillMaxWidth = requireFillMaxWidth,
+                            showBottomSheet = showBottomSheet,
+                            curRepo = curRepo,
+                            curRepoIndex = curRepoIndex,
+                            repoDto = element,
+                            repoDtoIndex = idx,
+                            isSelectionMode = isSelectionMode.value,
+                            itemSelected = containsForSelected(selectedItems.value, element),
+                            titleOnClick = repoCardTitleOnClick,
 
-                        goToFilesPage = goToFilesPage,
-                        requireBlinkIdx = requireBlinkIdx,
-                        pageRequest = pageRequest,
-                        onClick = {
-                            if (isSelectionMode.value) {  //选择模式，切换选择
-                                switchItemSelected(it)
-                            }
-                        },
-                        onLongClick = {
-                            //如果不是选择模式，则切换为选择模式
-                            if (!isSelectionMode.value) {
-                                switchItemSelected(it)
+                            goToFilesPage = goToFilesPage,
+                            requireBlinkIdx = requireBlinkIdx,
+                            pageRequest = pageRequest,
+                            onClick = {
+                                if (isSelectionMode.value) {  //选择模式，切换选择
+                                    switchItemSelected(it)
+                                }
+                            },
+                            onLongClick = {
+                                //如果不是选择模式，则切换为选择模式
+                                if (!isSelectionMode.value) {
+                                    switchItemSelected(it)
 
-                                //如果处于选择模式，长按执行连续选择
-                            }else if(isSelectionMode.value) {
-                                UIHelper.doSelectSpan(idx, it,
-                                    //这里调用 toList() 是为了拷贝下源list，避免并发修改异常
-                                    selectedItems.value.toList(), filteredListTmp.toList(),
-                                    switchItemSelected,
-                                    selectItem
-                                )
-                            }
-                        },
-                        requireDelRepo = {curRepo -> requireDelRepo(listOf(curRepo))},
-                        copyErrMsg = {msg->
-                            clipboardManager.setText(AnnotatedString(msg))
-                            Msg.requireShow(activityContext.getString(R.string.copied))
-                        },
-                        doCloneSingle = doCloneSingle,
+                                    //如果处于选择模式，长按执行连续选择
+                                }else if(isSelectionMode.value) {
+                                    UIHelper.doSelectSpan(idx, it,
+                                        //这里调用 toList() 是为了拷贝下源list，避免并发修改异常
+                                        selectedItems.value.toList(), filteredListTmp.toList(),
+                                        switchItemSelected,
+                                        selectItem
+                                    )
+                                }
+                            },
+                            requireDelRepo = {curRepo -> requireDelRepo(listOf(curRepo))},
+                            copyErrMsg = {msg->
+                                clipboardManager.setText(AnnotatedString(msg))
+                                Msg.requireShow(activityContext.getString(R.string.copied))
+                            },
+                            doCloneSingle = doCloneSingle,
 
-                        ) workStatusOnclick@{ clickedRepo, status ->  //这个是点击status的callback，这个status其实可以不传，因为这里的lambda能捕获到数组的元素，就是当前仓库
+                            ) workStatusOnclick@{ clickedRepo, status ->  //这个是点击status的callback，这个status其实可以不传，因为这里的lambda能捕获到数组的元素，就是当前仓库
 
-                        //把点击状态的仓库存下来
-                        statusClickedRepo.value = clickedRepo  //其实这个clickedRepo直接用这里element替代也可，但用回调里参数感觉更合理
+                            //把点击状态的仓库存下来
+                            statusClickedRepo.value = clickedRepo  //其实这个clickedRepo直接用这里element替代也可，但用回调里参数感觉更合理
 
-                        //目前status就三种状态：up-to-date/has conflicts/need sync，第1种不用处理
-                        if(status == Cons.dbRepoWorkStatusMerging
-                            || status == Cons.dbRepoWorkStatusRebasing
-                            || status == Cons.dbRepoWorkStatusCherrypicking
-                        ){ //merge/rebase/cherrypick弹窗提示需要continue或abort
-                            showRequireActionsDialog.value = true
-                        } else if (
-                            status == Cons.dbRepoWorkStatusHasConflicts
-                            || status == Cons.dbRepoWorkStatusNeedCommit
-                        ) {
-                            //导航到changelist并定位到当前仓库
-                            goToChangeListPage(clickedRepo)
-                        } else if (status == Cons.dbRepoWorkStatusNeedSync) {
-                            val curRepo = clickedRepo
-                            if(dbIntToBool(curRepo.isDetached)){  // detached, can't sync
-                                Msg.requireShow(activityContext.getString(R.string.sync_failed_by_detached_head))
-                            }else {  // not detached HEAD
-                                if(curRepo.upstreamBranch.isBlank()) {  //无上游，先设置，再同步
-                                    doTaskOrShowSetUsernameAndEmailDialog(curRepo) {
-                                        doJobThenOffLoading {
-                                            initSetUpstreamDialog(curRepo, activityContext.getString(R.string.save_and_sync)) {
-                                                doActWithLockIfRepoGoodAndActEnabled(curRepo) {
-                                                    doActAndSetRepoStatus(invalidIdx, curRepo.id, activityContext.getString(R.string.syncing)) {
-                                                        doActAndLogErr(curRepo, "sync") {
-                                                            doSync(curRepo)
+                            //目前status就三种状态：up-to-date/has conflicts/need sync，第1种不用处理
+                            if(status == Cons.dbRepoWorkStatusMerging
+                                || status == Cons.dbRepoWorkStatusRebasing
+                                || status == Cons.dbRepoWorkStatusCherrypicking
+                            ){ //merge/rebase/cherrypick弹窗提示需要continue或abort
+                                showRequireActionsDialog.value = true
+                            } else if (
+                                status == Cons.dbRepoWorkStatusHasConflicts
+                                || status == Cons.dbRepoWorkStatusNeedCommit
+                            ) {
+                                //导航到changelist并定位到当前仓库
+                                goToChangeListPage(clickedRepo)
+                            } else if (status == Cons.dbRepoWorkStatusNeedSync) {
+                                val curRepo = clickedRepo
+                                if(dbIntToBool(curRepo.isDetached)){  // detached, can't sync
+                                    Msg.requireShow(activityContext.getString(R.string.sync_failed_by_detached_head))
+                                }else {  // not detached HEAD
+                                    if(curRepo.upstreamBranch.isBlank()) {  //无上游，先设置，再同步
+                                        doTaskOrShowSetUsernameAndEmailDialog(curRepo) {
+                                            doJobThenOffLoading {
+                                                initSetUpstreamDialog(curRepo, activityContext.getString(R.string.save_and_sync)) {
+                                                    doActWithLockIfRepoGoodAndActEnabled(curRepo) {
+                                                        doActAndSetRepoStatus(invalidIdx, curRepo.id, activityContext.getString(R.string.syncing)) {
+                                                            doActAndLogErr(curRepo, "sync") {
+                                                                doSync(curRepo)
+                                                            }
                                                         }
                                                     }
                                                 }
                                             }
                                         }
-                                    }
-                                }else {  //有上游，直接同步
-                                    doTaskOrShowSetUsernameAndEmailDialog(curRepo) {
-                                        doActWithLockIfRepoGoodAndActEnabled(curRepo) {
-                                            doActAndSetRepoStatus(invalidIdx, curRepo.id, activityContext.getString(R.string.syncing)) {
-                                                doActAndLogErr(curRepo, "sync") {
-                                                    doSync(curRepo)
+                                    }else {  //有上游，直接同步
+                                        doTaskOrShowSetUsernameAndEmailDialog(curRepo) {
+                                            doActWithLockIfRepoGoodAndActEnabled(curRepo) {
+                                                doActAndSetRepoStatus(invalidIdx, curRepo.id, activityContext.getString(R.string.syncing)) {
+                                                    doActAndLogErr(curRepo, "sync") {
+                                                        doSync(curRepo)
+                                                    }
                                                 }
                                             }
                                         }
                                     }
                                 }
-                            }
-                        }else if (status == Cons.dbRepoWorkStatusNeedPull) {
-                            val curRepo = clickedRepo
+                            }else if (status == Cons.dbRepoWorkStatusNeedPull) {
+                                val curRepo = clickedRepo
 
-                            doTaskOrShowSetUsernameAndEmailDialog(curRepo) {
-                                doActWithLockIfRepoGoodAndActEnabled(curRepo) {
-                                    doActAndSetRepoStatus(invalidIdx, curRepo.id, activityContext.getString(R.string.pulling)) {
-                                        doActAndLogErr(curRepo, "pull") {
-                                            doPull(curRepo)
+                                doTaskOrShowSetUsernameAndEmailDialog(curRepo) {
+                                    doActWithLockIfRepoGoodAndActEnabled(curRepo) {
+                                        doActAndSetRepoStatus(invalidIdx, curRepo.id, activityContext.getString(R.string.pulling)) {
+                                            doActAndLogErr(curRepo, "pull") {
+                                                doPull(curRepo)
+                                            }
                                         }
                                     }
                                 }
-                            }
-                        }else if (status == Cons.dbRepoWorkStatusNeedPush) {
-                            val curRepo = clickedRepo
+                            }else if (status == Cons.dbRepoWorkStatusNeedPush) {
+                                val curRepo = clickedRepo
 
-                            doActWithLockIfRepoGoodAndActEnabled(curRepo) {
-                                doActAndSetRepoStatus(invalidIdx, curRepo.id, activityContext.getString(R.string.pushing)) {
-                                    doActAndLogErr(curRepo, "push") {
-                                        doPush(null, curRepo)
+                                doActWithLockIfRepoGoodAndActEnabled(curRepo) {
+                                    doActAndSetRepoStatus(invalidIdx, curRepo.id, activityContext.getString(R.string.pushing)) {
+                                        doActAndLogErr(curRepo, "push") {
+                                            doPush(null, curRepo)
+                                        }
                                     }
                                 }
+                            }else if (status == Cons.dbRepoWorkStatusNoHEAD) {
+                                val curRepo = clickedRepo
+
+                                initNoCommitDialog(curRepo)
                             }
                         }
                     }
-                }
 
-                // padding for make item alight to start(left or right)
-                // repoCountEachRow为1时，永远不需要padding，因为needPaddingItems在其为1时肯定为假
-                if(needPaddingItems && chunkedListIdx == lastChunkListIndex) {
-                    for(i in 0 until (repoCountEachRow - chunkedList.size)) {
-                        Column(modifier = Modifier.width(itemWidth.dp)) {}
+                    // padding for make item alight to start(left or right)
+                    // repoCountEachRow为1时，永远不需要padding，因为needPaddingItems在其为1时肯定为假
+                    if(needPaddingItems && chunkedListIdx == lastChunkListIndex) {
+                        for(i in 0 until (repoCountEachRow - chunkedList.size)) {
+                            Column(modifier = Modifier.width(itemWidth.dp)) {}
+                        }
                     }
                 }
             }
         }
-
-
     }
+
 
 
     if(pageRequest.value == PageRequest.goParent) {
@@ -2117,7 +2188,7 @@ fun RepoInnerPage(
                         }
                     }
                 }else { //若选中多个条目或选中一个存在有效上游的条目，则不会弹出设置上游的弹窗，直接执行同步
-                    list.filter { expectRepos(it) }.forEach { curRepo ->
+                    list.filter { expectRepos(it) }.forEachBetter { curRepo ->
                         task(curRepo)
                     }
                 }
@@ -2126,7 +2197,7 @@ fun RepoInnerPage(
             },
 
             push@{
-                selectedItems.value.toList().filter { it.upstreamBranch.isNotBlank() && !dbIntToBool(it.isDetached) }.forEach { curRepo ->
+                selectedItems.value.toList().filter { it.upstreamBranch.isNotBlank() && !dbIntToBool(it.isDetached) }.forEachBetter { curRepo ->
                     doActWithLockIfRepoGoodAndActEnabled(curRepo) {
                         doActAndSetRepoStatus(invalidIdx, curRepo.id, activityContext.getString(R.string.pushing)) {
                             doActAndLogErr(curRepo, "push") {
@@ -2161,14 +2232,14 @@ fun RepoInnerPage(
                         }
                     }
                 }else {
-                    list.filter { expectRepos(it) }.forEach {
+                    list.filter { expectRepos(it) }.forEachBetter {
                         task(it)
                     }
                 }
             },
 
             fetch@{
-                selectedItems.value.toList().filter { it.upstreamBranch.isNotBlank() && !dbIntToBool(it.isDetached) }.forEach { curRepo ->
+                selectedItems.value.toList().filter { it.upstreamBranch.isNotBlank() && !dbIntToBool(it.isDetached) }.forEachBetter { curRepo ->
                     doActWithLockIfRepoGoodAndActEnabled(curRepo) {
                         //fetch 当前仓库上游的remote
                         doActAndSetRepoStatus(invalidIdx, curRepo.id, activityContext.getString(R.string.fetching)) {
@@ -2184,7 +2255,7 @@ fun RepoInnerPage(
             selectAll@{
                 val list = if(enableFilterState.value) filterList.value else repoList.value
 
-                list.toList().forEach {
+                list.toList().forEachBetter {
                     selectItem(it)
                 }
 
@@ -2266,7 +2337,7 @@ fun RepoInnerPage(
                 curRepo.value = selectedRepo
 
                 // init rename dialog
-                repoNameForRenameDialog.value = selectedRepo.repoName
+                repoNameForRenameDialog.value = TextFieldValue(text = selectedRepo.repoName, selection = TextRange(0, selectedRepo.repoName.length))
                 errMsgForRenameDialog.value = ""
                 showRenameDialog.value = true
             },
@@ -2300,7 +2371,7 @@ fun RepoInnerPage(
                     //生成仓库名，用于显示
                     val sb = StringBuilder()
                     val suffix = ", "
-                    unshallowableList.forEach { sb.append(it.repoName).append(suffix) }
+                    unshallowableList.forEachBetter { sb.append(it.repoName).append(suffix) }
                     unshallowRepoNames.value = sb.removeSuffix(suffix).toString()
 
                     showUnshallowDialog.value = true
@@ -2377,7 +2448,7 @@ fun RepoInnerPage(
                 val sbpush = StringBuilder("${genHttpHostPortStr(host, port.toString())}/push?token=$token")
                 val sbsync = StringBuilder("${genHttpHostPortStr(host, port.toString())}/sync?token=$token")
 
-                selectedItems.value.forEach {
+                selectedItems.value.forEachBetter {
                     val repoNameOrId = "&repoNameOrId=${it.repoName}"
                     sbpull.append(repoNameOrId)
                     sbpush.append(repoNameOrId)
@@ -2419,7 +2490,7 @@ fun RepoInnerPage(
                 val lb = "\n"
                 val spliter = Cons.itemDetailSpliter
 
-                selectedItems.value.forEach {
+                selectedItems.value.forEachBetter {
                     sb.append(activityContext.getString(R.string.name)).append(": ").append(it.repoName).append(lb).append(lb)
                     sb.append(activityContext.getString(R.string.id)).append(": ").append(it.id).append(lb).append(lb)
                     sb.append(activityContext.getString(R.string.state)).append(": ").append(it.getRepoStateStr(activityContext)).append(lb).append(lb)
@@ -2545,7 +2616,7 @@ fun RepoInnerPage(
         try {
             val loadingText = activityContext.getString(R.string.loading)
 
-            doJobThenOffLoading(loadingOn, loadingOff, loadingText) {
+            doJobThenOffLoading(initLoadingOn, initLoadingOff, loadingText) {
                 try {
                     // 仓库页面检查仓库状态，对所有状态为notReadyNeedClone的仓库执行clone，卡片把所有状态为notReadyNeedClone的仓库都设置成不可操作，显示正在克隆loading信息
                     doInit(
@@ -2619,7 +2690,7 @@ private suspend fun doInit(
         val spCopy = specifiedRefreshRepoList.toList()
         specifiedRefreshRepoList.clear()
         //重查指定列表的仓库信息
-        spCopy.forEach {
+        spCopy.forEachBetter forEach@{
             val reQueriedRepo = repoRepository.getById(it.id) ?: return@forEach
 
             specifiedRefreshRepoList.add(reQueriedRepo)
@@ -2628,7 +2699,7 @@ private suspend fun doInit(
         //更新仓库列表
         val newList = mutableListOf<RepoEntity>()
         //保持原始列表的顺序但替换为更新后的仓库（不过如果只调用LibgitHelper.updateRepoInfo()，那么仓库地址可能并没变化，更新要靠后面的clear()和addAll()，若从数据库重查则仓库地址会变化，但不管怎样，只要clear()再addAll()一下，最终结果应该都没问题）
-        repoDtoList.value.toList().forEach { i1->
+        repoDtoList.value.toList().forEachBetter { i1->
             val found = specifiedRefreshRepoList.find { i2-> i2.id == i1.id }
             if(found != null) {
                 newList.add(found)
@@ -2751,6 +2822,18 @@ private fun updateRepoListByIndexOrId(newItem:RepoEntity, idx: Int, list:Mutable
  * 检查仓库是否有未提交修改并在检查完毕且页面没刷新时更新list中的对应条目
  */
 private fun checkGitStatusAndUpdateItemInList(item:RepoEntity, idx:Int, repoList:MutableList<RepoEntity>, loadingText:String, pageChanged:()->Boolean) {
+    val funName = "checkGitStatusAndUpdateItemInList"
+    val repoLock = Libgit2Helper.getRepoLock(item.id)
+
+    //这个检查很快，不会导致阻塞
+    //这里不需要检查lock，因为如果cl页面在执行操作，并不会影响这里的列表更新，虽然操作未完成的话状态有可能是错的，但这里的列表与那里的列表是完全独立的，
+    //所以这里只要确保这个页面没在执行操作就行了，而这个页面执行操作会通过RepoStatusUtil更新状态，所以只检查那个状态就行了
+//    if(runBlocking { isLocked(repoLock) }) {
+    if(RepoStatusUtil.getRepoStatus(item.id)?.isNotBlank() == true) {
+        MyLog.d(TAG, "#$funName: canceled check `git status`, because repo busy now")
+        return
+    }
+
     //用来粗略检查仓库是否已经改变
     val repoListSizeSnapshot = repoList.size
 
@@ -2760,6 +2843,7 @@ private fun checkGitStatusAndUpdateItemInList(item:RepoEntity, idx:Int, repoList
         val newRepo = item.copyAllFields()
 
         //更新临时状态
+        //这的状态直接更新到列表条目不会走 RepoStatusUtil 设置到Cache里，所以如果Cache里有其他状态，必然是其他任务设置的
         newRepo.tmpStatus = loadingText
 
         //列表列表条目
@@ -2774,8 +2858,8 @@ private fun checkGitStatusAndUpdateItemInList(item:RepoEntity, idx:Int, repoList
 
             MyLog.d(TAG, "#checkRepoGitStatus: repoName=${item.repoName}, repoId=${item.id}, needCommit=$needCommit, pageChanged=${pageChanged()}")
 
-            //如果页面没改变（没重新刷新），更新列表
-            if(!pageChanged()) {
+            //如果页面没改变（没重新刷新） 且 仓库没有在执行其他操作（例如 pull），则 更新列表
+            if(pageChanged().not() && RepoStatusUtil.getRepoStatus(item.id).let{ it == null || it.isBlank() }) {
                 val newRepo = item.copyAllFields()
                 //操作已经执行完毕，清空需要执行的操作
                 newRepo.pendingTask = RepoPendingTask.NONE

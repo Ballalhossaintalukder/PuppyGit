@@ -368,7 +368,7 @@
     <string name="import_has_err">导入出错</string>
     <string name="import_success">导入成功</string>
     <string name="import_failed">导入失败</string>
-    <string name="you_can_click_here_copy_err_msg">点此复制错误信息到剪贴板</string>
+    <string name="you_can_click_here_copy_err_msg">点此复制错误信息</string>
     <string name="err_msg">错误信息</string>
     <string name="file_not_found">文件不存在</string>
     <string name="do_you_want_save_before_close_file">关闭文件前你想先保存吗？</string>
@@ -420,7 +420,7 @@
     <string name="file_unmodified_no_diff_for_shown">文件未修改，无差异可显示</string>
     <string name="no_upstream_set_for_local_branch">本地分支未设置上游</string>
     <string name="upstream_not_published">未发布上游</string>
-    <string name="line_selected">已选中行</string>
+    <string name="line_selected">已选择行</string>
     <string name="deleted">已删除</string>
     <string name="delete_lines">删除行</string>
 <!--    ph_a3f241dc_1 is placeholder for selected lines count-->
@@ -702,8 +702,8 @@
     <string name="diff_to_head">比较HEAD</string>
     <string name="cherrypick">精选</string>
     <string name="create_patch">创建补丁</string>
-    <string name="will_checkout_selected_files_are_you_sure">将会检出已选中文件，你确定吗？</string>
-    <string name="will_cherrypick_changes_of_selected_files_are_you_sure">将会精选已选中文件的更改，你确定吗？</string>
+    <string name="will_checkout_selected_files_are_you_sure">将会检出已选择的文件，你确定吗？</string>
+    <string name="will_cherrypick_changes_of_selected_files_are_you_sure">将会精选已选择文件的更改，你确定吗？</string>
     <string name="if_local_has_uncommitted_changes_will_overwrite">如果本地有未提交的更改，将会覆盖</string>
     <string name="cherrypick_continue">继续精选</string>
     <string name="cherrypick_abort">中止精选</string>
@@ -832,11 +832,11 @@
     <string name="compare_left_to_right">比较 \'左\' 到 \'右\'</string>
 
 <!--    the suffix "_str" for avoid conflict with android reserved keyword-->
-    <string name="selected_str">已选中</string>
+    <string name="selected_str">已选择</string>
     <string name="path_under_repo">仓库下路径</string>
     <string name="submodules">子模块</string>
     <string name="cloned">已克隆</string>
-    <string name="not_clone">未克隆</string>
+    <string name="not_cloned">未克隆</string>
     <string name="will_clone_selected_submodules_are_you_sure">将会克隆选中的子模块，你确定吗？</string>
     <string name="re_clone">重新克隆</string>
     <string name="re_clone_submodules_warning_text">将会删除硬盘上的子模块然后重新克隆</string>
@@ -882,7 +882,7 @@
     <string name="reset_to_target">重置到目标</string>
     <string name="resetting">正在重置…</string>
     <string name="done">完成</string>
-    <string name="reload_submodule_note">将会重载已选中子模块。 \n\n注意：通常你不需要执行此操作，除非你确信子模块已改变而当前列表未正确显示。</string>
+    <string name="reload_submodule_note">将会重载已选择的子模块。 \n\n注意：通常你不需要执行此操作，除非你确信子模块已改变而当前列表未正确显示。</string>
     <string name="reloading">重载中…</string>
     <string name="diff_to_upstream">比较上游</string>
     <string name="upstream_oid_is_invalid">上游oid无效</string>
@@ -891,7 +891,7 @@
     <string name="match_credential_by_domain">根据域名匹配凭据</string>
     <string name="domains">域名</string>
     <string name="domain">域名</string>
-    <string name="import_repos_link_credential_note">选中凭据将被关联到仓库的远程仓库，通常是“origin”</string>
+    <string name="import_repos_link_credential_note">选中凭据将被关联到仓库的远程仓库，通常是 \'origin\'</string>
     <string name="desc">详情</string>
     <string name="location">位置</string>
     <string name="check_only">仅检查</string>
@@ -901,7 +901,7 @@
     <string name="show_in_repos">在仓库显示</string>
     <string name="jump">跳转</string>
     <string name="dir_not_imported">目录未导入</string>
-    <string name="go_sub">前往子模块</string>
+    <string name="go_sub">转到子模块</string>
     <string name="no_submodule_selected">无子模块被选中</string>
     <string name="will_try_import_selected_dirs_as_repos">将尝试导入选中目录为仓库</string>
     <string name="donate">捐赠</string>
@@ -1173,12 +1173,12 @@
     <string name="unselected">未选择</string>
     <string name="linked_repos">已关联的仓库</string>
     <string name="unlinked_repos">未关联的仓库</string>
-    <string name="will_auto_pull_push_linked_repos_when_selected_apps_enter_exit">当已选中的应用 进入/退出 时，将会自动 拉取/推送 关联的仓库</string>
+    <string name="will_auto_pull_push_linked_repos_when_selected_apps_enter_exit">当已选择的应用 进入/退出 时，将会自动 拉取/推送 关联的仓库</string>
     <string name="app_info">应用详情</string>
     <string name="intro_go_to_app_info_to_allow_autostart_and_disable_battery_optimization">或许你想前往应用详情页以 \'允许自动启动\' 并 \'禁用电池优化\'</string>
     <string name="set_upstream_err_remote_is_invalid">设置上游出错，远程无效</string>
     <string name="welcome_please_set_git_username_and_email">欢迎！请为git设置用户名和邮箱！否则将无法创建提交！</string>
-    <string name="click_to_switch_selected_unselected_long_click_to_config_linked_repos">点击切换选中，长按已选中App可配置关联仓库</string>
+    <string name="click_to_switch_selected_unselected_long_click_to_config_linked_repos">点击切换选择状态，长按已选择的App可配置关联仓库</string>
     <!-- 故意翻译成剪切而不是剪贴，剪切更普适，无论用在文件还是剪辑都合理 -->
     <string name="cut">剪切</string>
     <string name="if_unable_choose_a_path_just_copy_paste_instead">如果无法选择路径，或许你的系统精简了文件选择器，可以前往\'文件管理器\'复制你希望的路径然后粘贴到这里来替代</string>
@@ -1232,5 +1232,31 @@
     <!-- new at 20250420 -->
     <string name="link_all">关联所有</string>
 
+
+    <!-- new at 20250427 -->
+    <string name="append_a_line">追加一行</string>
+    <string name="restart_app">重启App</string>
+
+
+    <!-- new at 20250501 -->
+    <string name="expand_all">展开全部</string>
+    <string name="collapse_all">收起全部</string>
+    <string name="patch_mode">补丁模式</string>
+
+
+    <!-- new at 20250513 -->
+    <string name="no_commit">无提交</string>
+    <string name="repo_no_commit_note">你的仓库没有提交，请创建一些文件并提交它们。</string>
+
+
+    <!-- new at 20250516 -->
+    <string name="expected_refspec">期望的 Refspec</string>
+    <string name="push_force_with_lease_note">仅当上游最新提交和期望一致时才会执行强制推送</string>
+    <string name="checking">正在检查…</string>
+    <string name="nodes">节点</string>
+    <string name="note_pat_instead_of_password">注意: 如果你启用了2FA，则必须使用个人访问令牌(Personal Access Token)替代密码，且令牌必须拥有读、写仓库内容(Contents)和工作流(Workflows)的权限。</string>
+    <string name="graph">图示</string>
+    <string name="commit_msg_template">提交信息模板</string>
+    <string name="leave_empty_to_use_global_settings">留空以使用全局设置</string>
 
 </resources>

@@ -12,8 +12,14 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -36,11 +42,15 @@ fun FilterTextField(
     loading:Boolean = false,
     placeholderText:String = stringResource(R.string.input_keyword),
     singleLine:Boolean = true,
+    requireFocus: Boolean = true,
     trailingIcon: (@Composable ()->Unit)? = null,
     showClear:Boolean = filterKeyWord.value.text.isNotEmpty(),
     onClear:(()->Unit)? = {filterKeyWord.value = TextFieldValue("")},
     onValueChange:(newValue:TextFieldValue)->Unit = { filterKeyWord.value = it },
 ) {
+    val focusRequester = remember { FocusRequester() }
+    val scope = rememberCoroutineScope()
+
     //若尾部图标不为null，完全采用自定义选项；否则检查是否请求显示clear
     val trailIcon:@Composable (() -> Unit)? = if(trailingIcon != null){
         trailingIcon
@@ -61,7 +71,10 @@ fun FilterTextField(
         modifier = Modifier.fillMaxWidth(),
     ) {
         OutlinedTextField(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .focusRequester(focusRequester)
+            ,
             textStyle = LocalTextStyle.current.copy(fontSize = 16.sp),  //字整小点，不然若高度不占满，可能竖着显示不全字
             value = filterKeyWord.value,
             onValueChange = { onValueChange(it) },
@@ -90,5 +103,17 @@ fun FilterTextField(
                 )
             }
         }
+    }
+
+    if(requireFocus) {
+        // select all of keyword
+        LaunchedEffect(Unit) {
+            filterKeyWord.apply {
+                value = value.copy(text = value.text, selection = TextRange(0, value.text.length))
+            }
+        }
+
+        // focus
+        Focuser(focusRequester, scope)
     }
 }

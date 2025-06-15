@@ -1,5 +1,6 @@
 package com.catpuppyapp.puppygit.fileeditor.texteditor.view
 
+import android.os.Parcelable
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
@@ -23,6 +24,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.selection.LocalTextSelectionColors
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
@@ -30,7 +32,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableIntState
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -38,18 +39,26 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.isCtrlPressed
+import androidx.compose.ui.input.key.isShiftPressed
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalTextInputService
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import com.catpuppyapp.puppygit.compose.AcceptButtons
 import com.catpuppyapp.puppygit.compose.ClickableText
@@ -63,6 +72,7 @@ import com.catpuppyapp.puppygit.dto.UndoStack
 import com.catpuppyapp.puppygit.fileeditor.texteditor.state.FindDirection
 import com.catpuppyapp.puppygit.fileeditor.texteditor.state.SelectionOption
 import com.catpuppyapp.puppygit.fileeditor.texteditor.state.TextEditorState
+import com.catpuppyapp.puppygit.fileeditor.texteditor.state.TextFieldState
 import com.catpuppyapp.puppygit.play.pro.R
 import com.catpuppyapp.puppygit.screen.shared.FilePath
 import com.catpuppyapp.puppygit.settings.AppSettings
@@ -70,44 +80,51 @@ import com.catpuppyapp.puppygit.settings.FileEditedPos
 import com.catpuppyapp.puppygit.settings.SettingsUtil
 import com.catpuppyapp.puppygit.style.MyStyleKt
 import com.catpuppyapp.puppygit.ui.theme.Theme
-import com.catpuppyapp.puppygit.utils.EditCache
+import com.catpuppyapp.puppygit.utils.AppModel
 import com.catpuppyapp.puppygit.utils.Msg
 import com.catpuppyapp.puppygit.utils.MyLog
+import com.catpuppyapp.puppygit.utils.PatchUtil
 import com.catpuppyapp.puppygit.utils.UIHelper
+import com.catpuppyapp.puppygit.utils.cache.Cache
 import com.catpuppyapp.puppygit.utils.doJobThenOffLoading
 import com.catpuppyapp.puppygit.utils.fileopenhistory.FileOpenHistoryMan
+import com.catpuppyapp.puppygit.utils.forEachIndexedBetter
 import com.catpuppyapp.puppygit.utils.replaceStringResList
+import com.catpuppyapp.puppygit.utils.state.CustomBoxSaveable
 import com.catpuppyapp.puppygit.utils.state.CustomStateSaveable
 import com.catpuppyapp.puppygit.utils.state.mutableCustomStateOf
+import kotlinx.parcelize.Parcelize
 
 private const val TAG ="TextEditor"
-private const val stateKeyTag ="TextEditor"
 
+@Parcelize
 class ExpectConflictStrDto(
-    var settings: AppSettings = SettingsUtil.getSettingsSnapshot()
-) {
-    var curConflictStr: String = settings.editor.conflictStartStr
-    var curConflictStrMatched: Boolean = false
+    var conflictStartStr: String = "",
+    var conflictSplitStr: String = "",
+    var conflictEndStr: String = "",
 
+    var curConflictStr: String = conflictStartStr,
+    var curConflictStrMatched: Boolean = false,
+):Parcelable {
     fun reset() {
-        curConflictStr = settings.editor.conflictStartStr
+        curConflictStr = conflictStartStr
         curConflictStrMatched = false
     }
 
     fun getNextExpectConflictStr():String{
-        return if(curConflictStr == settings.editor.conflictStartStr) {
-            settings.editor.conflictSplitStr
-        }else if(curConflictStr == settings.editor.conflictSplitStr) {
-            settings.editor.conflictEndStr
+        return if(curConflictStr == conflictStartStr) {
+            conflictSplitStr
+        }else if(curConflictStr == conflictSplitStr) {
+            conflictEndStr
         }else { // curStr == settings.editor.conflictEndStr
-            settings.editor.conflictStartStr
+            conflictStartStr
         }
     }
 
     fun getCurAndNextExpect():Pair<Int,Int> {
-        val curExpect = if(curConflictStr.startsWith(settings.editor.conflictStartStr)){
+        val curExpect = if(curConflictStr.startsWith(conflictStartStr)){
             0
-        }else if(curConflictStr.startsWith(settings.editor.conflictSplitStr)) {
+        }else if(curConflictStr.startsWith(conflictSplitStr)) {
             1
         }else {
             2
@@ -121,7 +138,11 @@ class ExpectConflictStrDto(
 
 typealias DecorationBoxComposable = @Composable (
     index: Int,
+    size: Int,  // list.size
     isSelected: Boolean,
+    currentField: TextFieldState,
+    focusingIdx:Int,
+    isMultiSelectionMode: Boolean,
     innerTextField: @Composable (modifier: Modifier) -> Unit
 ) -> Unit
 
@@ -138,6 +159,14 @@ private val customTextSelectionColors_hideCursorHandle = MyStyleKt.TextSelection
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun TextEditor(
+    stateKeyTag:String,
+
+
+    updateLastCursorAtColumn:(Int)->Unit,
+    getLastCursorAtColumnValue:()->Int,
+
+
+    ignoreFocusOnce: CustomBoxSaveable<Boolean>,
     undoStack:UndoStack,
     curPreviewScrollState: ScrollState,
     requireEditorScrollToPreviewCurPos:MutableState<Boolean>,
@@ -156,14 +185,17 @@ fun TextEditor(
     readOnlyMode:Boolean,
     searchMode:MutableState<Boolean>,
     mergeMode:Boolean,
+    patchMode:Boolean,
     searchKeyword:String,
     fontSize: MutableIntState,
+    fontColor: Color,
 
-    decorationBox: DecorationBoxComposable = { _, _, innerTextField -> innerTextField(Modifier) },
+    decorationBox: DecorationBoxComposable = { _, _, _, _, _,_, innerTextField -> innerTextField(Modifier) },
 ) {
+    val stateKeyTag = Cache.getComponentKey(stateKeyTag, TAG)
 
     val density = LocalDensity.current
-    val deviceConfiguration = LocalConfiguration.current
+    val deviceConfiguration = AppModel.getCurActivityConfig()
 
     val conflictOursBlockBgColor = UIHelper.getConflictOursBlockBgColor()
     val conflictTheirsBlockBgColor = UIHelper.getConflictTheirsBlockBgColor()
@@ -184,11 +216,11 @@ fun TextEditor(
 //    val textEditorState by rememberUpdatedState(newValue = textEditorState)
     val (virtualWidth, virtualHeight) = UIHelper.Size.editorVirtualSpace()
 
-    val focusRequesters = remember { mutableStateMapOf<Int, FocusRequester>() }
+//    val focusRequesters = remember { mutableStateMapOf<Int, FocusRequester>() }
 //    val focusRequesters = remember { mutableStateListOf<FocusRequester>() }  //不能用list，滚动两下页面就会报错
 
     val settings = remember { SettingsUtil.getSettingsSnapshot() }
-    val conflictKeyword = remember { mutableStateOf(settings.editor.conflictStartStr) }
+    val conflictKeyword = remember(settings.editor.conflictStartStr) { mutableStateOf(settings.editor.conflictStartStr) }
 
 
 
@@ -197,7 +229,7 @@ fun TextEditor(
 //    var lastFirstVisibleLineIndexState  by remember { mutableIntStateOf(lastEditedPos.firstVisibleLineIndex) }
 
     val showGoToLineDialog  = rememberSaveable { mutableStateOf(false) }
-    val goToLineValue  = rememberSaveable { mutableStateOf("") }
+    val goToLineValue  = mutableCustomStateOf(stateKeyTag, "goToLineValue") { TextFieldValue("") }
     val lastVisibleLineState  = rememberSaveable { mutableStateOf(0) }
 
     //是否显示光标拖手(cursor handle
@@ -211,20 +243,20 @@ fun TextEditor(
     //没找到合适的方法手动启用，因此默认启用，暂时没更改的场景
     val allowKeyboard = rememberSaveable { mutableStateOf(true) }
 
-    val expectConflictStrDto = mutableCustomStateOf(stateKeyTag, "expectConflict", ExpectConflictStrDto(settings=settings))
+    val expectConflictStrDto = rememberSaveable(settings.editor.conflictStartStr, settings.editor.conflictSplitStr, settings.editor.conflictEndStr) {
+        mutableStateOf(
+            ExpectConflictStrDto(
+                conflictStartStr = settings.editor.conflictStartStr,
+                conflictSplitStr = settings.editor.conflictSplitStr,
+                conflictEndStr = settings.editor.conflictEndStr
+            )
+        )
+    }
 
 
-    val nextSearchPos = mutableCustomStateOf(
-        keyTag = stateKeyTag,
-        keyName = "nextSearchPos",
-        initValue = SearchPos.NotFound
-    )
+    val nextSearchPos = rememberSaveable { mutableStateOf(SearchPos.NotFound) }
 
-    val lastFoundPos = mutableCustomStateOf(
-        keyTag = stateKeyTag,
-        keyName = "lastFoundPos",
-        initValue = SearchPos.NotFound
-    )
+    val lastFoundPos = rememberSaveable { mutableStateOf(SearchPos.NotFound) }
 
     val initSearchPos = {
         //把起始搜索位置设置为当前第一个可见行的第一列
@@ -373,6 +405,7 @@ fun TextEditor(
     }
     if(requestFromParent.value==PageRequest.goToLine) {
         PageRequest.clearStateThenDoAct(requestFromParent) {
+            goToLineValue.value = goToLineValue.value.let { it.copy(selection = TextRange(0, it.text.length)) }
             showGoToLineDialog.value=true
         }
     }
@@ -536,6 +569,8 @@ fun TextEditor(
     }
 
     if(showGoToLineDialog.value) {
+        val focusRequester = remember { FocusRequester() }
+
         val firstLine = "1"
         val lastLine = ""+textEditorState.fields.size
         val lineNumRange = "$firstLine-$lastLine"
@@ -549,15 +584,16 @@ fun TextEditor(
                     ,
                 ) {
 
-                    androidx.compose.material3.TextField(
+                    TextField(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(10.dp)
+                            .focusRequester(focusRequester)
                         ,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Go),
                         keyboardActions = KeyboardActions(onGo = {
                             showGoToLineDialog.value = false
-                            doGoToLine(goToLineValue.value)
+                            doGoToLine(goToLineValue.value.text)
                         }),
                         singleLine = true,
 
@@ -585,7 +621,7 @@ fun TextEditor(
                         ClickableText(
                             text = stringResource(R.string.first_line),
                             modifier = MyStyleKt.ClickableText.modifier.clickable {
-                                goToLineValue.value = firstLine
+                                goToLineValue.value = TextFieldValue(firstLine)
                             },
                             fontWeight = FontWeight.Light
                         )
@@ -595,7 +631,7 @@ fun TextEditor(
                         ClickableText(
                             text = stringResource(R.string.last_line),
                             modifier = MyStyleKt.ClickableText.modifier.clickable {
-                                goToLineValue.value = lastLine
+                                goToLineValue.value = TextFieldValue(lastLine)
                             },
                             fontWeight = FontWeight.Light
                         )
@@ -607,14 +643,16 @@ fun TextEditor(
 
 
             },
-            okBtnEnabled = goToLineValue.value.isNotBlank(),
+            okBtnEnabled = goToLineValue.value.text.isNotBlank(),
             okBtnText = stringResource(id = R.string.go),
             cancelBtnText = stringResource(id = R.string.cancel),
             onCancel = { showGoToLineDialog.value = false }
         ) {
             showGoToLineDialog.value = false
-            doGoToLine(goToLineValue.value)
+            doGoToLine(goToLineValue.value.text)
         }
+
+        LaunchedEffect(Unit) { runCatching { focusRequester.requestFocus() } }
     }
 
 //    val scrollTo = { lineIndex:Int ->
@@ -844,7 +882,13 @@ fun TextEditor(
                 UIHelper.scrollToItem(
                     coroutineScope = scope,
                     listState = listState,
-                    index = if(useLastEditPos) lastEditedPos.firstVisibleLineIndex else if(goToLine==LineNum.EOF.LINE_NUM) textEditorState.fields.size-1 else goToLine-1
+                    index = if(useLastEditPos) {
+                        lastEditedPos.firstVisibleLineIndex
+                    } else if(goToLine == LineNum.EOF.LINE_NUM) {
+                        textEditorState.fields.size - 1
+                    } else {
+                        goToLine - 1
+                    }
                 )
 
                 //如果定位到上次退出位置，进一步检查是否需要定位到最后编辑列
@@ -998,306 +1042,345 @@ fun TextEditor(
         LocalTextInputService provides (if(allowKeyboard.value && !readOnlyMode) LocalTextInputService.current else null),  //为null可阻止弹出键盘
         LocalTextSelectionColors provides (if(!needShowCursorHandle.value) customTextSelectionColors_hideCursorHandle else if(inDarkTheme) customTextSelectionColors_darkMode else customTextSelectionColors),
     ) {
-        if(textEditorState.fields.isEmpty()) {
-            Column(modifier = Modifier
-                .fillMaxSize()
-                .padding(contentPaddingValues)
-                .verticalScroll(rememberScrollState())
-                ,
-            ) {
-                // noop
-            }
-        }else{
-            expectConflictStrDto.value.reset()
 
-            LazyColumn(
-                state = listState,
-                //fillMaxSize是为了点哪都能触发滚动，这样点哪都能隐藏顶栏
-                modifier = modifier.fillMaxSize(),
-                contentPadding = contentPaddingValues
-            ) {
-                //fields本身就是toList()出来的，无需再toList()
-                textEditorState.fields.forEachIndexed{ index, textFieldState ->
-                    val curLineText = textFieldState.value.text
+        expectConflictStrDto.value.reset()
 
-                    val bgColor = if(mergeMode) {
-                        UIHelper.getBackgroundColorForMergeConflictSplitText(
-                            text = curLineText,
-                            settings = settings,
-                            expectConflictStrDto = expectConflictStrDto.value,
-                            oursBgColor = conflictOursBlockBgColor,
-                            theirsBgColor = conflictTheirsBlockBgColor,
-                            startLineBgColor= conflictStartLineBgColor,
-                            splitLineBgColor= conflictSplitLineBgColor,
-                            endLineBgColor= conflictEndLineBgColor
-                        )
-                    } else {
-                        Color.Unspecified
-                    }
+        LazyColumn(
+            state = listState,
+            //fillMaxSize是为了点哪都能触发滚动，这样点哪都能隐藏顶栏
+            modifier = modifier.fillMaxSize(),
+            contentPadding = contentPaddingValues
+        ) {
+            val size = textEditorState.fields.size
 
+            //fields本身就是toList()出来的，无需再toList()
+            textEditorState.fields.forEachIndexedBetter { index, textFieldState ->
+                val curLineText = textFieldState.value.text
 
-                    if(mergeMode && curLineText.startsWith(settings.editor.conflictStartStr)) {
-                        item {
-                            AcceptButtons(
-                                lineIndex = index,
-                                lineText = curLineText,
-                                acceptOursColor = acceptOursBtnColor,
-                                acceptTheirsColor = acceptTheirsBtnColor,
-                                acceptBothColor = acceptBothBtnColor,
-                                rejectBothColor = rejectBothBtnColor,
-                                prepareAcceptBlock = prepareAcceptBlock,
-                            )
-                        }
-                    }
-
-                    //很多时候改了内容，但没改id，懒得一个个改了，直接弃用id作key，让compose自己判断什么时候需要重组，有问题再说
-//                    item(key = textFieldState.id) {
-                    item {
-                        val focusRequester = remember { FocusRequester() }
-
-                        DisposableEffect(Unit) {
-                            focusRequesters[index] = focusRequester
-                            onDispose LazyColumnItemOnDispose@{
-                                try {
-                                    focusRequesters.remove(index)
-
-                                }catch (e:Exception) {
-                                    MyLog.e(TAG, "#LazyColumnItemOnDispose@: `focusRequesters.remove(index)` err: "+e.stackTraceToString())
-                                }
-                            }
-                        }
-
-                        decorationBox(
-                            index,
-                            textFieldState.isSelected
-                        ) { modifier ->
-                            // FileEditor里的innerTextFiled()会执行这的代码
-                            Box(
-                                modifier = modifier
-                                    .background(bgColor)
-                                    .combinedClickable(
-                                        //不显示点击效果（闪烁动画）
-                                        interactionSource = remember { MutableInteractionSource() },
-                                        indication = null,
-
-                                        onLongClick = clickable@{
-                                            if (!textEditorState.isMultipleSelectionMode) return@clickable
-
-                                            //(20250325新版compose似乎不会同时触发选择文本和当前行了，所以不会震两下了) 震动反馈，和长按选择文本的震动反馈冲突了，若开会振两下
-                                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-
-                                            //执行区域选择
-                                            doJobThenOffLoading {
-                                                textEditorState.selectFieldSpan(index)
-                                            }
-                                        }
-                                    ) clickable@{
-                                        if (!textEditorState.isMultipleSelectionMode) return@clickable
-
-                                        doJobThenOffLoading {
-                                            textEditorState.selectField(targetIndex = index)
-
-                                        }
-                                    }
-                            ) {
-                                TextField(
-                                    //搜索模式已经没必要聚焦了，因为不需要光标定位行了，直接高亮关键字了，而且搜索模式会把focusingLineIdx设为null以避免聚焦行弹出键盘误判内容已改变从而触发重组导致高亮关键字功能失效
-//                                    focusThisLine = if(textEditorState.isContentEdited.value) index == textEditorState.focusingLineIdx else false,
-                                    //仅当搜索模式，或者内容发生变化（比如换行）时光标才会自动聚焦，否则不聚焦，这样是为了避免切换页面再回来自动弹出键盘
-//                                    focusThisLine = if(searchMode.value || textEditorState.isContentEdited.value) index == textEditorState.focusingLineIdx else false,
-                                    focusThisLine = index == textEditorState.focusingLineIdx,
-                                    //默认不自动聚焦任何行，不然一切换页面再回来弹出键盘，恶心
-//                                    focusThisLine = false,
-
-                                    mergeMode=mergeMode,
-                                    searchMode = searchMode.value,
-                                    lastEditedColumnIndexState=lastEditedColumnIndexState,
-                                    needShowCursorHandle = needShowCursorHandle,
-                                    textFieldState = textFieldState,
-                                    enabled = !textEditorState.isMultipleSelectionMode && !readOnlyMode,
-                                    focusRequester = focusRequester,
-                                    fontSize = fontSize,
-//                                    bgColor = bgColor,
-                                    bgColor = Color.Unspecified,
-                                    onUpdateText = { newText ->
-
-                                        doJobThenOffLoading {
-                                            try{
-
-                                                    textEditorState.updateField(
-                                                        targetIndex = index,
-                                                        textFieldValue = newText
-                                                    )
-
-                                            }catch (e:IndexOutOfBoundsException) {
-                                                // Undo/Redo后可能 出现 索引错误，没必要显示给用户，只记下日志就行
-                                                MyLog.e(TAG, "#onUpdateText err: "+e.localizedMessage)
-                                            }catch (e:Exception) {
-                                                // 其他错误，显示给用户
-                                                Msg.requireShowLongDuration("#onUpdateText err: "+e.localizedMessage)
-
-                                                //log
-                                                MyLog.e(TAG, "#onUpdateText err: "+e.stackTraceToString())
-                                            }
-                                        }
-
-                                            //改用onFocus定位最后编辑行了，这里不需要了，实际上现在的最后编辑行就是光标最后所在行
-//                                            lastScrollEvent = ScrollEvent(index)
-                                    },
-                                    onContainNewLine = cb@{ newText ->
-                                        //这里为什么要判断这个东西？无所谓，反正没毛病，不用改
-                                        if (lastScrollEvent.value?.isConsumed == false) return@cb
-
-                                        doJobThenOffLoading {
-                                            try {
-                                                textEditorState.splitNewLine(
-                                                    targetIndex = index,
-                                                    textFieldValue = newText
-                                                )
-
-                                                lastScrollEvent.value = ScrollEvent(index + 1)
-                                            }catch (e:Exception) {
-                                                Msg.requireShowLongDuration("#onContainNewLine err: "+e.localizedMessage)
-
-                                                MyLog.e(TAG, "#onContainNewLine err: "+e.stackTraceToString())
-                                            }
-                                        }
-
-                                    },
-                                    onAddNewLine = cb@{ newText ->
-
-                                        if (lastScrollEvent.value?.isConsumed == false) return@cb
-
-                                        doJobThenOffLoading {
-                                            try {
-                                                textEditorState.splitAtCursor(
-                                                    targetIndex = index,
-                                                    textFieldValue = newText
-                                                )
-
-                                                lastScrollEvent.value = ScrollEvent(index + 1)
-                                            }catch (e:Exception) {
-                                                Msg.requireShowLongDuration("#onAddNewLine err: "+e.localizedMessage)
-                                                MyLog.e(TAG, "#onAddNewLine err: "+e.stackTraceToString())
-                                            }
-                                        }
-
-                                    },
-                                    onDeleteNewLine = cb@{
-                                        //这是要确保上一个滚动事件已被消费？有必要吗？
-                                        if (lastScrollEvent.value?.isConsumed == false) return@cb
-
-                                        doJobThenOffLoading {
-                                            try {
-                                                textEditorState.deleteNewLine(targetIndex = index)
-                                                if (index != 0) lastScrollEvent.value = ScrollEvent(index - 1)
-                                            }catch (e:Exception) {
-                                                Msg.requireShowLongDuration("#onDeleteNewLine err: "+e.localizedMessage)
-                                                MyLog.e(TAG, "#onDeleteNewLine err: "+e.stackTraceToString())
-                                            }
-                                        }
-
-                                    },
-                                    onFocus = {
-                                        doJobThenOffLoading {
-                                            try {
-                                                textEditorState.selectField(index)
-
-                                                //更新最后聚焦行(最后编辑行)
-                                                lastScrollEvent.value = ScrollEvent(index)
-                                            }catch (e:Exception) {
-                                                Msg.requireShowLongDuration("#onFocus err: "+e.localizedMessage)
-                                                MyLog.e(TAG, "#onFocus err: "+e.stackTraceToString())
-                                            }
-                                        }
-
-                                    },
-                                    onUpFocus = cb@{
-                                        if (lastScrollEvent.value?.isConsumed == false) return@cb
-
-                                        doJobThenOffLoading {
-                                            try {
-                                                textEditorState.selectPreviousField()
-                                                if (index != 0) lastScrollEvent.value = ScrollEvent(index - 1)
-                                            }catch (e:Exception) {
-                                                Msg.requireShowLongDuration("#onUpFocus err: "+e.localizedMessage)
-                                                MyLog.e(TAG, "#onUpFocus err: "+e.stackTraceToString())
-                                            }
-                                        }
-
-                                    },
-                                    onDownFocus = cb@{
-                                        if (lastScrollEvent.value?.isConsumed == false) return@cb
-                                        doJobThenOffLoading {
-                                            try {
-                                                textEditorState.selectNextField()
-                                                if (index != textEditorState.fields.lastIndex) lastScrollEvent.value = ScrollEvent(index + 1)
-                                            }catch (e:Exception) {
-                                                Msg.requireShowLongDuration("#onDownFocus err: "+e.localizedMessage)
-                                                MyLog.e(TAG, "#onDownFocus err: "+e.stackTraceToString())
-                                            }
-                                        }
-
-                                    },
-                                )
-                            }
-                        }
-                    }
-
-                    if(mergeMode && curLineText.startsWith(settings.editor.conflictEndStr)) {
-                        item {
-                            AcceptButtons(
-                                lineIndex = index,
-                                lineText = curLineText,
-                                acceptOursColor = acceptOursBtnColor,
-                                acceptTheirsColor = acceptTheirsBtnColor,
-                                acceptBothColor = acceptBothBtnColor,
-                                rejectBothColor = rejectBothBtnColor,
-                                prepareAcceptBlock = prepareAcceptBlock,
-                            )
-                        }
-                    }
-
+                // patch开头的行（+ -）和merge开头的行（7个=号）并不冲突
+                val patchColor = if(patchMode) PatchUtil.getColorOfLine(curLineText, inDarkTheme) else null;
+                val bgColor = if(patchMode && patchColor != null) {
+                    patchColor
+                } else if(mergeMode) {
+                    UIHelper.getBackgroundColorForMergeConflictSplitText(
+                        text = curLineText,
+                        settings = settings,
+                        expectConflictStrDto = expectConflictStrDto.value,
+                        oursBgColor = conflictOursBlockBgColor,
+                        theirsBgColor = conflictTheirsBlockBgColor,
+                        startLineBgColor= conflictStartLineBgColor,
+                        splitLineBgColor= conflictSplitLineBgColor,
+                        endLineBgColor= conflictEndLineBgColor
+                    )
+                } else {
+                    Color.Unspecified
                 }
 
+
+                if(mergeMode && curLineText.startsWith(settings.editor.conflictStartStr)) {
+                    item {
+                        AcceptButtons(
+                            lineIndex = index,
+                            lineText = curLineText,
+                            acceptOursColor = acceptOursBtnColor,
+                            acceptTheirsColor = acceptTheirsBtnColor,
+                            acceptBothColor = acceptBothBtnColor,
+                            rejectBothColor = rejectBothBtnColor,
+                            prepareAcceptBlock = prepareAcceptBlock,
+                        )
+                    }
+                }
+
+                //很多时候改了内容，但没改id，懒得一个个改了，直接弃用id作key，让compose自己判断什么时候需要重组，有问题再说
+//                    item(key = textFieldState.id) {
                 item {
-                    Spacer(modifier = Modifier
-                        .width(virtualWidth)
-                        //设高度为屏幕高度-50dp，基本上能滚动到顶部，但会留出最后一行多一些的空间
-                        .height(virtualHeight)
-                        .clickable(
-                            //隐藏点击效果（就是一点屏幕明暗变化一下那个效果）
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null
+                    decorationBox(
+                        index,
+                        size,
+                        textFieldState.isSelected,
+                        textFieldState,
+
+                        //用来判断是否选中当前行，若选中则加背景颜色，如果为null就当作-1，-1为无效索引，这样就不会选中任何行
+                        textEditorState.focusingLineIdx ?: -1,
+                        textEditorState.isMultipleSelectionMode,
+
+                    ) { modifier ->
+                        // FileEditor里的innerTextFiled()会执行这的代码
+                        Box(
+                            modifier = Modifier
+                                .background(bgColor)
+                                .combinedClickable(
+                                    //不显示点击效果（闪烁动画）
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = null,
+
+                                    onLongClick = clickable@{
+                                        if (!textEditorState.isMultipleSelectionMode) return@clickable
+
+                                        //(20250325新版compose似乎不会同时触发选择文本和当前行了，所以不会震两下了) 震动反馈，和长按选择文本的震动反馈冲突了，若开会振两下
+//                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+
+                                        //执行区域选择
+                                        doJobThenOffLoading {
+                                            textEditorState.selectFieldSpan(index)
+                                        }
+                                    }
+                                ) clickable@{
+                                    if (!textEditorState.isMultipleSelectionMode) return@clickable
+
+                                    doJobThenOffLoading {
+                                        textEditorState.selectField(targetIndex = index)
+
+                                    }
+                                }
+
+                                // redo and undo shortcuts supports as default by BasicTextField,
+                                //  so here must use `onPreviewKeyEvent` rather than `onKeyEvent` to intercept the key events
+                                // see: https://developer.android.com/develop/ui/compose/touch-input/keyboard-input/commands
+                                .onPreviewKeyEvent opke@{ keyEvent ->
+                                    // return true to stop key event propaganda
+                                    if(keyEvent.type != KeyEventType.KeyDown) {
+                                        return@opke false
+                                    }
+
+                                    if (keyEvent.isCtrlPressed && keyEvent.key == Key.S) { // save
+                                        requestFromParent.value = PageRequest.requireSave
+                                        return@opke true
+                                    }
+
+                                    if (keyEvent.isCtrlPressed && keyEvent.key == Key.W) { // close
+                                        requestFromParent.value = PageRequest.requireClose
+                                        return@opke true
+                                    }
+
+                                    // `ctrl+shift+z` must before `ctrl+z` , else the `ctrl+z` will intercept the key event, so never reached `ctrl+shift+z`
+                                    if ((keyEvent.isCtrlPressed && keyEvent.key == Key.Y)
+                                        || (keyEvent.isCtrlPressed && keyEvent.isShiftPressed && keyEvent.key == Key.Z)
+                                    ) { // redo
+                                        requestFromParent.value = PageRequest.requestRedo
+                                        return@opke true
+                                    }
+
+                                    if (keyEvent.isCtrlPressed && keyEvent.key == Key.Z) { // undo
+                                        requestFromParent.value = PageRequest.requestUndo
+                                        return@opke true
+                                    }
+
+                                    if (keyEvent.isCtrlPressed && keyEvent.key == Key.F) { // search
+                                        requestFromParent.value = PageRequest.requireSearch  //发请求，由TextEditor组件开启搜索模式
+                                        return@opke true
+                                    }
+
+                                    return@opke false
+                                }
+                                .then(modifier)
                         ) {
-                            //非选择模式，点空白区域，聚焦最后一行
-                            if(textEditorState.isMultipleSelectionMode.not()) {
-                                doJobThenOffLoading {
-                                    //点击空白区域定位到最后一行最后一个字符后面
-                                    //第1个参数是行索引；第2个参数是当前行的哪个位置
-                                    textEditorState.selectField(
-                                        textEditorState.fields.lastIndex,
-                                        SelectionOption.LAST_POSITION
-                                    )
+                            MyTextField(
+                                ignoreFocusOnce = ignoreFocusOnce,
+                                //搜索模式已经没必要聚焦了，因为不需要光标定位行了，直接高亮关键字了，而且搜索模式会把focusingLineIdx设为null以避免聚焦行弹出键盘误判内容已改变从而触发重组导致高亮关键字功能失效
+//                                    focusThisLine = if(textEditorState.isContentEdited.value) index == textEditorState.focusingLineIdx else false,
+                                //仅当搜索模式，或者内容发生变化（比如换行）时光标才会自动聚焦，否则不聚焦，这样是为了避免切换页面再回来自动弹出键盘
+//                                    focusThisLine = if(searchMode.value || textEditorState.isContentEdited.value) index == textEditorState.focusingLineIdx else false,
+                                focusThisLine = index == textEditorState.focusingLineIdx,
+                                //默认不自动聚焦任何行，不然一切换页面再回来弹出键盘，恶心
+//                                    focusThisLine = false,
+
+                                mergeMode=mergeMode,
+                                searchMode = searchMode.value,
+                                lastEditedColumnIndexState=lastEditedColumnIndexState,
+                                needShowCursorHandle = needShowCursorHandle,
+                                textFieldState = textFieldState,
+                                enabled = !textEditorState.isMultipleSelectionMode && !readOnlyMode,
+                                fontSize = fontSize.intValue,
+                                fontColor = fontColor,
+//                                    bgColor = bgColor,
+//                                    bgColor = Color.Unspecified,
+                                onUpdateText = { newText ->
+
+                                    doJobThenOffLoading {
+                                        try{
+
+                                            textEditorState.updateField(
+                                                targetIndex = index,
+                                                textFieldValue = newText
+                                            )
+
+                                        }catch (e:IndexOutOfBoundsException) {
+                                            // Undo/Redo后可能 出现 索引错误，没必要显示给用户，只记下日志就行
+                                            MyLog.e(TAG, "#onUpdateText err: "+e.localizedMessage)
+                                        }catch (e:Exception) {
+                                            // 其他错误，显示给用户
+                                            Msg.requireShowLongDuration("#onUpdateText err: "+e.localizedMessage)
+
+                                            //log
+                                            MyLog.e(TAG, "#onUpdateText err: "+e.stackTraceToString())
+                                        }
+                                    }
+
+                                    //改用onFocus定位最后编辑行了，这里不需要了，实际上现在的最后编辑行就是光标最后所在行
+//                                            lastScrollEvent = ScrollEvent(index)
+                                },
+                                onContainNewLine = cb@{ newText ->
+                                    //这里为什么要判断这个东西？无所谓，反正没毛病，不用改
+                                    if (lastScrollEvent.value?.isConsumed == false) return@cb
+
+                                    doJobThenOffLoading {
+                                        try {
+                                            textEditorState.splitNewLine(
+                                                targetIndex = index,
+                                                textFieldValue = newText
+                                            )
+
+                                            lastScrollEvent.value = ScrollEvent(index + 1)
+                                        }catch (e:Exception) {
+                                            Msg.requireShowLongDuration("#onContainNewLine err: "+e.localizedMessage)
+
+                                            MyLog.e(TAG, "#onContainNewLine err: "+e.stackTraceToString())
+                                        }
+                                    }
+
+                                },
+                                onAddNewLine = cb@{ newText ->
+
+                                    if (lastScrollEvent.value?.isConsumed == false) return@cb
+
+                                    doJobThenOffLoading {
+                                        try {
+                                            textEditorState.splitNewLine(
+                                                targetIndex = index,
+                                                textFieldValue = newText
+                                            )
+
+                                            lastScrollEvent.value = ScrollEvent(index + 1)
+                                        }catch (e:Exception) {
+                                            Msg.requireShowLongDuration("#onAddNewLine err: "+e.localizedMessage)
+                                            MyLog.e(TAG, "#onAddNewLine err: "+e.stackTraceToString())
+                                        }
+                                    }
+
+                                },
+                                onDeleteNewLine = cb@{
+                                    //这是要确保上一个滚动事件已被消费？有必要吗？
+                                    if (lastScrollEvent.value?.isConsumed == false) return@cb
+
+                                    doJobThenOffLoading {
+                                        try {
+                                            textEditorState.deleteNewLine(targetIndex = index)
+                                            if (index != 0) lastScrollEvent.value = ScrollEvent(index - 1)
+                                        }catch (e:Exception) {
+                                            Msg.requireShowLongDuration("#onDeleteNewLine err: "+e.localizedMessage)
+                                            MyLog.e(TAG, "#onDeleteNewLine err: "+e.stackTraceToString())
+                                        }
+                                    }
+
+                                },
+                                onFocus = {
+                                    doJobThenOffLoading {
+                                        try {
+                                            textEditorState.selectField(index)
+
+                                            //更新最后聚焦行(最后编辑行)
+                                            lastScrollEvent.value = ScrollEvent(index)
+                                        }catch (e:Exception) {
+                                            Msg.requireShowLongDuration("#onFocus err: "+e.localizedMessage)
+                                            MyLog.e(TAG, "#onFocus err: "+e.stackTraceToString())
+                                        }
+                                    }
+
+                                },
+                                onUpFocus = cb@{
+                                    if (lastScrollEvent.value?.isConsumed == false) return@cb
+
+                                    doJobThenOffLoading {
+                                        try {
+                                            textEditorState.selectPrevOrNextField(
+                                                isNext = false,
+                                                updateLastCursorAtColumn,
+                                                getLastCursorAtColumnValue,
+                                            )
+                                            if (index != 0) lastScrollEvent.value = ScrollEvent(index - 1)
+                                        }catch (e:Exception) {
+                                            Msg.requireShowLongDuration("#onUpFocus err: "+e.localizedMessage)
+                                            MyLog.e(TAG, "#onUpFocus err: "+e.stackTraceToString())
+                                        }
+                                    }
+
+                                },
+                                onDownFocus = cb@{
+                                    if (lastScrollEvent.value?.isConsumed == false) return@cb
+                                    doJobThenOffLoading {
+                                        try {
+                                            textEditorState.selectPrevOrNextField(
+                                                isNext = true,
+                                                updateLastCursorAtColumn,
+                                                getLastCursorAtColumnValue,
+                                            )
+                                            if (index != textEditorState.fields.lastIndex) lastScrollEvent.value = ScrollEvent(index + 1)
+                                        }catch (e:Exception) {
+                                            Msg.requireShowLongDuration("#onDownFocus err: "+e.localizedMessage)
+                                            MyLog.e(TAG, "#onDownFocus err: "+e.stackTraceToString())
+                                        }
+                                    }
+
+                                },
+                            )
+                        }
+                    }
+                }
+
+                if(mergeMode && curLineText.startsWith(settings.editor.conflictEndStr)) {
+                    item {
+                        AcceptButtons(
+                            lineIndex = index,
+                            lineText = curLineText,
+                            acceptOursColor = acceptOursBtnColor,
+                            acceptTheirsColor = acceptTheirsBtnColor,
+                            acceptBothColor = acceptBothBtnColor,
+                            rejectBothColor = rejectBothBtnColor,
+                            prepareAcceptBlock = prepareAcceptBlock,
+                        )
+                    }
+                }
+
+            }
+
+            item {
+                Spacer(modifier = Modifier
+                    .width(virtualWidth)
+                    //设高度为屏幕高度-50dp，基本上能滚动到顶部，但会留出最后一行多一些的空间
+                    .height(virtualHeight)
+                    .clickable(
+                        //隐藏点击效果（就是一点屏幕明暗变化一下那个效果）
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null
+                    ) {
+                        //非选择模式，点空白区域，聚焦最后一行
+                        if(textEditorState.isMultipleSelectionMode.not()) {
+                            doJobThenOffLoading {
+                                //点击空白区域定位到最后一行最后一个字符后面
+                                //第1个参数是行索引；第2个参数是当前行的哪个位置
+                                textEditorState.selectField(
+                                    textEditorState.fields.lastIndex,
+                                    SelectionOption.LAST_POSITION
+                                )
 
 
-                                    //确保弹出键盘，不加的话“点击空白区域，关闭键盘，再点击空白区域”就不弹出键盘了
-                                    //显示键盘，不在主线程运行也可以
-                                    keyboardController?.show()
+                                //确保弹出键盘，不加的话“点击空白区域，关闭键盘，再点击空白区域”就不弹出键盘了
+                                //显示键盘，不在主线程运行也可以
+                                keyboardController?.show()
 
-                                    //显示键盘（在主线程运行，可选，其实不在主线程也行）
+                                //显示键盘（在主线程运行，可选，其实不在主线程也行）
 //                                    withMainContext {
 //                                        keyboardController?.show()
 //                                    }
-                                }
-
                             }
+
                         }
+                    }
 //                    .background(Color.Red)  //debug
-                        ,
-                    )
+                    ,
+                )
 //                PaddingRow()
-                }
             }
         }
 
@@ -1348,7 +1431,8 @@ data class ScrollEvent(
     }
 }
 
-data class SearchPos(var lineIndex:Int=-1, var columnIndex:Int=-1) {
+@Parcelize
+data class SearchPos(var lineIndex:Int=-1, var columnIndex:Int=-1):Parcelable {
     companion object{
         val NotFound = SearchPos(-1, -1)
     }

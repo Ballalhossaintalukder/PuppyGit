@@ -1,4 +1,5 @@
-## 备忘：添加新语言后，记得把不需要翻译的 translatable="false" 的字段从新语言的 strings.xml 删掉
+## 备忘：添加新语言后，记得把不需要翻译的 translatable="false" 的字段从新语言的 strings.xml 删掉 （当初或许应该把这些不需要翻译的字符串直接硬编码到代码里）
 
-Russian by github user @triksterr, issue: https://github.com/catpuppyapp/PuppyGit/issues/12
+Russian by github user @triksterr, https://github.com/triksterr, issue: https://github.com/catpuppyapp/PuppyGit/issues/12
 Turkish, @mikropsoft, https://github.com/mikropsoft
+Arabic by https://github.com/Hussain96o

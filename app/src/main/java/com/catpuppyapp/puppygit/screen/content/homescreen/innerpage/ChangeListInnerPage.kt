@@ -3,18 +3,17 @@ package com.catpuppyapp.puppygit.screen.content.homescreen.innerpage
 import android.content.Context
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.text.selection.DisableSelection
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Label
 import androidx.compose.material.icons.filled.DoneAll
@@ -23,11 +22,11 @@ import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Inventory
 import androidx.compose.material.icons.filled.LibraryAdd
+import androidx.compose.material.icons.filled.Merge
 import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material.icons.filled.Upload
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.SelectAll
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -38,12 +37,12 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -60,23 +59,30 @@ import androidx.compose.ui.unit.sp
 import com.catpuppyapp.puppygit.compose.AskGitUsernameAndEmailDialogWithSelection
 import com.catpuppyapp.puppygit.compose.BottomBar
 import com.catpuppyapp.puppygit.compose.ChangeListItem
-import com.catpuppyapp.puppygit.compose.DefaultPaddingText
 import com.catpuppyapp.puppygit.compose.ClickableText
 import com.catpuppyapp.puppygit.compose.ConfirmDialog
 import com.catpuppyapp.puppygit.compose.ConfirmDialog2
+import com.catpuppyapp.puppygit.compose.CopyScrollableColumn
 import com.catpuppyapp.puppygit.compose.CreatePatchSuccessDialog
 import com.catpuppyapp.puppygit.compose.CredentialSelector
+import com.catpuppyapp.puppygit.compose.DefaultPaddingText
+import com.catpuppyapp.puppygit.compose.ForcePushWithLeaseCheckBox
+import com.catpuppyapp.puppygit.compose.FullScreenScrollableColumn
 import com.catpuppyapp.puppygit.compose.GitIgnoreDialog
-import com.catpuppyapp.puppygit.compose.LoadingText
+import com.catpuppyapp.puppygit.compose.LoadingTextSimple
 import com.catpuppyapp.puppygit.compose.LongPressAbleIconBtn
 import com.catpuppyapp.puppygit.compose.MyCheckBox
+import com.catpuppyapp.puppygit.compose.MyHorizontalDivider
 import com.catpuppyapp.puppygit.compose.MyLazyColumn
 import com.catpuppyapp.puppygit.compose.MySelectionContainer
 import com.catpuppyapp.puppygit.compose.OpenAsDialog
+import com.catpuppyapp.puppygit.compose.PaddingText
+import com.catpuppyapp.puppygit.compose.PullToRefreshBox
 import com.catpuppyapp.puppygit.compose.RequireCommitMsgDialog
 import com.catpuppyapp.puppygit.compose.ScrollableColumn
 import com.catpuppyapp.puppygit.compose.SelectedItemDialog
 import com.catpuppyapp.puppygit.compose.SetUpstreamDialog
+import com.catpuppyapp.puppygit.compose.SingleSelection
 import com.catpuppyapp.puppygit.constants.Cons
 import com.catpuppyapp.puppygit.constants.PageRequest
 import com.catpuppyapp.puppygit.data.AppContainer
@@ -90,6 +96,7 @@ import com.catpuppyapp.puppygit.dev.ignoreWorktreeFilesTestPassed
 import com.catpuppyapp.puppygit.dev.proFeatureEnabled
 import com.catpuppyapp.puppygit.dev.tagsTestPassed
 import com.catpuppyapp.puppygit.dev.treeToTreeBottomBarActAtLeastOneTestPassed
+import com.catpuppyapp.puppygit.dto.Box
 import com.catpuppyapp.puppygit.etc.Ret
 import com.catpuppyapp.puppygit.git.IgnoreItem
 import com.catpuppyapp.puppygit.git.ImportRepoResult
@@ -99,6 +106,8 @@ import com.catpuppyapp.puppygit.play.pro.R
 import com.catpuppyapp.puppygit.screen.functions.ChangeListFunctions
 import com.catpuppyapp.puppygit.screen.functions.filterModeActuallyEnabled
 import com.catpuppyapp.puppygit.screen.functions.filterTheList
+import com.catpuppyapp.puppygit.screen.functions.goToCommitListScreen
+import com.catpuppyapp.puppygit.screen.functions.goToDiffScreen
 import com.catpuppyapp.puppygit.screen.functions.goToStashPage
 import com.catpuppyapp.puppygit.screen.functions.naviToFileHistoryByRelativePath
 import com.catpuppyapp.puppygit.screen.functions.openFileWithInnerSubPageEditor
@@ -112,15 +121,20 @@ import com.catpuppyapp.puppygit.utils.AppModel
 import com.catpuppyapp.puppygit.utils.Libgit2Helper
 import com.catpuppyapp.puppygit.utils.Msg
 import com.catpuppyapp.puppygit.utils.MyLog
+import com.catpuppyapp.puppygit.utils.RegexUtil
 import com.catpuppyapp.puppygit.utils.StateRequestType
 import com.catpuppyapp.puppygit.utils.UIHelper
 import com.catpuppyapp.puppygit.utils.cache.Cache
+import com.catpuppyapp.puppygit.utils.cache.ThumbCache
+import com.catpuppyapp.puppygit.utils.changeStateTriggerRefreshPage
 import com.catpuppyapp.puppygit.utils.createAndInsertError
 import com.catpuppyapp.puppygit.utils.dbIntToBool
 import com.catpuppyapp.puppygit.utils.doJobThenOffLoading
 import com.catpuppyapp.puppygit.utils.doJobWithMainContext
+import com.catpuppyapp.puppygit.utils.forEachBetter
 import com.catpuppyapp.puppygit.utils.getRequestDataByState
 import com.catpuppyapp.puppygit.utils.getSecFromTime
+import com.catpuppyapp.puppygit.utils.getShortUUID
 import com.catpuppyapp.puppygit.utils.isRepoReadyAndPathExist
 import com.catpuppyapp.puppygit.utils.replaceStringResList
 import com.catpuppyapp.puppygit.utils.showErrAndSaveLog
@@ -133,12 +147,18 @@ import com.catpuppyapp.puppygit.utils.updateSelectedList
 import com.catpuppyapp.puppygit.utils.withMainContext
 import com.github.git24j.core.Repository
 import com.github.git24j.core.Repository.StateT
+import kotlinx.coroutines.delay
+
 
 private const val TAG = "ChangeListInnerPage"
-private const val stateKeyTag = "ChangeListInnerPage"
 
 @Composable
 fun ChangeListInnerPage(
+    stateKeyTag:String,
+
+    errScrollState: ScrollState,
+    hasError: MutableState<Boolean>,  // 让父组件知道是否出错了，以此来决定go to top/bottom操作哪个listState
+
     lastSearchKeyword:MutableState<String>,
     searchToken:MutableState<String>,
     searching:MutableState<Boolean>,
@@ -161,14 +181,12 @@ fun ChangeListInnerPage(
     itemList: CustomStateListSaveable<StatusTypeEntrySaver>,
     itemListState: LazyListState,
     selectedItemList:CustomStateListSaveable<StatusTypeEntrySaver>,
+
+    commit1OidStr:String,
+    commit2OidStr:String,
+
     //只有fromTo是tree to tree时才有这些条目，开始
-    commit1OidStr:String="",
-    commit2OidStr:String="",
-    commitParentList:CustomStateListSaveable<String> = mutableCustomStateListOf(
-        keyTag = stateKeyTag,
-        keyName = "commitParentList",
-        initValue = listOf<String>()
-    ),
+    commitParentList:MutableList<String> = mutableListOf<String>(),
 
     repoId:String="",
     //只有fromTo是tree to tree时才有这些条目，结束
@@ -198,6 +216,7 @@ fun ChangeListInnerPage(
     lastClickedItemKey:MutableState<String>
 
 ) {
+    val stateKeyTag = Cache.getComponentKey(stateKeyTag, TAG)
 
     // for detect page changed, avoid loading repo1, switched repo2, repo2 loaded, then repo1 loaded, page show wrong items of repo1
 //    val pageId = remember {
@@ -212,13 +231,14 @@ fun ChangeListInnerPage(
     val repoId = remember(repoId, curRepoFromParentPage.value.id) { derivedStateOf { if(repoId.isBlank()) curRepoFromParentPage.value.id else repoId } }.value  // must call .value, else derived block may not executing
 
 
-    val isDiffToLocal = fromTo == Cons.gitDiffFromIndexToWorktree || commit1OidStr==Cons.git_LocalWorktreeCommitHash || commit2OidStr==Cons.git_LocalWorktreeCommitHash
+//    val isDiffToLocal = fromTo == Cons.gitDiffFromIndexToWorktree || commit1OidStr==Cons.git_LocalWorktreeCommitHash || commit2OidStr==Cons.git_LocalWorktreeCommitHash
+    val isDiffToLocal = commit1OidStr==Cons.git_LocalWorktreeCommitHash || commit2OidStr==Cons.git_LocalWorktreeCommitHash
     val isWorktreePage = fromTo == Cons.gitDiffFromIndexToWorktree
 
     // xxx diff to local, not local diff to xxx
     val localAtDiffRight = remember(fromTo, commit1OidStr, commit2OidStr, swap) { derivedStateOf {
         (fromTo == Cons.gitDiffFromIndexToWorktree
-                || (if(swap) commit1OidStr==Cons.git_LocalWorktreeCommitHash else commit2OidStr==Cons.git_LocalWorktreeCommitHash)
+                || (if(swap) commit1OidStr==Cons.git_LocalWorktreeCommitHash else (commit2OidStr==Cons.git_LocalWorktreeCommitHash))
         )
     } }
 
@@ -230,6 +250,8 @@ fun ChangeListInnerPage(
     val exitApp = AppModel.exitApp
     val dbContainer = AppModel.dbContainer
     val navController = AppModel.navController
+    val scope = rememberCoroutineScope()
+
 
     val settings = remember {
         val s = SettingsUtil.getSettingsSnapshot()
@@ -237,7 +259,7 @@ fun ChangeListInnerPage(
         s
     }
 
-
+    val actFromDiffScreen = rememberSaveable { mutableStateOf(false) }
 
     val doActWithLock:suspend (curRepo:RepoEntity, act: suspend ()->Unit) -> Unit =  { curRepo, act ->
         Libgit2Helper.doActWithRepoLock(
@@ -444,7 +466,7 @@ fun ChangeListInnerPage(
 //    }
 
 
-    val isLoading = rememberSaveable { mutableStateOf(true)}
+    val isLoading = rememberSaveable { mutableStateOf(SharedState.defaultLoadingValue)}
     val loadingText = rememberSaveable { mutableStateOf(activityContext.getString(R.string.loading))}
     val loadingOn = {text:String->
         //Loading的时候禁用顶栏按钮
@@ -460,6 +482,19 @@ fun ChangeListInnerPage(
         loadingText.value = ""
         isLoading.value=false
 //        changeStateTriggerRefreshPage(needRefreshChangeListPage)
+    }
+
+    // 解决切换仓库后当前仓库的loading状态被上个仓库给取消的bug
+    val loadingToken = rememberSaveable { mutableStateOf("") }
+    val loadingOnByToken = { token:String, loadingText:String ->
+        loadingToken.value = token
+        loadingOn(loadingText)
+    }
+
+    val loadingOffByToken = { token:String ->
+        if(token == loadingToken.value) {
+            loadingOff()
+        }
     }
 
     val mustSelectAllConflictBeforeCommitStrRes = stringResource(R.string.must_resolved_conflict_and_select_them_before_commit)
@@ -493,7 +528,7 @@ fun ChangeListInnerPage(
     val showCommitMsgDialog = rememberSaveable { mutableStateOf(false)}
     val amendCommit = rememberSaveable { mutableStateOf(false)}
     val overwriteAuthor = rememberSaveable { mutableStateOf(false)}
-    val commitMsg = rememberSaveable { mutableStateOf("")}
+    val commitMsg = mutableCustomStateOf(stateKeyTag, "commitMsg") { TextFieldValue("") }
     val indexIsEmptyForCommitDialog = rememberSaveable { mutableStateOf(false)}
     val commitBtnTextForCommitDialog = rememberSaveable { mutableStateOf("") }
 //    val showPushForCommitDialog = rememberSaveable { mutableStateOf(false)}
@@ -608,24 +643,53 @@ fun ChangeListInnerPage(
     }
 
 
-    val showPushForceDialog = rememberSaveable { mutableStateOf(false)}
-    if(showPushForceDialog.value) {
+    val forcePush_ShowDialog = rememberSaveable { mutableStateOf(false) }
+    val forcePush_pushWithLease = rememberSaveable { mutableStateOf(false) }
+    val forcePush_expectedRefspecForLease = rememberSaveable { mutableStateOf("") }
+    val forcePush_curRepo = mutableCustomStateOf(stateKeyTag, "forcePush_curRepo") { RepoEntity(id="") }
+    val initForcePushDialog = {
+        val curRepo = curRepoFromParentPage.value
+
+        //默认设为upstream，会先查本地upstream的值，再fetch，再检查，若匹配，则推送，若用户改成别的引用则按用户改的来检查是否与fetch后的upstrem的最新提交匹配
+        forcePush_expectedRefspecForLease.value = curRepo.upstreamBranch
+
+        forcePush_curRepo.value = curRepo
+
+        forcePush_pushWithLease.value = false
+
+        forcePush_ShowDialog.value = true
+    }
+
+    if(forcePush_ShowDialog.value) {
         ConfirmDialog2(
-            title = stringResource(id = R.string.push_force),
+            title = stringResource(R.string.push_force),
             requireShowTextCompose = true,
             textCompose = {
                 ScrollableColumn {
-                    Text(stringResource(id = R.string.will_force_overwrite_remote_branch_even_it_is_ahead_to_local),
-                        color = MyStyleKt.TextColor.danger()
-                    )
+                    MySelectionContainer {
+                        PaddingText(
+                            stringResource(R.string.will_force_overwrite_remote_branch_even_it_is_ahead_to_local),
+                            color = MyStyleKt.TextColor.danger(),
+                            fontWeight = null, // 默认字体宽度
+                        )
+                    }
+
+                    Spacer(Modifier.height(15.dp))
+
+                    ForcePushWithLeaseCheckBox(forcePush_pushWithLease, forcePush_expectedRefspecForLease)
+
                 }
             },
             okTextColor = MyStyleKt.TextColor.danger(),
-            onCancel = { showPushForceDialog.value = false }
+            okBtnText = stringResource(R.string.push),
+            okBtnEnabled = forcePush_pushWithLease.value.not() || forcePush_expectedRefspecForLease.value.isNotEmpty(),
+            onCancel = { forcePush_ShowDialog.value = false }
         ) {
-            showPushForceDialog.value = false
+            forcePush_ShowDialog.value = false
 
-            val curRepo = curRepoFromParentPage.value
+            val curRepo = forcePush_curRepo.value
+            val forcePush_pushWithLease = forcePush_pushWithLease.value
+            val forcePush_expectedRefspecForLease = forcePush_expectedRefspecForLease.value
 
             doJobThenOffLoading(
                 loadingOn,  //注：这函数内会自动禁用顶栏按钮，无需手动 `enableActionFromParent.value=false`
@@ -644,7 +708,9 @@ fun ChangeListInnerPage(
                             activityContext = activityContext,
                             loadingText = loadingText,
                             bottomBarActDoneCallback = bottomBarActDoneCallback,
-                            dbContainer = dbContainer
+                            dbContainer = dbContainer,
+                            forcePush_pushWithLease = forcePush_pushWithLease,
+                            forcePush_expectedRefspecForLease = forcePush_expectedRefspecForLease,
                         )
 
                         if(success) {
@@ -673,6 +739,7 @@ fun ChangeListInnerPage(
 
     val openFileWithInnerEditor = { filePath:String, initMergeMode:Boolean ->
         openFileWithInnerSubPageEditor(
+            context = activityContext,
             filePath = filePath,
             mergeMode = initMergeMode,
 
@@ -705,14 +772,18 @@ fun ChangeListInnerPage(
     if(requireDoActFromParent.value) {  // pull
         //先把开关关了，避免重复执行，当然，重复执行其实也没事，因为我做了处理
         requireDoActFromParent.value = false  //防止重复执行的第一重保险，立刻把状态变量改成假
-        MyLog.d(TAG, "requireDoActFromParent, act is:"+Cache.get(Cache.Key.changeListInnerPage_requireDoActFromParent))
+        val actFromDiffScreen_tmp = actFromDiffScreen.value
+        actFromDiffScreen.value = false
+
         //执行操作
         doJobThenOffLoading(loadingOn,
             loadingOff={
                       loadingOff() //解除loading
                       enableActionFromParent.value=true  //重新启用顶栏的按钮
         }, requireDoActFromParentShowTextWhenDoingAct.value) {
-            val requireAct = Cache.syncGetThenDel(Cache.Key.changeListInnerPage_requireDoActFromParent)
+            val requireAct = Cache.syncGetThenDel(Cache.Key.changeListInnerPage_requireDoActFromParent) ?: return@doJobThenOffLoading;
+            MyLog.d(TAG, "requireDoActFromParent, act is: "+requireAct)
+
             //防止重复执行的第二层保险，取出请求执行操作的key后就删除，这样即使状态变量没及时更新导致重复执行，执行到这时也会取出null而终止操作
 
             val curRepo = curRepoFromParentPage.value
@@ -796,7 +867,7 @@ fun ChangeListInnerPage(
                                     dbContainer = dbContainer
                                 )
                             }catch (e:Exception){
-                                showErrAndSaveLog(TAG,"require sync error:"+e.stackTraceToString(), activityContext.getString(R.string.sync_failed)+": "+e.localizedMessage, requireShowToast,curRepo.id)
+                                showErrAndSaveLog(TAG,"require sync error: "+e.stackTraceToString(), activityContext.getString(R.string.sync_failed)+": "+e.localizedMessage, requireShowToast,curRepo.id)
                             }finally {
                                 changeListRequireRefreshFromParentPage(curRepo)
                             }
@@ -824,7 +895,7 @@ fun ChangeListInnerPage(
                                     dbContainer = dbContainer
                                 )
                             }catch (e:Exception){
-                                showErrAndSaveLog(TAG,"require Sync(Rebase) error:"+e.stackTraceToString(), activityContext.getString(R.string.sync_rebase_failed)+":"+e.localizedMessage, requireShowToast,curRepo.id)
+                                showErrAndSaveLog(TAG,"require Sync(Rebase) error: "+e.stackTraceToString(), activityContext.getString(R.string.sync_rebase_failed)+": "+e.localizedMessage, requireShowToast,curRepo.id)
                             }finally {
                                 changeListRequireRefreshFromParentPage(curRepo)
                             }
@@ -850,7 +921,7 @@ fun ChangeListInnerPage(
                                 requireShowToast(activityContext.getString(R.string.fetch_failed))
                             }
                         }catch (e:Exception){
-                            showErrAndSaveLog(TAG,"require fetch error:"+e.stackTraceToString(), activityContext.getString(R.string.fetch_failed)+":"+e.localizedMessage, requireShowToast, curRepo.id)
+                            showErrAndSaveLog(TAG,"require fetch error: "+e.stackTraceToString(), activityContext.getString(R.string.fetch_failed)+": "+e.localizedMessage, requireShowToast, curRepo.id)
                         }finally {
                             //刷新页面
                             changeListRequireRefreshFromParentPage(curRepo)
@@ -877,20 +948,20 @@ fun ChangeListInnerPage(
                             }
 
                         }catch (e:Exception){
-                            showErrAndSaveLog(TAG,"require push error:"+e.stackTraceToString(), activityContext.getString(R.string.push_failed)+": "+e.localizedMessage, requireShowToast,curRepo.id)
+                            showErrAndSaveLog(TAG,"require push error: "+e.stackTraceToString(), activityContext.getString(R.string.push_failed)+": "+e.localizedMessage, requireShowToast,curRepo.id)
                         }finally {
                             changeListRequireRefreshFromParentPage(curRepo)
                         }
 
                     }else if(requireAct == PageRequest.pushForce) {
-                        showPushForceDialog.value = true
+                        initForcePushDialog()
                     }else if(requireAct == PageRequest.mergeAbort) {
                         initMergeAbortDialog()
                     }else if(requireAct == PageRequest.stageAll) {
                         try {
                             doStageAll(curRepo)
                         }catch (e:Exception){
-                            showErrAndSaveLog(TAG,"require stage_all error:"+e.stackTraceToString(), activityContext.getString(R.string.stage_all_failed)+":"+e.localizedMessage, requireShowToast, curRepo.id)
+                            showErrAndSaveLog(TAG,"require stage_all error: "+e.stackTraceToString(), activityContext.getString(R.string.stage_all_failed)+": "+e.localizedMessage, requireShowToast, curRepo.id)
                         }finally {
                             changeListRequireRefreshFromParentPage(curRepo)
                         }
@@ -899,10 +970,12 @@ fun ChangeListInnerPage(
 
 
                         try {
-                            val listForStage = itemList.value.toList()
+                            //如果是从DiffScreen返回带来的列表，仅针对在diff页面查看的条目执行操作
+                            val listForStage = if(actFromDiffScreen_tmp) (Cache.getByType<List<StatusTypeEntrySaver>>(Cache.Key.diffableList_of_fromDiffScreenBackToWorkTreeChangeList)?:listOf()) else itemList.value.toList()
+
 
                             if(AppModel.devModeOn) {
-                                MyLog.d(TAG, "listForStage.isEmpty() = ${listForStage.isEmpty()}")
+                                MyLog.d(TAG, "actFromDiffScreen=$actFromDiffScreen_tmp, listForStage.isEmpty() = ${listForStage.isEmpty()}")
                             }
 
                             // stage if need，不管是否stage，都一定会执行commit，因为就算index为空，也可amend commit
@@ -941,7 +1014,7 @@ fun ChangeListInnerPage(
                             )
 
                         }catch (e:Exception){
-                            showErrAndSaveLog(TAG,"require commit all error:"+e.stackTraceToString(), activityContext.getString(R.string.commit_err)+":"+e.localizedMessage, requireShowToast, curRepo.id)
+                            showErrAndSaveLog(TAG,"require commit all error: "+e.stackTraceToString(), activityContext.getString(R.string.commit_err)+": "+e.localizedMessage, requireShowToast, curRepo.id)
                         }
                     }else if(requireAct == PageRequest.commit) {
                         try {
@@ -1019,7 +1092,7 @@ fun ChangeListInnerPage(
 
                             }
                         }catch (e:Exception){
-                            showErrAndSaveLog(TAG,"require Continue Merge error:"+e.stackTraceToString(), activityContext.getString(R.string.continue_merge_err)+":"+e.localizedMessage, requireShowToast,repoId)
+                            showErrAndSaveLog(TAG,"require Continue Merge error: "+e.stackTraceToString(), activityContext.getString(R.string.continue_merge_err)+": "+e.localizedMessage, requireShowToast,repoId)
                         }
                     }else if(requireAct == PageRequest.rebaseContinue) {
                         try {
@@ -1052,7 +1125,7 @@ fun ChangeListInnerPage(
 //                        showPushForCommitDialog=showPushForCommitDialog
                             )
                         }catch (e:Exception){
-                            showErrAndSaveLog(TAG,"require Rebase Continue error:"+e.stackTraceToString(), activityContext.getString(R.string.rebase_continue_err)+":"+e.localizedMessage, requireShowToast,repoId)
+                            showErrAndSaveLog(TAG,"require Rebase Continue error: "+e.stackTraceToString(), activityContext.getString(R.string.rebase_continue_err)+": "+e.localizedMessage, requireShowToast,repoId)
                         }
                     }else if(requireAct == PageRequest.rebaseSkip) {
                         initRebaseSkipDialog(curRepo)
@@ -1091,7 +1164,7 @@ fun ChangeListInnerPage(
 //                        showPushForCommitDialog=showPushForCommitDialog
                             )
                         }catch (e:Exception){
-                            showErrAndSaveLog(TAG,"require Cherrypick Continue error:"+e.stackTraceToString(), activityContext.getString(R.string.cherrypick_continue_err)+":"+e.localizedMessage, requireShowToast,repoId)
+                            showErrAndSaveLog(TAG,"require Cherrypick Continue error: "+e.stackTraceToString(), activityContext.getString(R.string.cherrypick_continue_err)+": "+e.localizedMessage, requireShowToast,repoId)
                         }
                     }else if(requireAct == PageRequest.cherrypickAbort) {
                         initCherrypickAbortDialog()
@@ -1119,6 +1192,10 @@ fun ChangeListInnerPage(
         }else {
             commit1OidStr
         }
+    }
+
+    val getActuallyList = {
+        if(enableFilterState.value) filterList.value else itemList.value
     }
 
     if(showRebaseSkipDialog.value) {
@@ -1170,8 +1247,8 @@ fun ChangeListInnerPage(
                     } catch (e: Exception) {
                         showErrAndSaveLog(
                             TAG,
-                            "require Rebase Skip error:" + e.stackTraceToString(),
-                            activityContext.getString(R.string.rebase_skip_err) + ":" + e.localizedMessage,
+                            "require Rebase Skip error: " + e.stackTraceToString(),
+                            activityContext.getString(R.string.rebase_skip_err) + ": " + e.localizedMessage,
                             requireShowToast,
                             repoId
                         )
@@ -1242,8 +1319,8 @@ fun ChangeListInnerPage(
                         } catch (e: Exception) {
                             showErrAndSaveLog(
                                 TAG,
-                                "require Rebase Abort error:" + e.stackTraceToString(),
-                                activityContext.getString(R.string.rebase_abort_err) + ":" + e.localizedMessage,
+                                "require Rebase Abort error: " + e.stackTraceToString(),
+                                activityContext.getString(R.string.rebase_abort_err) + ": " + e.localizedMessage,
                                 requireShowToast,
                                 repoId
                             )
@@ -1268,8 +1345,8 @@ fun ChangeListInnerPage(
                         } catch (e: Exception) {
                             showErrAndSaveLog(
                                 TAG,
-                                "require Cherrypick Abort error:" + e.stackTraceToString(),
-                                activityContext.getString(R.string.cherrypick_abort_err) + ":" + e.localizedMessage,
+                                "require Cherrypick Abort error: " + e.stackTraceToString(),
+                                activityContext.getString(R.string.cherrypick_abort_err) + ": " + e.localizedMessage,
                                 requireShowToast,
                                 repoId
                             )
@@ -1366,10 +1443,16 @@ fun ChangeListInnerPage(
         )
     }
 
+    val commitSuccessCallback = {
+        //如果提交成功，清掉提交信息
+        commitMsg.value = TextFieldValue("")
+    }
+
     if(showCommitMsgDialog.value) {
         val curRepo = curRepoFromParentPage.value
         val repoIsNotDetached = !dbIntToBool(curRepo.isDetached)
         RequireCommitMsgDialog(
+            stateKeyTag = stateKeyTag,
             curRepo = curRepo,
             repoPath = curRepo.fullSavePath,
             repoState=repoState.intValue,
@@ -1384,7 +1467,6 @@ fun ChangeListInnerPage(
                 showCommitMsgDialog.value = false  //关闭弹窗
 
                 val cmtMsg = msgOrAmendMsg  //存上实际的提交信息，若勾选Amend实际值就是amendMsg的值否则是commitMsg的值
-                commitMsg.value = "" //清空提交信息状态
 
                 doJobThenOffLoading(loadingOn, loadingOff,activityContext.getString(R.string.committing)) {
                     doActWithLock(curRepo) {
@@ -1426,8 +1508,12 @@ fun ChangeListInnerPage(
 //                            showPushForCommitDialog=showPushForCommitDialog
                             )
 
-                            if(requireSync) {
-                                if(commitSuccess){
+                            if(commitSuccess) {  //提交成功
+                                //清提交信息
+                                commitSuccessCallback()
+
+                                //检查是否点的同步或推送
+                                if(requireSync) {
                                     //更新loading提示文案
                                     loadingText.value = activityContext.getString(R.string.syncing)
 
@@ -1447,11 +1533,8 @@ fun ChangeListInnerPage(
                                         loadingText = loadingText,
                                         dbContainer = dbContainer
                                     )
-                                }else {
-                                    requireShowToast(activityContext.getString(R.string.sync_canceled_by_commit_failed))
-                                }
-                            }else if(requirePush) {
-                                if(commitSuccess) {
+
+                                }else if(requirePush) {
                                     loadingText.value = activityContext.getString(R.string.pushing)
 
                                     val success = ChangeListFunctions.doPush(
@@ -1471,17 +1554,23 @@ fun ChangeListInnerPage(
                                     }else {
                                         requireShowToast(activityContext.getString(R.string.push_failed))
                                     }
-                                }else {
+                                }
+                            }else {  //提交失败
+                                //若提交失败，只打印sync和push取消的信息即可，不需要打印提交失败的信息，因为在doCommit已经打印了
+                                if(requireSync) {
+                                    requireShowToast(activityContext.getString(R.string.sync_canceled_by_commit_failed))
+                                }else if(requirePush) {
                                     requireShowToast(activityContext.getString(R.string.push_canceled_by_commit_failed))
                                 }
                             }
+
 
                             //关闭底栏
 //                        bottomBarActDoneCallback("")
 
                         }catch (e:Exception){
 //                        e.printStackTrace()
-                            MyLog.e(TAG, "#doCommit at showCommitMsgDialog #onOk:" + e.stackTraceToString())
+                            MyLog.e(TAG, "#doCommit at showCommitMsgDialog #onOk: " + e.stackTraceToString())
                         }
                     }
                 }
@@ -1575,30 +1664,36 @@ fun ChangeListInnerPage(
             title = stringResource(R.string.cherrypick),
             requireShowTextCompose = true,
             textCompose = {
-                Column{
-                    Text(text =  buildAnnotatedString {
-                        append(stringResource(R.string.target)+": ")
-                        withStyle(style = SpanStyle(fontWeight = FontWeight.ExtraBold)) {
-                            append(shortTarget)
-                        }
-                    },
+                CopyScrollableColumn {
+                    Text(
+                        text =  buildAnnotatedString {
+                            append(stringResource(R.string.target)+": ")
+                            withStyle(style = SpanStyle(fontWeight = FontWeight.ExtraBold)) {
+                                append(shortTarget)
+                            }
+                        },
                         modifier = Modifier.padding(horizontal = MyStyleKt.defaultHorizontalPadding)
                     )
-                    Text(text =  buildAnnotatedString {
-                        append(stringResource(R.string.parent)+": ")
-                        withStyle(style = SpanStyle(fontWeight = FontWeight.ExtraBold)) {
-                            append(shortParent)
-                        }
-                    },
+                    Text(
+                        text =  buildAnnotatedString {
+                            append(stringResource(R.string.parent)+": ")
+                            withStyle(style = SpanStyle(fontWeight = FontWeight.ExtraBold)) {
+                                append(shortParent)
+                            }
+                        },
                         modifier = Modifier.padding(horizontal = MyStyleKt.defaultHorizontalPadding)
                     )
                     Spacer(modifier = Modifier.height(10.dp))
-                    Text(text = stringResource(R.string.will_cherrypick_changes_of_selected_files_are_you_sure),
+                    Text(
+                        text = stringResource(R.string.will_cherrypick_changes_of_selected_files_are_you_sure),
                         modifier = Modifier.padding(horizontal = MyStyleKt.defaultHorizontalPadding)
                     )
+
                     Spacer(modifier = Modifier.height(10.dp))
 
-                    MyCheckBox(text = stringResource(R.string.auto_commit), value = cherrypickAutoCommit)
+                    DisableSelection {
+                        MyCheckBox(text = stringResource(R.string.auto_commit), value = cherrypickAutoCommit)
+                    }
                 }
             },
             onCancel = { showCherrypickDialog.value = false }
@@ -1625,7 +1720,7 @@ fun ChangeListInnerPage(
                             if(ret.code != Ret.ErrCode.alreadyUpToDate) {  //如果错误码不是 Already up-to-date ，就log下
 
                                 //选提交时记日志把files改成commits用来区分
-                                createAndInsertError(repoId, "cherrypick files changes of '$shortParent..$shortTarget' err:"+ret.msg)
+                                createAndInsertError(repoId, "cherrypick files changes of '$shortParent..$shortTarget' err: "+ret.msg)
                             }
                         }else {
                             Msg.requireShow(activityContext.getString(R.string.success))
@@ -1666,7 +1761,7 @@ fun ChangeListInnerPage(
                 //这里不用捕获异常，若出错，会在onCatch处理
                 val selectedItemList = selectedItemList.value.toList()
                 if(selectedItemList.isEmpty()) {
-                    Msg.requireShowLongDuration(activityContext.getString(R.string.no_item_selected))
+                    Msg.requireShowLongDuration(noItemSelectedStrRes)
                 }
 
                 selectedItemList.map { IgnoreItem(pathspec = it.relativePathUnderRepo, isFile = it.toFile().isFile) }
@@ -1702,7 +1797,9 @@ fun ChangeListInnerPage(
             requireShowTextCompose = true,
             textCompose = {
                 ScrollableColumn {
-                    Text(text = stringResource(R.string.will_create_patch_for_selected_files_are_you_sure))
+                    MySelectionContainer {
+                        Text(text = stringResource(R.string.will_create_patch_for_selected_files_are_you_sure))
+                    }
                 }
             },
             onCancel = { showCreatePatchDialog.value = false }
@@ -1713,11 +1810,14 @@ fun ChangeListInnerPage(
 
             doJobThenOffLoading(loadingOn,loadingOff, activityContext.getString(R.string.creating_patch)) job@{
                 try {
+                    val left = getCommitLeft()
+                    val right = getCommitRight()
+
                     val savePatchRet = ChangeListFunctions.createPath(
                         curRepo = curRepo,
-                        leftCommit = getCommitLeft(),
-                        rightCommit = getCommitRight(),
-                        fromTo = fromTo,
+                        leftCommit = left,
+                        rightCommit = right,
+                        fromTo = if(left == Cons.git_IndexCommitHash && right == Cons.git_LocalWorktreeCommitHash) Cons.gitDiffFromIndexToWorktree else fromTo,
                         relativePaths = selectedItemList.value.map { it.relativePathUnderRepo }
                     );
 
@@ -1744,45 +1844,81 @@ fun ChangeListInnerPage(
 
 
 
-    val checkoutForce = rememberSaveable { mutableStateOf(false)}
-    val showCheckoutFilesDialog = rememberSaveable { mutableStateOf(false)}
-    val checkoutTargetHash = rememberSaveable { mutableStateOf("")}
-
+    val checkoutForce = rememberSaveable { mutableStateOf(false) }
+    val showCheckoutFilesDialog = rememberSaveable { mutableStateOf(false) }
+    val checkoutTarget = rememberSaveable { mutableStateOf("") }
+    val checkoutList = mutableCustomStateListOf(stateKeyTag, "checkoutList") { listOf<String>() }
+    val leftFullHash = rememberSaveable { mutableStateOf("") }
+    val rightFullHash = rememberSaveable { mutableStateOf("") }
     val initCheckoutDialog = { curRepo:RepoEntity, targetHash:String ->
-        doJobThenOffLoading job@{
-            Repository.open(curRepo.fullSavePath).use { repo ->
-                val ret = Libgit2Helper.resolveCommitByHashOrRef(repo, targetHash)
-                if (ret.hasError() || ret.data == null) {
-                    Msg.requireShowLongDuration(ret.msg)
-                    return@job
-                }
+        val left = getCommitLeft()
+        val right = getCommitRight()
 
-                checkoutTargetHash.value = ret.data!!.id().toString()
-                checkoutForce.value = false
-                showCheckoutFilesDialog.value = true
+        try {
+            leftFullHash.value = ""
+            rightFullHash.value = ""
+
+            Repository.open(curRepo.fullSavePath).use { repo->
+                val (left, right) = Libgit2Helper.getLeftRightCommitDto(repo, left, right, repoId, settings)
+                leftFullHash.value = left.oidStr
+                rightFullHash.value = right.oidStr
             }
+        }catch (e: Exception) {
+            MyLog.d(TAG, "resolve left and right to commit hash err: ${e.stackTraceToString()}")
         }
 
+        checkoutList.value.apply {
+            clear()
+            add(left)
+            add(right)
+        }
+
+        // 没选过则选中第一个，否则保持不变
+        if(checkoutTarget.value != left && checkoutTarget.value != right) {
+            checkoutTarget.value = left
+        }
+
+        checkoutForce.value = false
+        showCheckoutFilesDialog.value = true
     }
 
     if(showCheckoutFilesDialog.value) {
-        ConfirmDialog(
+        ConfirmDialog2(
             title = stringResource(R.string.checkout),
             requireShowTextCompose = true,
             textCompose = {
-                Column{
-                    Text(text =  buildAnnotatedString {
-                            append(stringResource(R.string.target)+": ")
-                            withStyle(style = SpanStyle(fontWeight = FontWeight.ExtraBold)) {
-                                append(Libgit2Helper.getShortOidStrByFull(checkoutTargetHash.value))
-                            }
+                Column {
+//                    PaddingText(stringResource(R.string.target)+":", fontWeight = FontWeight.ExtraBold)
+                    SingleSelection(
+                        itemList = checkoutList.value,
+                        selected = {idx, item -> item == checkoutTarget.value},
+                        text = {idx, item ->
+                            val isLeft = idx == 0;
+
+                            val shortHash = Libgit2Helper.getShortOidStrByFullIfIsHash(item)
+
+                            val shortLeft = Libgit2Helper.getShortOidStrByFullIfIsHash(leftFullHash.value)
+                            val shortRight = Libgit2Helper.getShortOidStrByFullIfIsHash(rightFullHash.value)
+
+                            // 如果当前显示的不是hash，append hash
+                            activityContext.getString(if(isLeft) R.string.left else R.string.right) + ": " + shortHash + (
+                                    if(isLeft && shortHash != shortLeft) {
+                                        " ($shortLeft)"
+                                    }else if(isLeft.not() && shortHash != shortRight) {
+                                        " ($shortRight)"
+                                    }else {
+                                        ""
+                                    }
+                            )
                         },
-                        modifier = Modifier.padding(horizontal = MyStyleKt.defaultHorizontalPadding)
-                        )
+                        onClick = {idx, item -> checkoutTarget.value = item}
+                    )
+
                     Spacer(modifier = Modifier.height(10.dp))
-                    Text(text = stringResource(R.string.will_checkout_selected_files_are_you_sure),
-                        modifier = Modifier.padding(horizontal = MyStyleKt.defaultHorizontalPadding)
-                        )
+
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
                     MyCheckBox(text = stringResource(R.string.force), value = checkoutForce)
                     if(checkoutForce.value) {
                         DefaultPaddingText(
@@ -1794,21 +1930,51 @@ fun ChangeListInnerPage(
             },
             okTextColor = if(checkoutForce.value) MyStyleKt.TextColor.danger() else Color.Unspecified,
             onCancel = { showCheckoutFilesDialog.value = false }
-        ) {
+        ) onOk@{
             showCheckoutFilesDialog.value = false
+
+            // if target is local, no need checkout
+            if(checkoutTarget.value == Cons.git_LocalWorktreeCommitHash) {
+                Msg.requireShowLongDuration(activityContext.getString(R.string.already_up_to_date))
+                return@onOk
+            }
+
+
             val curRepo = curRepoFromParentPage.value
             val selectedItemList = selectedItemList.value.toList()
+            val targetHash = checkoutTarget.value
+            val checkoutForce = checkoutForce.value
+
+
 
             doJobThenOffLoading(loadingOn, loadingOff, activityContext.getString(R.string.checking_out)) {
-                doActWithLock(curRepo) {
+                doActWithLock(curRepo) job@{
                     val pathSpecs = selectedItemList.map{it.relativePathUnderRepo}
                     Repository.open(curRepo.fullSavePath).use { repo->
-                        val ret = Libgit2Helper.checkoutFiles(repo, checkoutTargetHash.value, pathSpecs, force=checkoutForce.value)
+                        val checkoutTargetHash = if(targetHash == Cons.git_IndexCommitHash) {  // if checkout index, no need resolve it to hash
+                            targetHash
+                        }else {
+                            val commitRet = Libgit2Helper.resolveCommitByHashOrRef(repo, targetHash)
+                            if (commitRet.hasError() || commitRet.data == null) {
+                                Msg.requireShowLongDuration(commitRet.msg)
+                                return@job
+                            }
+
+                            commitRet.data!!.id().toString()
+                        }
+
+                        val ret = Libgit2Helper.checkoutFiles(repo, checkoutTargetHash, pathSpecs, force=checkoutForce)
+
                         if(ret.hasError()) {
                             Msg.requireShowLongDuration(ret.msg)
-                            createAndInsertError(repoId, "checkout files err:"+ret.msg)
+                            createAndInsertError(repoId, "checkout files err: "+ret.msg)
                         }else {
                             Msg.requireShow(activityContext.getString(R.string.success))
+                        }
+
+                        // 如果checkout目标包含local，列表可能变化，需要刷新下列表
+                        if(checkoutList.value.contains(Cons.git_LocalWorktreeCommitHash)) {
+                            changeListRequireRefreshFromParentPage(curRepo)
                         }
                     }
                 }
@@ -1866,7 +2032,7 @@ fun ChangeListInnerPage(
     val selectAll = {
         val list = if(enableFilterState.value) filterList.value else itemList.value
 
-        list.toList().forEach {
+        list.toList().forEachBetter {
             selectItem(it)
         }
 
@@ -1893,7 +2059,7 @@ fun ChangeListInnerPage(
                     Repository.open(curRepo.fullSavePath).use { repo ->
                         val untrakcedFileList = mutableListOf<String>()  // untracked list，在我的app里这种修改类型显示为 "New"
                         val pathspecList = mutableListOf<String>()  // modified、deleted 列表
-                        selectedItemList.forEach {
+                        selectedItemList.forEachBetter {
                             //新文件(Untracked)在index里不存在，若revert，只能删除文件，所以单独加到另一个列表
                             if(it.changeType == Cons.gitStatusNew) {
                                 untrakcedFileList.add(it.canonicalPath)  //删除文件，添加全路径（但其实用仓库内相对路径也行，只是需要把仓库路径和仓库下相对路径拼接一下，而这个全路径是我在查询status list的时候拼好的，所以直接用就行）
@@ -1929,7 +2095,7 @@ fun ChangeListInnerPage(
         Repository.open(curRepo.fullSavePath).use {repo ->
             val refspecList = mutableListOf<String>()
 //                准备refspecList
-            selectedItemList.forEach {
+            selectedItemList.forEachBetter {
                 //不要用index.removeByPath()，那个是停止追踪(make it untracked)，不是unstage！！！
                 refspecList.add(it.relativePathUnderRepo)
             }
@@ -1967,21 +2133,28 @@ fun ChangeListInnerPage(
 
 //    val fullPathForImport = StateUtil.getRememberSaveableState("")
     val importList = mutableCustomStateListOf(stateKeyTag, "importList", listOf<StatusTypeEntrySaver>())
-    val showImportToReposDialog = rememberSaveable { mutableStateOf(false)}
+    //导入仓库后跳转到对应仓库
+    val jumpAfterImportRepo = rememberSaveable { mutableStateOf(false) }
+    val showImportToReposDialog = rememberSaveable { mutableStateOf(false) }
     if(showImportToReposDialog.value){
         ConfirmDialog2(
             title = activityContext.getString(R.string.import_as_repo),
             requireShowTextCompose = true,
             textCompose = {
                 ScrollableColumn {
-                    DefaultPaddingText(stringResource(R.string.will_try_import_selected_dirs_as_repos))
+                    MySelectionContainer {
+                        DefaultPaddingText(stringResource(R.string.will_try_import_selected_dirs_as_repos))
+                    }
+
                     Spacer(Modifier.height(15.dp))
 
 //                    Text(stringResource(R.string.will_import_selected_submodules_to_repos))
                     CredentialSelector(credentialList.value.toList(), selectedCredentialIdx)
 
                     Spacer(Modifier.height(10.dp))
-                    DefaultPaddingText(stringResource(R.string.import_repos_link_credential_note))
+                    MySelectionContainer {
+                        DefaultPaddingText(stringResource(R.string.import_repos_link_credential_note))
+                    }
                 }
             },
             onCancel = { showImportToReposDialog.value = false },
@@ -1991,24 +2164,28 @@ fun ChangeListInnerPage(
 
             val curRepo = curRepoFromParentPage.value
             doJobThenOffLoading(loadingOn, loadingOff, activityContext.getString(R.string.importing)) {
-                val repoNameSuffix = "_of_${curRepo.repoName}"
+                val repoNameSuffix = Libgit2Helper.genRepoNameSuffixForSubmodule(curRepo.repoName)
                 val parentRepoId = curRepo.id
 //                val importList = selectedItemList.value.toList().filter { it.cloned }
-
+                val importList = importList.value.toList()
                 val credentialList = credentialList.value.toList()
                 val selectedCredentialId = credentialList[selectedCredentialIdx.intValue].id
 
                 val repoDb = AppModel.dbContainer.repoRepository
                 val importRepoResult = ImportRepoResult()
 
+                val importSuccess = Box(false)
+
                 try {
-                    importList.value.forEach {
+                    importList.forEachBetter {
                         val result = repoDb.importRepos(dir=it.canonicalPath, isReposParent=false, repoNameSuffix = repoNameSuffix, parentRepoId = parentRepoId, credentialId = selectedCredentialId)
                         importRepoResult.all += result.all
                         importRepoResult.success += result.success
                         importRepoResult.failed += result.failed
                         importRepoResult.existed += result.existed
                     }
+
+                    importSuccess.value = true
 
                     Msg.requireShowLongDuration(replaceStringResList(activityContext.getString(R.string.n_imported), listOf(""+importRepoResult.success)))
                 }catch (e:Exception) {
@@ -2021,7 +2198,14 @@ fun ChangeListInnerPage(
                     //require refresh repo list for go to submodule after import
                     // since only worktree(ChangeList) can go to sub, so only need pass this param to ChangeList page, index and treeToTree page no need yet
                     if(needReQueryRepoList != null) {
-                        changeListRequireRefreshFromParentPage(curRepo)
+                        if(importSuccess.value && jumpAfterImportRepo.value && importList.isNotEmpty()) {
+                            val firstItem = importList.getOrNull(0)
+                            if(firstItem != null) {
+                                changeStateTriggerRefreshPage(needReQueryRepoList, requestType = StateRequestType.jumpAfterImport, data=firstItem.canonicalPath)
+                            }
+                        }else {
+                            changeStateTriggerRefreshPage(needReQueryRepoList)
+                        }
                     }
 
                     // refresh ChangeList page is unnecessary yet
@@ -2039,11 +2223,17 @@ fun ChangeListInnerPage(
                             else listOf()  //这个应该不会执行到
      */
 
-    val initImportAsRepo = {selectedItemList:List<StatusTypeEntrySaver> ->
+    fun initImportAsRepo(
+        selectedItemList:List<StatusTypeEntrySaver>,
+
+        // 若为true，导入仓库后跳转到列表`selectedItemList`中第一个仓库 (p.s. 根据完整路径跳转)
+        jumpAfterImport:Boolean = false,
+    ) {
         val tmplist = selectedItemList.filter { it.toFile().isDirectory }
         if(tmplist.isEmpty()) {
-            Msg.requireShow(activityContext.getString(R.string.no_dir_selected))
+            Msg.requireShowLongDuration(activityContext.getString(R.string.no_dir_selected))
         }else {
+            jumpAfterImportRepo.value = jumpAfterImport
             importList.value.clear()
             importList.value.addAll(tmplist)
             showImportToReposDialog.value=true
@@ -2092,12 +2282,60 @@ fun ChangeListInnerPage(
     }
 
 
+    fun diffFiles(curItem:StatusTypeEntrySaver, itemListOrFilterList:List<StatusTypeEntrySaver>, commit1OidStr:String, commit2OidStr:String, fromTo:String) {
+
+        //用来实现在diff页面stage条目后将其从cl页面移除。ps 由于filterList是由itemList产生的，所以，这里这里直接操作itemList才对，否则，无法显示最新的修改
+//                                SharedState.homeChangeList_itemList = if(enableFilter) filterList.value else itemList.value
+        SharedState.homeChangeList_itemList = itemList.value
+        SharedState.homeChangeList_indexHasItem = changeListPageHasIndexItem
+
+        //准备导航到diff页面的参数
+//                                val diffableList = itemList.filter {item -> item.changeType == Cons.gitStatusModified || item.changeType == Cons.gitStatusNew || item.changeType == Cons.gitStatusDeleted}
+        var indexAtDiffableList = -1
+
+        val diffableList = mutableListOf<StatusTypeEntrySaver>()
+        // if filter mode on, this item list is filter list, logically, no changed required
+        // 如果开启过滤模式，这个列表会是过滤后的列表，符合逻辑，不用修改
+        val itemCopy = itemListOrFilterList.toList()
+        for(idx in itemCopy.indices) {
+            val item = itemCopy[idx]
+            //非冲突类型的条目一律添加，包括submodules
+            if(item.changeType != Cons.gitStatusConflict) {
+                diffableList.add(item)
+
+                if(item == curItem) {
+                    indexAtDiffableList = diffableList.lastIndex
+                }
+            }
+        }
+
+        naviTarget.value = Cons.ChangeListNaviTarget_NoNeedReload
+
+        goToDiffScreen(
+//                                    relativePathList = listOf(it.relativePathUnderRepo),
+            diffableList = diffableList.map { it.toDiffableItem() },
+            repoId = curItem.repoIdFromDb,
+            fromTo = fromTo,
+            commit1OidStr = commit1OidStr,
+            commit2OidStr = commit2OidStr,
+            isDiffToLocal = commit1OidStr==Cons.git_LocalWorktreeCommitHash || commit2OidStr==Cons.git_LocalWorktreeCommitHash,
+            curItemIndexAtDiffableList = indexAtDiffableList,
+            localAtDiffRight = commit2OidStr==Cons.git_LocalWorktreeCommitHash,
+            fromScreen = (if(fromTo == Cons.gitDiffFromIndexToWorktree) DiffFromScreen.HOME_CHANGELIST.code
+            else if(fromTo == Cons.gitDiffFromHeadToIndex) DiffFromScreen.INDEX.code
+            else DiffFromScreen.TREE_TO_TREE.code),
+        )
+
+
+    }
 
 
     val goToSub = { item:StatusTypeEntrySaver ->
         val target = changeListRepoList?.value?.find { item.toFile().canonicalPath == it.fullSavePath }
-        if(target==null) {
-            Msg.requireShow(activityContext.getString(R.string.dir_not_imported))
+        if(target == null) {
+//            Msg.requireShowLongDuration(activityContext.getString(R.string.plz_import_repo_then_try_again))
+            // 如果没导入仓库，导入，并在导入后跳转
+            initImportAsRepo(listOf(item), jumpAfterImport = true)
         }else {
             goToChangeListPage(target)
         }
@@ -2109,6 +2347,11 @@ fun ChangeListInnerPage(
         stringResource(R.string.open),
         stringResource(R.string.open_as),
         stringResource(R.string.show_in_files),
+
+        // left to local，相当于比较父提交和local，right to local，相当于比较当前提交和local
+        Libgit2Helper.getLeftToRightFullHash(if(fromTo == Cons.gitDiffFromHeadToIndex) Cons.git_HeadCommitHash else stringResource(R.string.left), stringResource(R.string.local)) ,
+        Libgit2Helper.getLeftToRightFullHash(if(fromTo == Cons.gitDiffFromHeadToIndex) stringResource(R.string.index) else stringResource(R.string.right), stringResource(R.string.local)) ,
+
         stringResource(R.string.file_history),
         stringResource(R.string.copy_full_path),
         stringResource(R.string.copy_repo_relative_path),
@@ -2148,6 +2391,46 @@ fun ChangeListInnerPage(
 
             goToFilesPage(item.canonicalPath)
         },
+        leftToLocal@{
+            if(fromTo == Cons.gitDiffFromHeadToIndex) {
+                diffFiles(
+                    curItem = it,
+                    itemListOrFilterList = getActuallyList(),
+                    commit1OidStr = Cons.git_HeadCommitHash,
+                    commit2OidStr = Cons.git_LocalWorktreeCommitHash,
+                    fromTo = Cons.gitDiffFromTreeToTree
+                )
+            }else {
+                diffFiles(
+                    curItem = it,
+                    itemListOrFilterList = getActuallyList(),
+                    commit1OidStr = getCommitLeft(),
+                    commit2OidStr = Cons.git_LocalWorktreeCommitHash,
+                    fromTo = Cons.gitDiffFromTreeToTree
+                )
+            }
+        },
+        rightToLocal@{
+            if(fromTo == Cons.gitDiffFromHeadToIndex) {
+                diffFiles(
+                    curItem = it,
+                    itemListOrFilterList = getActuallyList(),
+                    commit1OidStr = Cons.git_IndexCommitHash,
+                    commit2OidStr = Cons.git_LocalWorktreeCommitHash,
+
+                    // 这里不能用 index to worktree，不然会显示提交、暂存之类的菜单项，在index显示这些，容易混乱，让人分不清到底从哪个页面来的
+                    fromTo = Cons.gitDiffFromTreeToTree
+                )
+            }else {
+                diffFiles(
+                    curItem = it,
+                    itemListOrFilterList = getActuallyList(),
+                    commit1OidStr = getCommitRight(),
+                    commit2OidStr = Cons.git_LocalWorktreeCommitHash,
+                    fromTo = Cons.gitDiffFromTreeToTree
+                )
+            }
+        },
         fileHistory@{item:StatusTypeEntrySaver ->
             naviToFileHistoryByRelativePath(repoId, item.relativePathUnderRepo)
         },
@@ -2175,6 +2458,8 @@ fun ChangeListInnerPage(
 
         //只有worktree的cl页面支持在Files页面显示文件，index页面由于是二级页面，跳转不了，干脆禁用了
         showInFilesEnabled@{fromTo == Cons.gitDiffFromIndexToWorktree},  //对所有条目都启用showInFiles，不过会在点击后检查文件是否存在，若不存在不会跳转
+        leftToLocal@{ fromTo == Cons.gitDiffFromTreeToTree || fromTo == Cons.gitDiffFromHeadToIndex },
+        rightToLocal@{ fromTo == Cons.gitDiffFromTreeToTree || fromTo == Cons.gitDiffFromHeadToIndex },
         fileHistoryEnabled@{it.maybeIsFileAndExist()},
         copyFullPath@{true},
         copyRepoRelativePath@{true},
@@ -2185,7 +2470,6 @@ fun ChangeListInnerPage(
     //这个页面，显示就是启用，禁用就不需要显示，所以直接把enableList作为visibleList即可
     val menuKeyVisibleList:List<(StatusTypeEntrySaver)->Boolean> = menuKeyEnableList
 
-    val hasError = rememberSaveable { mutableStateOf(false)}
     val errMsg = rememberSaveable { mutableStateOf("")}
     val setErrMsg = {msg:String ->
         errMsg.value = msg
@@ -2207,14 +2491,15 @@ fun ChangeListInnerPage(
     //换句话说：ChangeList页面需要注册双击返回；Index页面不需要
     val isBackHandlerEnable = rememberSaveable { mutableStateOf(true)}
     val backHandlerOnBack = getBackHandler(
-        activityContext,
-        exitApp,
-        isFileSelectionMode,
-        quitSelectionMode,
-        fromTo,
-        naviUp,
-        changeListPageFilterModeOn,
-        openDrawer
+        appContext = activityContext,
+        exitApp = exitApp,
+        isFileSelectionMode = isFileSelectionMode,
+        quitSelectionMode = quitSelectionMode,
+        fromTo = fromTo,
+        naviUp = naviUp,
+        changeListPageFilterModeOn = changeListPageFilterModeOn,
+        resetSearchVars = resetSearchVars,
+        openDrawer = openDrawer
 
     )
     //注册BackHandler，拦截返回键，实现双击返回和返回上级目录
@@ -2266,156 +2551,183 @@ fun ChangeListInnerPage(
         }
     }
 
+
+
+    // remove from git弹窗
+    val showRemoveFromGitDialog = rememberSaveable { mutableStateOf(false) }
+    if(showRemoveFromGitDialog.value) {
+        ConfirmDialog(
+            title = stringResource(id = R.string.remove_from_git),
+            text = stringResource(R.string.will_remove_selected_items_from_git_are_u_sure),
+            okTextColor = MyStyleKt.TextColor.danger(),
+            onCancel = { showRemoveFromGitDialog.value=false }
+        ) {
+            //关闭弹窗
+            showRemoveFromGitDialog.value = false
+
+            val curRepoFromParentPage = curRepoFromParentPage.value
+
+            //执行删除
+            doJobThenOffLoading (loadingOn = loadingOn, loadingOff=loadingOff) {
+                val selectedItemList = selectedItemList.value.toList()
+
+                if(selectedItemList.isEmpty()) {
+                    Msg.requireShowLongDuration(noItemSelectedStrRes)
+                    return@doJobThenOffLoading  // 结束操作
+                }
+
+                try {
+                    //注意：如果选中的文件在不同的目录下，可能会失效，因为这里仅通过第一个元素查找仓库，多数情况下不会有问题，因为选择文件默认只能在同一目录选（虽然没严格限制导致有办法跳过）
+                    Repository.open(curRepoFromParentPage.fullSavePath).use { repo ->
+                        val repoWorkDirFullPath = Libgit2Helper.getRepoWorkdirNoEndsWithSlash(repo)
+                        MyLog.d(TAG, "#RemoveFromGitDialog: will remove files from repo workdir: '${repoWorkDirFullPath}'")
+
+                        val repoIndex = repo.index()
+
+                        //开始循环，删除所有选中文件
+                        selectedItemList.forEachBetter {
+                            //存在有效仓库，且文件的仓库内相对路径不为空，且不是.git目录本身，且不是.git目录下的文件
+                            Libgit2Helper.removeFromGit(repoIndex, it.relativePathUnderRepo, it.toFile().isFile)
+                        }
+
+                        //保存修改
+                        repoIndex.write()
+                    }
+
+
+                    Msg.requireShow(activityContext.getString(R.string.success))
+
+                    changeListRequireRefreshFromParentPage(curRepoFromParentPage)
+                }catch (e:Exception) {
+                    val errMsg = e.localizedMessage
+                    Msg.requireShowLongDuration("err: $errMsg")
+                    createAndInsertError(curRepoFromParentPage.id, "remove from git err: $errMsg")
+                    MyLog.e(TAG, "#RemoveFromGitDialog: remove from git err: ${e.stackTraceToString()}")
+
+                    changeListRequireRefreshFromParentPage(curRepoFromParentPage)
+                }
+            }
+        }
+    }
+
     val iconModifier = MyStyleKt.Icon.modifier
 
 
-    if(isLoading.value) {
-        //LoadingText默认开启滚动，所以无需处理(ps 滚动是为了显隐顶栏
-        LoadingText(text = loadingText.value, contentPadding = contentPadding)
-    }else {
-        if(hasError.value){  //有错误则显示错误（例如无仓库、无效树id都会导致出错）
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(contentPadding)
-                    .padding(bottom = 80.dp)
-                    .padding(10.dp)
-                    .verticalScroll(rememberScrollState())
+    PullToRefreshBox(
+        contentPadding = contentPadding,
+        onRefresh = { changeListRequireRefreshFromParentPage(curRepoFromParentPage.value) },
 
-                ,
-                verticalArrangement = Arrangement.Center,
-                horizontalAlignment = Alignment.CenterHorizontally,
-
-            ) {
-                MySelectionContainer {
-                    Text(errMsg.value, color = MyStyleKt.TextColor.error())
+    ) {
+        if(isLoading.value) {
+            //LoadingText默认开启滚动，所以无需处理(ps 滚动是为了显隐顶栏
+            LoadingTextSimple(text = loadingText.value, contentPadding = contentPadding)
+        }else {
+            if(hasError.value) {  //有错误则显示错误（例如无仓库、无效树id都会导致出错）
+                FullScreenScrollableColumn(contentPadding) {
+                    MySelectionContainer {
+                        Text(errMsg.value, color = MyStyleKt.TextColor.error())
+                    }
                 }
-            }
-        }else {  //有仓库，但条目列表为空，可能没修改的东西，这时显示仓库是否clean是否和远程同步等信息
-            // onUi是为了和在callback里区分，callback函数应该通过状态变量获取最新值
-            val curRepoOnUi = curRepoFromParentPage.value
-            val curRepoUpstreamOnUi = curRepoUpstream.value
+            }else {  //有仓库，但条目列表为空，可能没修改的东西，这时显示仓库是否clean是否和远程同步等信息
+                // onUi是为了和在callback里区分，callback函数应该通过状态变量获取最新值
+                val curRepoOnUi = curRepoFromParentPage.value
+                val curRepoUpstreamOnUi = curRepoUpstream.value
 
-            if(itemList.value.isEmpty()) {  //列表为空
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(contentPadding)
-//                        .padding(bottom = 80.dp)  //不要在这加padding，如果想加，应在底部加个padding row
-                        .verticalScroll(rememberScrollState())
-                    ,
-                    verticalArrangement = Arrangement.Center,
-                    horizontalAlignment = Alignment.CenterHorizontally,
+                if(itemList.value.isEmpty()) {  //列表为空
+                    FullScreenScrollableColumn(contentPadding) {
 
-                ) {
-                    if(fromTo == Cons.gitDiffFromIndexToWorktree) {  //worktree
-                        Text(text = stringResource(id = R.string.work_tree_clean))
-                        Row(
-                            modifier = Modifier
-                                .padding(top = 10.dp)
-                            ,
-                        ) {
-                            if (changeListPageHasIndexItem.value){  //index不为空
-                                ClickableText(
-                                    text =  stringResource(R.string.index_dirty),
-                                    modifier = MyStyleKt.ClickableText.modifierNoPadding
-                                        .clickable {  //导航到Index页面
-                                            navController.navigate(Cons.nav_IndexScreen)
-                                        }
-                                    ,
-                                )
-                            } else{  //index为空
-                                Text(text =  stringResource(R.string.index_clean))
+                        if(fromTo == Cons.gitDiffFromIndexToWorktree) {  //worktree
+                            MySelectionContainer {
+                                Text(text = stringResource(R.string.work_tree_clean))
                             }
-                        }
 
-                        //如果仓库状态不是detached HEAD，检查是否和上游同步
-                        if (!dbIntToBool(curRepoOnUi.isDetached)) {
-                            var upstreamNotSet = false
-
-                            val fontSizeOfPullPushSync = 16.sp
-
-                            val splitSign = " | "
-                            val splitHorizonPadding = 10.dp
-
-                            Column(
-                                modifier = Modifier
-                                    .padding(top = 10.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.Center
-                            ) {
-                                //领先或落后或上游无效，显示 "click here to sync" (ps: 上游无效也显示是因为worktree页面的sync可创建上游)
-                                if (curRepoOnUi.ahead != 0 || curRepoOnUi.behind != 0
-                                    //上游为空，显示sync
-                                    || curRepoUpstreamOnUi.branchRefsHeadsFullRefSpec.isBlank()
-                                    //上游不为空，但未发布，显示sync
-                                    || (curRepoUpstreamOnUi.branchRefsHeadsFullRefSpec.isNotBlank() && !curRepoUpstreamOnUi.isPublished)
-                                ) {
-                                    //查询下仓库是否领先或落后于上游
-                                    if (curRepoOnUi.ahead != 0) {
-                                        Row {
-                                            Text(text = stringResource(R.string.local_ahead) + ": " + curRepoOnUi.ahead)
-
-                                        }
-                                    }
-                                    if (curRepoOnUi.behind != 0) {
-                                        Row {  //换行
-                                            Text(text = stringResource(R.string.local_behind) + ": " + curRepoOnUi.behind)
-                                        }
-                                    }
-
-                                    //没设置上游
-                                    if(curRepoUpstreamOnUi.branchRefsHeadsFullRefSpec.isBlank()) {
-                                        upstreamNotSet = true
-                                        Row {  //换行
-                                            Text(text = stringResource(R.string.no_upstream))
-                                        }
-                                    }
-
-                                    //设置了上游但没推送到远程
-                                    if(curRepoUpstreamOnUi.branchRefsHeadsFullRefSpec.isNotBlank() && !curRepoUpstreamOnUi.isPublished) {
-                                        Row {  //换行
-                                            Text(text = stringResource(R.string.upstream_not_published))
-                                        }
-                                    }
-
-                                    if(curRepoOnUi.behind != 0) {
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.Center
-                                        ) {
-                                            ClickableText(
-                                                text = stringResource(R.string.merge),
-                                                fontSize = fontSizeOfPullPushSync,
-                                                modifier = MyStyleKt.ClickableText.modifierNoPadding.clickable {
-                                                    val curRepo = curRepoFromParentPage.value
-
-                                                    doTaskOrShowSetUsernameAndEmailDialog(curRepo) {
-                                                        doJobThenOffLoading(loadingOn, loadingOff, activityContext.getString(R.string.merging)) {
-                                                            doActWithLock(curRepo) {
-                                                                ChangeListFunctions.doMerge(
-                                                                    requireCloseBottomBar = true,
-                                                                    upstreamParam = null,
-                                                                    showMsgIfHasConflicts = true,
-                                                                    trueMergeFalseRebase = true,
-                                                                    curRepoFromParentPage = curRepo,
-                                                                    requireShowToast = requireShowToast,
-                                                                    activityContext = activityContext,
-                                                                    loadingText = loadingText,
-                                                                    bottomBarActDoneCallback = bottomBarActDoneCallback
-                                                                )
-                                                            }
-                                                        }
-                                                    }
+                            MySelectionContainer {
+                                Row(modifier = Modifier.padding(top = 10.dp)) {
+                                    if (changeListPageHasIndexItem.value){  //index不为空
+                                        ClickableText(
+                                            text =  stringResource(R.string.index_dirty),
+                                            modifier = MyStyleKt.ClickableText.modifierNoPadding
+                                                .clickable {  //导航到Index页面
+                                                    navController.navigate(Cons.nav_IndexScreen)
                                                 }
-                                            )
+                                            ,
+                                        )
+                                    } else{  //index为空
+                                        Text(text =  stringResource(R.string.index_clean))
+                                    }
+                                }
+                            }
 
-                                            Text(text = splitSign, modifier = Modifier.padding(horizontal = splitHorizonPadding))
 
-                                            ClickableText(
-                                                text = stringResource(R.string.rebase),
-                                                fontSize = fontSizeOfPullPushSync,
-                                                modifier = MyStyleKt.ClickableText.modifierNoPadding.clickable {
+                            //如果仓库状态不是detached HEAD，检查是否和上游同步
+                            if (!dbIntToBool(curRepoOnUi.isDetached)) {
+                                var upstreamNotSet = false
+
+                                val fontSizeOfPullPushSync = 16.sp
+
+//                                val splitSign = " | "
+                                val splitHorizonPadding = 10.dp
+
+                                Column(
+                                    modifier = Modifier
+                                        .padding(top = 10.dp)
+                                    ,
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.Center
+                                ) {
+                                    //领先或落后或上游无效，显示 "click here to sync" (ps: 上游无效也显示是因为worktree页面的sync可创建上游)
+                                    if (curRepoOnUi.ahead != 0 || curRepoOnUi.behind != 0
+                                        //上游为空，显示sync
+                                        || curRepoUpstreamOnUi.branchRefsHeadsFullRefSpec.isBlank()
+                                        //上游不为空，但未发布，显示sync
+                                        || (curRepoUpstreamOnUi.branchRefsHeadsFullRefSpec.isNotBlank() && !curRepoUpstreamOnUi.isPublished)
+                                    ) {
+                                        //查询下仓库是否领先或落后于上游
+                                        if (curRepoOnUi.ahead != 0) {
+                                            MySelectionContainer {
+                                                Row {
+                                                    Text(text = stringResource(R.string.local_ahead) + ": " + curRepoOnUi.ahead)
+                                                }
+                                            }
+                                        }
+                                        if (curRepoOnUi.behind != 0) {
+                                            MySelectionContainer {
+                                                Row {  //换行
+                                                    Text(text = stringResource(R.string.local_behind) + ": " + curRepoOnUi.behind)
+                                                }
+                                            }
+                                        }
+
+                                        //没设置上游
+                                        if(curRepoUpstreamOnUi.branchRefsHeadsFullRefSpec.isBlank()) {
+                                            upstreamNotSet = true
+                                            MySelectionContainer {
+                                                Row {  //换行
+                                                    Text(text = stringResource(R.string.no_upstream))
+                                                }
+                                            }
+                                        }
+
+                                        //设置了上游但没推送到远程
+                                        if(curRepoUpstreamOnUi.branchRefsHeadsFullRefSpec.isNotBlank() && !curRepoUpstreamOnUi.isPublished) {
+                                            MySelectionContainer {
+                                                Row {  //换行
+                                                    Text(text = stringResource(R.string.upstream_not_published))
+                                                }
+                                            }
+                                        }
+
+                                        if(curRepoOnUi.behind != 0) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.Center
+                                            ) {
+                                                LongPressAbleIconBtn(
+                                                    iconModifier = iconModifier,
+                                                    tooltipText = stringResource(R.string.rebase),
+                                                    icon = ImageVector.vectorResource(R.drawable.git_rebase),
+                                                    iconContentDesc = stringResource(R.string.rebase),
+                                                ) {
                                                     val curRepo = curRepoFromParentPage.value
 
                                                     doTaskOrShowSetUsernameAndEmailDialog(curRepo) {
@@ -2436,161 +2748,190 @@ fun ChangeListInnerPage(
                                                         }
                                                     }
                                                 }
-                                            )
+
+//                                               // Text(text = splitSign, modifier = Modifier.padding(horizontal = splitHorizonPadding))
+
+                                                LongPressAbleIconBtn(
+                                                    iconModifier = iconModifier,
+                                                    tooltipText = stringResource(R.string.merge),
+                                                    icon = Icons.Filled.Merge ,
+                                                    iconContentDesc = stringResource(R.string.merge),
+                                                ) {
+                                                    val curRepo = curRepoFromParentPage.value
+
+                                                    doTaskOrShowSetUsernameAndEmailDialog(curRepo) {
+                                                        doJobThenOffLoading(loadingOn, loadingOff, activityContext.getString(R.string.merging)) {
+                                                            doActWithLock(curRepo) {
+                                                                ChangeListFunctions.doMerge(
+                                                                    requireCloseBottomBar = true,
+                                                                    upstreamParam = null,
+                                                                    showMsgIfHasConflicts = true,
+                                                                    trueMergeFalseRebase = true,
+                                                                    curRepoFromParentPage = curRepo,
+                                                                    requireShowToast = requireShowToast,
+                                                                    activityContext = activityContext,
+                                                                    loadingText = loadingText,
+                                                                    bottomBarActDoneCallback = bottomBarActDoneCallback
+                                                                )
+                                                            }
+                                                        }
+                                                    }
+                                                }
+
+                                            }
+                                        }
+
+
+                                    } else {
+                                        MySelectionContainer {
+                                            Text(text = stringResource(id = R.string.already_up_to_date))
                                         }
                                     }
 
 
-                                } else {
-                                    Text(text = stringResource(id = R.string.already_up_to_date))
-                                }
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.Center
+                                    ) {
 
-
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.Center
-                                ) {
-
-                                    val syncText = stringResource(if(upstreamNotSet) R.string.set_upstream_and_sync else R.string.sync)
+                                        val syncText = stringResource(if(upstreamNotSet) R.string.set_upstream_and_sync else R.string.sync)
 //                                    val syncIcon = if(upstreamNotSet) Icons.Filled.CloudSync else Icons.Filled.Sync
 //                                    val syncIcon = if(upstreamNotSet) Icons.Filled.CloudSync else ImageVector.vectorResource(R.drawable.two_way_sync)
-                                    val syncIcon = ImageVector.vectorResource(R.drawable.two_way_sync)
-                                    LongPressAbleIconBtn(
-                                        iconModifier = iconModifier,
-                                        tooltipText = syncText,
-                                        icon = syncIcon ,
-                                        iconContentDesc = syncText,
-
-                                    ) {
-                                        val curRepo = curRepoFromParentPage.value
-
-                                        doTaskOrShowSetUsernameAndEmailDialog(curRepo) {
-
-                                            doJobThenOffLoading(loadingOn, loadingOff, activityContext.getString(R.string.syncing)) {
-                                                doActWithLock(curRepo) {
-                                                    try {
-//                                                   //     doSync(true)
-                                                        ChangeListFunctions.doSync(
-                                                            loadingOn = loadingOn,
-                                                            loadingOff = loadingOff,
-                                                            requireCloseBottomBar = true,
-                                                            trueMergeFalseRebase = true,
-                                                            curRepoFromParentPage = curRepo,
-                                                            requireShowToast = requireShowToast,
-                                                            activityContext = activityContext,
-                                                            bottomBarActDoneCallback = bottomBarActDoneCallback,
-                                                            plzSetUpStreamForCurBranch = plzSetUpStreamForCurBranch,
-                                                            initSetUpstreamDialog = initSetUpstreamDialog,
-
-                                                            loadingText = loadingText,
-                                                            dbContainer = dbContainer
-                                                        )
-                                                    } catch (e: Exception) {
-                                                        showErrAndSaveLog(
-                                                            logTag = TAG,
-                                                            logMsg = "sync error: " + e.stackTraceToString(),
-                                                            showMsg = activityContext.getString(R.string.sync_failed) + ": " + e.localizedMessage,
-                                                            showMsgMethod = requireShowToast,
-                                                            repoId = curRepo.id
-                                                        )
-                                                    } finally {
-                                                        changeListRequireRefreshFromParentPage(curRepo)
-                                                    }
-
-                                                }
-                                            }
-                                        }
-
-                                    }
-
-                                    //如果设置了上游，显示pull/push
-                                    if(!upstreamNotSet) {
+                                        val syncIcon = ImageVector.vectorResource(R.drawable.two_way_sync)
                                         LongPressAbleIconBtn(
                                             iconModifier = iconModifier,
-                                            tooltipText = stringResource(R.string.push),
-                                            icon =  Icons.Filled.Upload,
-                                            iconContentDesc = stringResource(id = R.string.push),
-
-                                        ) {
-                                            val curRepo = curRepoFromParentPage.value
-                                            doJobThenOffLoading(loadingOn, loadingOff, activityContext.getString(R.string.pushing)) {
-                                                doActWithLock(curRepo) {
-                                                    try {
-//                                                            val success = doPush(true, null)
-                                                        val success = ChangeListFunctions.doPush(
-                                                            requireCloseBottomBar = true,
-                                                            upstreamParam = null,
-                                                            force = false,
-                                                            curRepoFromParentPage = curRepo,
-                                                            requireShowToast = requireShowToast,
-                                                            activityContext = activityContext,
-                                                            loadingText = loadingText,
-                                                            bottomBarActDoneCallback = bottomBarActDoneCallback,
-                                                            dbContainer = dbContainer
-                                                        )
-                                                        if (!success) {
-                                                            requireShowToast(activityContext.getString(R.string.push_failed))
-                                                        } else {
-                                                            requireShowToast(activityContext.getString(R.string.push_success))
-                                                        }
-                                                    } catch (e: Exception) {
-                                                        showErrAndSaveLog(
-                                                            logTag = TAG,
-                                                            logMsg = "push err: " + e.stackTraceToString(),
-                                                            showMsg = activityContext.getString(R.string.push_failed) + ": " + e.localizedMessage,
-                                                            showMsgMethod = requireShowToast,
-                                                            repoId = curRepo.id
-                                                        )
-                                                    } finally {
-                                                        changeListRequireRefreshFromParentPage(curRepo)
-                                                    }
-
-                                                }
-                                            }
-                                        }
-
-
-                                        LongPressAbleIconBtn(
-                                            iconModifier = iconModifier,
-                                            tooltipText = stringResource(R.string.pull),
-                                            icon =  Icons.Filled.Download,
-                                            iconContentDesc = stringResource(id = R.string.pull),
+                                            tooltipText = syncText,
+                                            icon = syncIcon ,
+                                            iconContentDesc = syncText,
 
                                         ) {
                                             val curRepo = curRepoFromParentPage.value
 
                                             doTaskOrShowSetUsernameAndEmailDialog(curRepo) {
-                                                doJobThenOffLoading(loadingOn, loadingOff, activityContext.getString(R.string.pulling)) {
+
+                                                doJobThenOffLoading(loadingOn, loadingOff, activityContext.getString(R.string.syncing)) {
                                                     doActWithLock(curRepo) {
-                                                        ChangeListFunctions.doPull(
-                                                            curRepo = curRepo,
-                                                            activityContext = activityContext,
-                                                            dbContainer = dbContainer,
-                                                            requireShowToast = requireShowToast,
-                                                            loadingText = loadingText,
-                                                            bottomBarActDoneCallback = bottomBarActDoneCallback,
-                                                            changeListRequireRefreshFromParentPage = changeListRequireRefreshFromParentPage,
-                                                            trueMergeFalseRebase = true,
-                                                            requireCloseBottomBar = true
-                                                        )
+                                                        try {
+//                                                   //     doSync(true)
+                                                            ChangeListFunctions.doSync(
+                                                                loadingOn = loadingOn,
+                                                                loadingOff = loadingOff,
+                                                                requireCloseBottomBar = true,
+                                                                trueMergeFalseRebase = true,
+                                                                curRepoFromParentPage = curRepo,
+                                                                requireShowToast = requireShowToast,
+                                                                activityContext = activityContext,
+                                                                bottomBarActDoneCallback = bottomBarActDoneCallback,
+                                                                plzSetUpStreamForCurBranch = plzSetUpStreamForCurBranch,
+                                                                initSetUpstreamDialog = initSetUpstreamDialog,
+
+                                                                loadingText = loadingText,
+                                                                dbContainer = dbContainer
+                                                            )
+                                                        } catch (e: Exception) {
+                                                            showErrAndSaveLog(
+                                                                logTag = TAG,
+                                                                logMsg = "sync error: " + e.stackTraceToString(),
+                                                                showMsg = activityContext.getString(R.string.sync_failed) + ": " + e.localizedMessage,
+                                                                showMsgMethod = requireShowToast,
+                                                                repoId = curRepo.id
+                                                            )
+                                                        } finally {
+                                                            changeListRequireRefreshFromParentPage(curRepo)
+                                                        }
+
                                                     }
                                                 }
                                             }
 
                                         }
 
-                                    }
+                                        //如果设置了上游，显示pull/push
+                                        if(!upstreamNotSet) {
+                                            LongPressAbleIconBtn(
+                                                iconModifier = iconModifier,
+                                                tooltipText = stringResource(R.string.push),
+                                                icon =  Icons.Filled.Upload,
+                                                iconContentDesc = stringResource(id = R.string.push),
 
+                                            ) {
+                                                val curRepo = curRepoFromParentPage.value
+                                                doJobThenOffLoading(loadingOn, loadingOff, activityContext.getString(R.string.pushing)) {
+                                                    doActWithLock(curRepo) {
+                                                        try {
+//                                                            val success = doPush(true, null)
+                                                            val success = ChangeListFunctions.doPush(
+                                                                requireCloseBottomBar = true,
+                                                                upstreamParam = null,
+                                                                force = false,
+                                                                curRepoFromParentPage = curRepo,
+                                                                requireShowToast = requireShowToast,
+                                                                activityContext = activityContext,
+                                                                loadingText = loadingText,
+                                                                bottomBarActDoneCallback = bottomBarActDoneCallback,
+                                                                dbContainer = dbContainer
+                                                            )
+                                                            if (!success) {
+                                                                requireShowToast(activityContext.getString(R.string.push_failed))
+                                                            } else {
+                                                                requireShowToast(activityContext.getString(R.string.push_success))
+                                                            }
+                                                        } catch (e: Exception) {
+                                                            showErrAndSaveLog(
+                                                                logTag = TAG,
+                                                                logMsg = "push err: " + e.stackTraceToString(),
+                                                                showMsg = activityContext.getString(R.string.push_failed) + ": " + e.localizedMessage,
+                                                                showMsgMethod = requireShowToast,
+                                                                repoId = curRepo.id
+                                                            )
+                                                        } finally {
+                                                            changeListRequireRefreshFromParentPage(curRepo)
+                                                        }
+
+                                                    }
+                                                }
+                                            }
+
+
+                                            LongPressAbleIconBtn(
+                                                iconModifier = iconModifier,
+                                                tooltipText = stringResource(R.string.pull),
+                                                icon =  Icons.Filled.Download,
+                                                iconContentDesc = stringResource(id = R.string.pull),
+
+                                            ) {
+                                                val curRepo = curRepoFromParentPage.value
+
+                                                doTaskOrShowSetUsernameAndEmailDialog(curRepo) {
+                                                    doJobThenOffLoading(loadingOn, loadingOff, activityContext.getString(R.string.pulling)) {
+                                                        doActWithLock(curRepo) {
+                                                            ChangeListFunctions.doPull(
+                                                                curRepo = curRepo,
+                                                                activityContext = activityContext,
+                                                                dbContainer = dbContainer,
+                                                                requireShowToast = requireShowToast,
+                                                                loadingText = loadingText,
+                                                                bottomBarActDoneCallback = bottomBarActDoneCallback,
+                                                                changeListRequireRefreshFromParentPage = changeListRequireRefreshFromParentPage,
+                                                                trueMergeFalseRebase = true,
+                                                                requireCloseBottomBar = true
+                                                            )
+                                                        }
+                                                    }
+                                                }
+
+                                            }
+
+                                        }
+
+                                    }
                                 }
                             }
-                        }
 
-                        //只有非detached HEAD 且 设置了上游（没发布也行） 才显示检查更新
-                        if(!dbIntToBool(curRepoOnUi.isDetached) && curRepoUpstreamOnUi.branchRefsHeadsFullRefSpec.isNotBlank()) {
-                            Row (
-//                                modifier=Modifier.padding(top=18.dp)
-
-                            ){
+                            //只有非detached HEAD 且 设置了上游（没发布也行） 才显示检查更新
+                            if(!dbIntToBool(curRepoOnUi.isDetached) && curRepoUpstreamOnUi.branchRefsHeadsFullRefSpec.isNotBlank()) {
+                                MySelectionContainer {
+                                    Row(Modifier.padding(top = 10.dp)) {
 //                                LongPressAbleIconBtn(
 //                                    iconModifier = iconModifier,
 //                                    tooltipText = stringResource(id = R.string.check_update),
@@ -2598,397 +2939,304 @@ fun ChangeListInnerPage(
 //                                    iconContentDesc = stringResource(id = R.string.check_update),
 //
 //                                ) {}
-                                ClickableText(
-                                    text = stringResource(id = R.string.check_update),
-                                    modifier = MyStyleKt.ClickableText.modifierNoPadding.clickable {
-                                        val curRepo = curRepoFromParentPage.value
-                                        // fetch
-                                        doJobThenOffLoading(loadingOn, loadingOff, activityContext.getString(R.string.fetching)) {
-                                            doActWithLock(curRepo) {
-                                                try {
+                                        ClickableText(
+                                            text = stringResource(id = R.string.check_update),
+                                            modifier = MyStyleKt.ClickableText.modifierNoPadding.clickable {
+                                                val curRepo = curRepoFromParentPage.value
+                                                // fetch
+                                                doJobThenOffLoading(loadingOn, loadingOff, activityContext.getString(R.string.fetching)) {
+                                                    doActWithLock(curRepo) {
+                                                        try {
 //                                                    val fetchSuccess = doFetch(null)
-                                                    val fetchSuccess = ChangeListFunctions.doFetch(
-                                                        remoteNameParam = null,
-                                                        curRepoFromParentPage = curRepo,
-                                                        requireShowToast = requireShowToast,
-                                                        activityContext = activityContext,
-                                                        loadingText = loadingText,
-                                                        dbContainer = dbContainer
-                                                    )
-                                                    if (fetchSuccess) {
-                                                        requireShowToast(
-                                                            activityContext.getString(
-                                                                R.string.fetch_success
+                                                            val fetchSuccess = ChangeListFunctions.doFetch(
+                                                                remoteNameParam = null,
+                                                                curRepoFromParentPage = curRepo,
+                                                                requireShowToast = requireShowToast,
+                                                                activityContext = activityContext,
+                                                                loadingText = loadingText,
+                                                                dbContainer = dbContainer
                                                             )
-                                                        )
-                                                    } else {
-                                                        requireShowToast(
-                                                            activityContext.getString(
-                                                                R.string.fetch_failed
+                                                            if (fetchSuccess) {
+                                                                requireShowToast(
+                                                                    activityContext.getString(
+                                                                        R.string.fetch_success
+                                                                    )
+                                                                )
+                                                            } else {
+                                                                requireShowToast(
+                                                                    activityContext.getString(
+                                                                        R.string.fetch_failed
+                                                                    )
+                                                                )
+                                                            }
+                                                        } catch (e: Exception) {
+                                                            showErrAndSaveLog(
+                                                                logTag = TAG,
+                                                                logMsg = "fetch err: " + e.stackTraceToString(),
+                                                                showMsg = activityContext.getString(R.string.fetch_failed) + ": " + e.localizedMessage,
+                                                                showMsgMethod = requireShowToast,
+                                                                repoId = curRepo.id
                                                             )
-                                                        )
+                                                        } finally {
+                                                            changeListRequireRefreshFromParentPage(curRepo)
+                                                        }
                                                     }
-                                                } catch (e: Exception) {
-                                                    showErrAndSaveLog(
-                                                        logTag = TAG,
-                                                        logMsg = "fetch err: " + e.stackTraceToString(),
-                                                        showMsg = activityContext.getString(R.string.fetch_failed) + ": " + e.localizedMessage,
-                                                        showMsgMethod = requireShowToast,
-                                                        repoId = curRepo.id
-                                                    )
-                                                } finally {
-                                                    changeListRequireRefreshFromParentPage(curRepo)
                                                 }
-                                            }
+
+                                            },
+                                        )
+                                    }
+                                }
+
+                            }
+
+                            //如果是pro，显示 文件、分支、提交历史 功能入口
+                            if(UserUtil.isPro()) {
+                                Row(modifier=Modifier.padding(top=18.dp),
+                                    horizontalArrangement = Arrangement.Center,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+
+                                    if(dev_EnableUnTestedFeature || tagsTestPassed) {
+                                        LongPressAbleIconBtn(
+                                            enabled = true,
+                                            iconModifier = iconModifier,
+                                            tooltipText = stringResource(R.string.tags),
+                                            icon = Icons.AutoMirrored.Filled.Label,
+                                            iconContentDesc = stringResource(R.string.tags),
+
+                                        ) {  //go to tags page
+                                            navController.navigate(Cons.nav_TagListScreen + "/" + repoId)
                                         }
 
-                                    },
-                                )
-                            }
-                        }
+                                    }
 
-                        //如果是pro，显示 文件、分支、提交历史 功能入口
-                        if(UserUtil.isPro()) {
-                            Row(modifier=Modifier.padding(top=18.dp),
-                                horizontalArrangement = Arrangement.Center,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-
-                                if(dev_EnableUnTestedFeature || tagsTestPassed) {
                                     LongPressAbleIconBtn(
                                         enabled = true,
                                         iconModifier = iconModifier,
-                                        tooltipText = stringResource(R.string.tags),
-                                        icon = Icons.AutoMirrored.Filled.Label,
-                                        iconContentDesc = stringResource(R.string.tags),
+                                        tooltipText = stringResource(R.string.commit_history),
+                                        icon =  Icons.Filled.History,
+                                        iconContentDesc = stringResource(id = R.string.commit_history),
 
-                                    ) {  //go to tags page
-                                        navController.navigate(Cons.nav_TagListScreen + "/" + repoId)
+                                        ) {  // go to commit history (git log) page
+                                        val curRepo = curRepoFromParentPage.value
+
+                                        //打开当前仓库的提交记录页面，话说，那个树形怎么搞？可以先不搞树形，以后再弄
+                                        goToCommitListScreen(
+                                            repoId = curRepo.id,
+                                            fullOid = "",  //这里不需要传分支名，会通过HEAD解析当前分支
+                                            shortBranchName = "",
+                                            useFullOid = false,
+                                            isHEAD = true
+                                        )
+                                    }
+
+                                    LongPressAbleIconBtn(
+                                        enabled = true,
+                                        iconModifier = iconModifier,
+                                        tooltipText = stringResource(R.string.branches),
+                                        icon = ImageVector.vectorResource(id = R.drawable.branch),
+                                        iconContentDesc = stringResource(id = R.string.branches),
+
+                                        ) { // go to branches page
+                                        navController.navigate(Cons.nav_BranchListScreen + "/" + curRepoFromParentPage.value.id)
+                                    }
+
+
+                                    LongPressAbleIconBtn(
+                                        enabled = true,
+                                        iconModifier = iconModifier,
+                                        tooltipText = stringResource(R.string.files),
+                                        icon =  Icons.Filled.Folder,
+                                        iconContentDesc = stringResource(id = R.string.files),
+
+                                        ) { // go to Files page
+                                        goToFilesPage(curRepoFromParentPage.value.fullSavePath)
                                     }
 
                                 }
+                            }
 
-                                LongPressAbleIconBtn(
-                                    enabled = true,
-                                    iconModifier = iconModifier,
-                                    tooltipText = stringResource(R.string.commit_history),
-                                    icon =  Icons.Filled.History,
-                                    iconContentDesc = stringResource(id = R.string.commit_history),
+                        }else if(fromTo == Cons.gitDiffFromHeadToIndex) {  //Index Screen
+                            MySelectionContainer {
+                                Text(text = stringResource(id = R.string.index_clean))
+                            }
 
-                                ) {  // go to commit history (git log) page
-                                    val curRepo = curRepoFromParentPage.value
-
-                                    //打开当前仓库的提交记录页面，话说，那个树形怎么搞？可以先不搞树形，以后再弄
-                                    Cache.set(Cache.Key.commitList_fullOidKey, "")  //这里不需要传分支名，会通过HEAD解析当前分支
-                                    Cache.set(Cache.Key.commitList_shortBranchNameKey, "")  //这里用不到这个值，所以没必要创建那么多key，都用一个关联无效value的key就行了
-                                    val useFullOid = "0"
-                                    val isHEAD = "1"
-                                    //注：如果fullOidKey传null，会变成字符串 "null"，然后查不出东西，返回空字符串，与其在导航组件取值时做处理，不如直接传空字符串，不做处理其实也行，只要“null“作为cache key取不出东西就行，但要是不做处理万一字符串"null"作为cache key能查出东西，就歇菜了，总之，走正常流程取得有效cache key，cache value传空字符串，即可
-                                    navController.navigate(Cons.nav_CommitListScreen + "/" + curRepo.id + "/" + useFullOid +"/" +isHEAD)
-
-                                }
-
-                                LongPressAbleIconBtn(
-                                    enabled = true,
-                                    iconModifier = iconModifier,
-                                    tooltipText = stringResource(R.string.branches),
-                                    icon = ImageVector.vectorResource(id = R.drawable.branch),
-                                    iconContentDesc = stringResource(id = R.string.branches),
-
-                                ) { // go to branches page
-                                    navController.navigate(Cons.nav_BranchListScreen + "/" + curRepoFromParentPage.value.id)
-                                }
-
-
-                                LongPressAbleIconBtn(
-                                    enabled = true,
-                                    iconModifier = iconModifier,
-                                    tooltipText = stringResource(R.string.files),
-                                    icon =  Icons.Filled.Folder,
-                                    iconContentDesc = stringResource(id = R.string.files),
-
-                                ) { // go to Files page
-                                    goToFilesPage(curRepoFromParentPage.value.fullSavePath)
-                                }
-
+                        }else {  //fromTo == Cons.gitDiffFromTreeToTree and other
+                            MySelectionContainer {
+                                Text(text = stringResource(id = R.string.no_difference_found))
                             }
                         }
-
-                    }else if(fromTo == Cons.gitDiffFromHeadToIndex) {  //index
-                        Text(text = stringResource(id = R.string.index_clean))
-
-                    }else {  //fromTo == Cons.gitDiffFromTreeToTree and other
-                        Text(text = stringResource(id = R.string.no_difference_found))
                     }
-                }
 
 
-            }else {  //列表不为空，显示条目
-                //根据关键字过滤条目
-                val keyword = changeListPageFilterKeyWord.value.text.lowercase()  //关键字
-                val enableFilter = filterModeActuallyEnabled(filterOn = changeListPageFilterModeOn.value, keyword = keyword)
+                }else {  //列表不为空，显示条目
+                    //根据关键字过滤条目
+                    val keyword = changeListPageFilterKeyWord.value.text.lowercase()  //关键字
+                    val enableFilter = filterModeActuallyEnabled(filterOn = changeListPageFilterModeOn.value, keyword = keyword)
 
-                val lastNeedRefresh = rememberSaveable { mutableStateOf("") }
-                val itemListOrFilterList = filterTheList(
-                    needRefresh = filterResultNeedRefresh.value,
-                    lastNeedRefresh = lastNeedRefresh,
+                    val lastNeedRefresh = rememberSaveable { mutableStateOf("") }
+                    val itemListOrFilterList = filterTheList(
+                        needRefresh = filterResultNeedRefresh.value,
+                        lastNeedRefresh = lastNeedRefresh,
 
-                    enableFilter = enableFilter,
-                    keyword = keyword,
-                    lastKeyword = lastSearchKeyword,
-                    searching = searching,
-                    token = searchToken,
-                    activityContext = activityContext,
-                    filterList = filterList.value,
-                    list = itemList.value,
-                    resetSearchVars = resetSearchVars,
-                    match = { idx:Int, it: StatusTypeEntrySaver ->
-                        it.fileName.lowercase().contains(keyword)
-                                || it.relativePathUnderRepo.lowercase().contains(keyword)
-                                || it.getSizeStr().lowercase().contains(keyword)
-                                || it.getChangeTypeAndSuffix(isDiffToLocal).lowercase().contains(keyword)
-                                || it.getItemTypeString().lowercase().contains(keyword)
-                    }
-                )
+                        enableFilter = enableFilter,
+                        keyword = keyword,
+                        lastKeyword = lastSearchKeyword,
+                        searching = searching,
+                        token = searchToken,
+                        activityContext = activityContext,
+                        filterList = filterList.value,
+                        list = itemList.value,
+                        resetSearchVars = resetSearchVars,
+                        match = { idx:Int, it: StatusTypeEntrySaver ->
+                            it.fileName.lowercase().let { it.contains(keyword) || RegexUtil.matchWildcard(it, keyword) }
+                                    || it.relativePathUnderRepo.lowercase().contains(keyword)
+                                    || it.getSizeStr().lowercase().contains(keyword)
+                                    || it.getChangeTypeAndSuffix(isDiffToLocal).lowercase().contains(keyword)
+                                    || it.getItemTypeString().lowercase().contains(keyword)
+                        }
+                    )
 
-                val listState = if(enableFilter) filterListState else itemListState
+                    val listState = if(enableFilter) filterListState else itemListState
 //                if(enableFilter) {  //更新filter列表state
 //                    filterListState.value = listState
 //                }
 
-                //更新是否启用filter
-                enableFilterState.value = enableFilter
+                    //更新是否启用filter
+                    enableFilterState.value = enableFilter
 
-                MyLazyColumn(
-                    contentPadding = contentPadding,
-                    list = itemListOrFilterList,
-                    listState = listState,
-                    requireForEachWithIndex = true,
-                    requirePaddingAtBottom = true,
-                    forEachCb = {}
-                ) { index, it:StatusTypeEntrySaver ->
-                    ChangeListItem(
-                        item = it,
-                        //                            selectedItemList = selectedItemList,
-                        isFileSelectionMode = isFileSelectionMode,
-                        //                            filesPageAddFileToSelectedListIfAbsentElseRemove = filesPageAddFileToSelectedListIfAbsentElseRemove,
-                        menuKeyTextList=menuKeyTextList,
-                        menuKeyActList=menuKeyActList,
-                        menuKeyEnableList=menuKeyEnableList,
-                        menuKeyVisibleList=menuKeyVisibleList,
-                        fromTo=fromTo,
-                        isDiffToLocal = isDiffToLocal,
-                        lastClickedItemKey = lastClickedItemKey,
-                        switchItemSelected=switchItemSelected,
-                        isItemInSelected=isItemInSelected,
-                        onLongClick= lc@{
+                    MyLazyColumn(
+                        contentPadding = contentPadding,
+                        list = itemListOrFilterList,
+                        listState = listState,
+                        requireForEachWithIndex = true,
+                        requirePaddingAtBottom = true,
+                        forEachCb = {}
+                    ) { index, it:StatusTypeEntrySaver ->
+                        ChangeListItem(
+                            item = it,
+                            //                            selectedItemList = selectedItemList,
+                            isFileSelectionMode = isFileSelectionMode,
+                            //                            filesPageAddFileToSelectedListIfAbsentElseRemove = filesPageAddFileToSelectedListIfAbsentElseRemove,
+                            menuKeyTextList=menuKeyTextList,
+                            menuKeyActList=menuKeyActList,
+                            menuKeyEnableList=menuKeyEnableList,
+                            menuKeyVisibleList=menuKeyVisibleList,
+                            fromTo=fromTo,
+                            isDiffToLocal = isDiffToLocal,
+                            lastClickedItemKey = lastClickedItemKey,
+                            switchItemSelected=switchItemSelected,
+                            isItemInSelected=isItemInSelected,
+                            onLongClick= lc@{
 //                            if (fromTo != Cons.gitDiffFromTreeToTree) {  // 比较两个提交树时禁用长按选择条目
 //
 //                            }
-                            //如果是tree to tree页面且底栏功能（cherrypick checkout patch）没测试通过，不启用选择模式，直接返回
-                            if(fromTo == Cons.gitDiffFromTreeToTree && !proFeatureEnabled(treeToTreeBottomBarActAtLeastOneTestPassed())) {
-                                return@lc
+                                //如果是tree to tree页面且底栏功能（cherrypick checkout patch）没测试通过，不启用选择模式，直接返回
+                                if(fromTo == Cons.gitDiffFromTreeToTree && !proFeatureEnabled(treeToTreeBottomBarActAtLeastOneTestPassed())) {
+                                    return@lc
+                                }
+
+                                //震动反馈
+//                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+
+                                //非选择模式 长按启用选择模式；选择模式下长按进行区域选择
+                                if (!isFileSelectionMode.value) {
+                                    switchItemSelected(it)
+                                }else {
+                                    //在选择模式下长按条目，执行区域选择（连续选择一个范围）
+                                    UIHelper.doSelectSpan(index, it,
+                                        selectedItemList.value, itemListOrFilterList,
+                                        switchItemSelected,
+                                        selectItem
+                                    )
+                                }
                             }
-
-                            //震动反馈
-                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-
-                            //非选择模式 长按启用选择模式；选择模式下长按进行区域选择
-                            if (!isFileSelectionMode.value) {
+                            //                            treeOid1Str = commit1OidStr,
+                            //                            treeOid2Str = commit2OidStr
+                        ){  //onClick
+                            if (isFileSelectionMode.value) {
                                 switchItemSelected(it)
-                            }else {
-                                //在选择模式下长按条目，执行区域选择（连续选择一个范围）
-                                UIHelper.doSelectSpan(index, it,
-                                    selectedItemList.value, itemListOrFilterList,
-                                    switchItemSelected,
-                                    selectItem
-                                )
-                            }
-                        }
-                        //                            treeOid1Str = commit1OidStr,
-                        //                            treeOid2Str = commit2OidStr
-                    ){  //onClick
-                        if (isFileSelectionMode.value) {
-                            switchItemSelected(it)
-                        } else {
-                            //x已实现）判断如果点击的是冲突条目不要跳转到diff列表，而是改用二级页面的编辑器打开
-                            //添加路径到缓存，然后在diffscreen取出来
-                            //                        Cache.Map.set(Cache.Map.Key.diffScreen_UnderRepoPath, item.relativePathUnderRepo)
-                            if(it.changeType == Cons.gitStatusConflict) {  //如果是冲突条目，直接用编辑器打开（冲突条目没法预览diff）
-                                naviTarget.value = Cons.ChangeListNaviTarget_NoNeedReload
+                            } else {
+                                //x已实现）判断如果点击的是冲突条目不要跳转到diff列表，而是改用二级页面的编辑器打开
+                                //添加路径到缓存，然后在diffscreen取出来
+                                //                        Cache.Map.set(Cache.Map.Key.diffScreen_UnderRepoPath, item.relativePathUnderRepo)
+                                if(it.changeType == Cons.gitStatusConflict) {  //如果是冲突条目，直接用编辑器打开（冲突条目没法预览diff）
+                                    naviTarget.value = Cons.ChangeListNaviTarget_NoNeedReload
 
-                                val initMergeMode = true  //因为changeType == conflict，所以这里直接传true即可
-                                openFileWithInnerEditor(it.canonicalPath, initMergeMode)
-                            }
+                                    val initMergeMode = true  //因为changeType == conflict，所以这里直接传true即可
+                                    openFileWithInnerEditor(it.canonicalPath, initMergeMode)
+                                }
                                 // on worktree page, if new file(untracked), open with editor instead view difference
 //                            else if(isWorktreePage && it.changeType == Cons.gitStatusNew){
 //                                val initMergeMode = false
 //                                openFileWithInnerEditor(it.canonicalPath, initMergeMode)
 //                            }
-                            else {  //非冲突条目，预览diff
+                                else {  //非冲突条目，预览diff
 
-                                //用来实现在diff页面stage条目后将其从cl页面移除。ps 由于filterList是由itemList产生的，所以，这里这里直接操作itemList才对，否则，无法显示最新的修改
-//                                SharedState.homeChangeList_itemList = if(enableFilter) filterList.value else itemList.value
-                                SharedState.homeChangeList_itemList = itemList.value
-                                SharedState.homeChangeList_indexHasItem = changeListPageHasIndexItem
+                                    diffFiles(
+                                        curItem = it,
+                                        itemListOrFilterList = itemListOrFilterList,
+                                        commit1OidStr = getCommitLeft(),
+                                        commit2OidStr = getCommitRight(),
+                                        fromTo = fromTo
+                                    )
 
-                                //准备导航到diff页面的参数
-                                Cache.set(Cache.Key.diffScreen_underRepoPathKey, it.relativePathUnderRepo)
-//                                val diffableList = itemList.filter {item -> item.changeType == Cons.gitStatusModified || item.changeType == Cons.gitStatusNew || item.changeType == Cons.gitStatusDeleted}
-                                var indexAtDiffableList = -1
-
-                                val diffableList = mutableListOf<StatusTypeEntrySaver>()
-                                // if filter mode on, this item list is filter list, logically, no changed required
-                                // 如果开启过滤模式，这个列表会是过滤后的列表，符合逻辑，不用修改
-                                val itemCopy = itemListOrFilterList.toList()
-                                for(idx in itemCopy.indices) {
-                                    val item = itemCopy[idx]
-                                    //非冲突类型的条目一律添加，包括submodules
-                                    if(item.changeType != Cons.gitStatusConflict) {
-                                        diffableList.add(item)
-
-                                        if(item == it) {
-                                            indexAtDiffableList = diffableList.lastIndex
-                                        }
-                                    }
-                                }
-
-                                Cache.set(Cache.Key.diffScreen_diffableItemListKey, diffableList)
-
-                                naviTarget.value = Cons.ChangeListNaviTarget_NoNeedReload
-
-                                //导航到diffScreen
-                                navController.navigate(
-                                    Cons.nav_DiffScreen +
-                                            "/" + it.repoIdFromDb +
-                                            //    "/" + encodeStrUri(item.relativePathUnderRepo) +
-                                            "/" + fromTo +
-                                            "/" + it.changeType +
-                                            "/" + it.fileSizeInBytes +
-                                            "/" + (if(swap) commit2OidStr else commit1OidStr) +
-                                            "/" + (if(swap) commit1OidStr else commit2OidStr) +
-                                            "/" + (if(it.itemType==Cons.gitItemTypeSubmodule) 1 else 0) +
-                                            "/" + (if(isDiffToLocal) 1 else 0)
-                                            + "/" + indexAtDiffableList
-                                            +"/" + (if(localAtDiffRight.value) 1 else 0)
-
-                                            +"/" + (if(fromTo == Cons.gitDiffFromIndexToWorktree) DiffFromScreen.HOME_CHANGELIST.code
-                                            else if(fromTo == Cons.gitDiffFromHeadToIndex) DiffFromScreen.INDEX.code
-                                            else DiffFromScreen.TREE_TO_TREE.code)
-                                )
-
-                            }
-                        }
-                    }
-                    HorizontalDivider()
-
-                }
-
-                //放到这里只有存在条目时才显示BottomBar，要不要把这块代码挪外边？不过要是没条目也没必要显示BottomBar，也算合理。
-                //Bottom bar
-                if (isFileSelectionMode.value) {
-
-                    // remove from git弹窗
-                    val showRemoveFromGitDialog = rememberSaveable { mutableStateOf(false)}
-                    if(showRemoveFromGitDialog.value) {
-                        ConfirmDialog(
-                            title = stringResource(id = R.string.remove_from_git),
-                            text = stringResource(R.string.will_remove_selected_items_from_git_are_u_sure),
-                            okTextColor = MyStyleKt.TextColor.danger(),
-                            onCancel = { showRemoveFromGitDialog.value=false }
-                        ) {
-                            //关闭弹窗
-                            showRemoveFromGitDialog.value = false
-
-                            val curRepoFromParentPage = curRepoFromParentPage.value
-
-                            //执行删除
-                            doJobThenOffLoading (loadingOn = loadingOn, loadingOff=loadingOff) {
-                                val selectedItemList = selectedItemList.value.toList()
-
-                                if(selectedItemList.isEmpty()) {
-                                    Msg.requireShow(activityContext.getString(R.string.no_item_selected))
-                                    return@doJobThenOffLoading  // 结束操作
-                                }
-
-                                try {
-                                    //注意：如果选中的文件在不同的目录下，可能会失效，因为这里仅通过第一个元素查找仓库，多数情况下不会有问题，因为选择文件默认只能在同一目录选（虽然没严格限制导致有办法跳过）
-                                    Repository.open(curRepoFromParentPage.fullSavePath).use { repo ->
-                                        val repoWorkDirFullPath = Libgit2Helper.getRepoWorkdirNoEndsWithSlash(repo)
-                                        MyLog.d(TAG, "#RemoveFromGitDialog: will remove files from repo workdir: '${repoWorkDirFullPath}'")
-
-                                        val repoIndex = repo.index()
-
-                                        //开始循环，删除所有选中文件
-                                        selectedItemList.forEach {
-                                            //存在有效仓库，且文件的仓库内相对路径不为空，且不是.git目录本身，且不是.git目录下的文件
-                                            Libgit2Helper.removeFromGit(repoIndex, it.relativePathUnderRepo, it.toFile().isFile)
-                                        }
-
-                                        //保存修改
-                                        repoIndex.write()
-                                    }
-
-
-                                    Msg.requireShow(activityContext.getString(R.string.success))
-
-                                    changeListRequireRefreshFromParentPage(curRepoFromParentPage)
-                                }catch (e:Exception) {
-                                    val errMsg = e.localizedMessage
-                                    Msg.requireShowLongDuration("err: $errMsg")
-                                    createAndInsertError(curRepoFromParentPage.id, "remove from git err: $errMsg")
-                                    MyLog.e(TAG, "remove from git err: ${e.stackTraceToString()}")
-
-                                    changeListRequireRefreshFromParentPage(curRepoFromParentPage)
                                 }
                             }
                         }
+
+                        MyHorizontalDivider()
+
                     }
 
-                    //这种常量型的state用remember就行，反正也不会改，更提不上恢复
-                    val iconList:List<ImageVector> = if(fromTo == Cons.gitDiffFromIndexToWorktree) listOf(  //changelist page
+                    //放到这里只有存在条目时才显示BottomBar，要不要把这块代码挪外边？不过要是没条目也没必要显示BottomBar，也算合理。
+                    //Bottom bar
+                    if (isFileSelectionMode.value) {
+                        //这种常量型的state用remember就行，反正也不会改，更提不上恢复
+                        val iconList:List<ImageVector> = if(fromTo == Cons.gitDiffFromIndexToWorktree) listOf(  //changelist page
 //            Icons.Filled.CloudDone,  //提交选中文件并推送
-                        Icons.Filled.DoneAll,  //提交选中文件
-                        Icons.Filled.SelectAll,  //全选
-                    )else if(fromTo==Cons.gitDiffFromHeadToIndex) listOf(  //index page
+                            Icons.Filled.DoneAll,  //提交选中文件
+                            Icons.Filled.SelectAll,  //全选
+                        )else if(fromTo==Cons.gitDiffFromHeadToIndex) listOf(  //index page
 //            Icons.Outlined.CloudDone,  //提交index所有条目并推送
-                        Icons.Outlined.Check,  //提交index所有条目
-                        Icons.Outlined.SelectAll  // select all
-                    )else if(fromTo == Cons.gitDiffFromTreeToTree) listOf(
-                        Icons.Filled.Inventory,  // import as repo
-                        Icons.Filled.Download,  // checkout
-                        ImageVector.vectorResource(R.drawable.outline_nutrition_24),  //cherrypick
-                        Icons.Filled.LibraryAdd,  // patch
-                        Icons.Outlined.SelectAll, // select all
+                            Icons.Outlined.Check,  //提交index所有条目
+                            Icons.Outlined.SelectAll  // select all
+                        )else if(fromTo == Cons.gitDiffFromTreeToTree) listOf(
+                            Icons.Filled.Inventory,  // import as repo
+                            Icons.Filled.Download,  // checkout
+                            ImageVector.vectorResource(R.drawable.outline_nutrition_24),  //cherrypick
+                            Icons.Filled.LibraryAdd,  // patch
+                            Icons.Outlined.SelectAll, // select all
 
-                    ) else listOf()
+                        ) else listOf()
 
-                    val iconTextList:List<String> = if(fromTo == Cons.gitDiffFromIndexToWorktree) listOf(  //changelist page
+                        val iconTextList:List<String> = if(fromTo == Cons.gitDiffFromIndexToWorktree) listOf(  //changelist page
 //        stringResource(id = R.string.commit_selected_and_index_items_then_sync),
-                        stringResource(id = R.string.commit_selected_and_index_items),
-                        stringResource(id = R.string.select_all),
-                    )else if(fromTo == Cons.gitDiffFromHeadToIndex) listOf(  //index page
+                            stringResource(id = R.string.commit_selected_and_index_items),
+                            stringResource(id = R.string.select_all),
+                        )else if(fromTo == Cons.gitDiffFromHeadToIndex) listOf(  //index page
 //            stringResource(id = R.string.commit_all_index_items_then_sync),
-                        stringResource(id = R.string.commit_all_index_items),
-                        stringResource(id = R.string.select_all),
-                    ) else listOf(  //if(fromTo == Cons.gitDiffFromTreeToTree)
-                        stringResource(R.string.import_as_repo),
-                        stringResource(R.string.checkout),
-                        stringResource(R.string.cherrypick),
-                        stringResource(R.string.create_patch),
-                        stringResource(id = R.string.select_all),
-                    )
+                            stringResource(id = R.string.commit_all_index_items),
+                            stringResource(id = R.string.select_all),
+                        ) else listOf(  //if(fromTo == Cons.gitDiffFromTreeToTree)
+                            stringResource(R.string.import_as_repo),
+                            stringResource(R.string.checkout),
+                            stringResource(R.string.cherrypick),
+                            stringResource(R.string.create_patch),
+                            stringResource(id = R.string.select_all),
+                        )
 
-                    //是否显示底栏按钮
-                    val iconVisibleList = if(fromTo == Cons.gitDiffFromTreeToTree) listOf(
-                        imortAsRepo@{ true },
-                        checkoutFile@{ proFeatureEnabled(checkoutFilesTestPassed) },
-                        cherrypickFiles@{ proFeatureEnabled(cherrypickTestPassed) },
-                        createPatch@{ proFeatureEnabled(createPatchTestPassed) },
-                        selectedAll@{ true }
-                    ) else listOf()
+                        //是否显示底栏按钮
+                        val iconVisibleList = if(fromTo == Cons.gitDiffFromTreeToTree) listOf(
+                            imortAsRepo@{ true },
+                            checkoutFile@{ proFeatureEnabled(checkoutFilesTestPassed) },
+                            cherrypickFiles@{ proFeatureEnabled(cherrypickTestPassed) },
+                            createPatch@{ proFeatureEnabled(createPatchTestPassed) },
+                            selectedAll@{ true }
+                        ) else listOf()
 
-                    //一般用用iconTextList就行，除非有不一样的描述
+                        //一般用用iconTextList就行，除非有不一样的描述
 //    val iconDescTextList:SnapshotStateList<String> = remember {
 //        mutableStateListOf(
 //            "Commit Selected Then Sync With Remote",
@@ -2997,81 +3245,125 @@ fun ChangeListInnerPage(
 //        )
 //    }
 
-                    //仅当至少选中一个目录才启用enable as repo选项
-                    val enableImportAsRepo = {
-                        // if have loads of items, may casue performance issue
-                        //如果条目多可能导致性能问题
-                        selectedItemList.value.toList().any { it.toFile().isDirectory }
-                    }
+                        //仅当至少选中一个目录才启用enable as repo选项
+                        val enableImportAsRepo = {
+                            // if have loads of items, may casue performance issue
+                            //如果条目多可能导致性能问题
+                            selectedItemList.value.toList().any { it.toFile().isDirectory }
+                        }
 
-                    val enableAcceptOursTheirs = {
-                        val repoState = repoState.intValue
-                        (repoState == Repository.StateT.MERGE.bit || repoState == Repository.StateT.REBASE_MERGE.bit || repoState == Repository.StateT.CHERRYPICK.bit) && hasConflictItemsSelected()
-                    }
+                        val enableAcceptOursTheirs = {
+                            val repoState = repoState.intValue
+                            (repoState == Repository.StateT.MERGE.bit || repoState == Repository.StateT.REBASE_MERGE.bit || repoState == Repository.StateT.CHERRYPICK.bit) && hasConflictItemsSelected()
+                        }
 
-                    val iconEnableList:List<()->Boolean> = if(fromTo == Cons.gitDiffFromIndexToWorktree) listOf( //worktree页面
-                        selectedListIsNotEmpty,  //提交
-                        {true},  //select all 总是启用
-                    ) else if(fromTo==Cons.gitDiffFromHeadToIndex) listOf( //index页面
-                        { true }, // commit
+                        val iconEnableList:List<()->Boolean> = if(fromTo == Cons.gitDiffFromIndexToWorktree) listOf( //worktree页面
+                            selectedListIsNotEmpty,  //提交
+                            {true},  //select all 总是启用
+                        ) else if(fromTo==Cons.gitDiffFromHeadToIndex) listOf( //index页面
+                            { true }, // commit
 //                        {changeListPageHasIndexItem.value},  //x 废弃，因为支持amend了，就算index无条目也可提交）commit，只有当存在index条目时才启用
-                        {true} // select all
-                    )else listOf( //  if(fromTo == Cons.gitDiffFromTreeToTree)
-                        enableImportAsRepo, // import as repo
-                        selectedListIsNotEmpty,  // checkout
-                        {commitParentList.value.isNotEmpty() && selectedListIsNotEmpty()},  // cherrypick，只有存在parents的情况下才可cherrypick
-                        selectedListIsNotEmpty,  // create patch
-                        {true}  // select all
-                    )
+                            {true} // select all
+                        )else listOf( //  if(fromTo == Cons.gitDiffFromTreeToTree)
+                            enableImportAsRepo, // import as repo
+                            selectedListIsNotEmpty,  // checkout
+                            {commitParentList.isNotEmpty() && selectedListIsNotEmpty()},  // cherrypick，只有存在parents的情况下才可cherrypick
+                            selectedListIsNotEmpty,  // create patch
+                            {true}  // select all
+                        )
 
-                    val moreItemEnableList:List<()->Boolean> = (if(fromTo == Cons.gitDiffFromIndexToWorktree) listOf( // worktree page
-                        enableAcceptOursTheirs,  //accept ours
-                        enableAcceptOursTheirs,  //accept theirs
-                        selectedListIsNotEmpty,  //stage
-                        selectedListIsNotEmpty,  //revert
-                        selectedListIsNotEmpty, // create patch
-                        selectedListIsNotEmpty, // ignore
-                        selectedListIsNotEmpty, // remove from git
-                        enableImportAsRepo, // import as repo
-                    ) else if(fromTo == Cons.gitDiffFromHeadToIndex) listOf( // index page
-                        selectedListIsNotEmpty,  // unstage
-                        selectedListIsNotEmpty, // create patch
-                        enableImportAsRepo, // import as repo
-                    ) else listOf(  // tree to tree page
-                    ))
+                        val moreItemEnableList:List<()->Boolean> = (if(fromTo == Cons.gitDiffFromIndexToWorktree) listOf( // worktree page
+                            enableAcceptOursTheirs,  //accept ours
+                            enableAcceptOursTheirs,  //accept theirs
+                            selectedListIsNotEmpty,  //stage
+                            selectedListIsNotEmpty,  //revert
+                            selectedListIsNotEmpty, // create patch
+                            selectedListIsNotEmpty, // ignore
+                            selectedListIsNotEmpty, // remove from git
+                            enableImportAsRepo, // import as repo
+                        ) else if(fromTo == Cons.gitDiffFromHeadToIndex) listOf( // index page
+                            selectedListIsNotEmpty,  // unstage
+                            selectedListIsNotEmpty, // create patch
+                            enableImportAsRepo, // import as repo
+                        ) else listOf(  // tree to tree page
+                        ))
 
-                    val iconOnClickList:List<()->Unit> = if(fromTo == Cons.gitDiffFromIndexToWorktree) listOf(  // ChangeList页面的底栏选项 ( worktree页面 )
-                        commit@{
-                            val curRepo = curRepoFromParentPage.value
-                            doJobThenOffLoading(loadingOn=loadingOn,loadingOff=loadingOff, loadingText=activityContext.getString(R.string.committing)) {
-                                doActWithLock(curRepo) {
-                                    val stageSuccess = ChangeListFunctions.doStage(
-                                        curRepo = curRepo,
-                                        requireCloseBottomBar = false,
-                                        userParamList = false,
-                                        paramList = null,
+                        val iconOnClickList:List<()->Unit> = if(fromTo == Cons.gitDiffFromIndexToWorktree) listOf(  // ChangeList页面的底栏选项 ( worktree页面 )
+                            commit@{
+                                val curRepo = curRepoFromParentPage.value
+                                doJobThenOffLoading(loadingOn=loadingOn,loadingOff=loadingOff, loadingText=activityContext.getString(R.string.committing)) {
+                                    doActWithLock(curRepo) {
+                                        val stageSuccess = ChangeListFunctions.doStage(
+                                            curRepo = curRepo,
+                                            requireCloseBottomBar = false,
+                                            userParamList = false,
+                                            paramList = null,
 
-                                        fromTo = fromTo,
-                                        selectedListIsEmpty = selectedListIsEmpty,
-                                        requireShowToast = requireShowToast,
-                                        noItemSelectedStrRes = noItemSelectedStrRes,
-                                        activityContext = activityContext,
-                                        selectedItemList = selectedItemList.value.toList(),
-                                        loadingText = loadingText,
-                                        nFilesStagedStrRes = nFilesStagedStrRes,
-                                        bottomBarActDoneCallback = bottomBarActDoneCallback
-                                    )
+                                            fromTo = fromTo,
+                                            selectedListIsEmpty = selectedListIsEmpty,
+                                            requireShowToast = requireShowToast,
+                                            noItemSelectedStrRes = noItemSelectedStrRes,
+                                            activityContext = activityContext,
+                                            selectedItemList = selectedItemList.value.toList(),
+                                            loadingText = loadingText,
+                                            nFilesStagedStrRes = nFilesStagedStrRes,
+                                            bottomBarActDoneCallback = bottomBarActDoneCallback
+                                        )
 
-                                    if(!stageSuccess){
-                                        bottomBarActDoneCallback(activityContext.getString(R.string.stage_failed), curRepo)
-                                    }else {
-                                        //显示commit弹窗，之后在其确认回调函数里执行后续操作
+                                        if(!stageSuccess){
+                                            bottomBarActDoneCallback(activityContext.getString(R.string.stage_failed), curRepo)
+                                        }else {
+                                            //显示commit弹窗，之后在其确认回调函数里执行后续操作
 //                        doCommit(true,"", true, false)
+                                            ChangeListFunctions.doCommit(
+                                                requireShowCommitMsgDialog = true,
+                                                cmtMsg = "",
+                                                requireCloseBottomBar = true,
+//                            requireDoSync = false,
+                                                curRepoFromParentPage = curRepo,
+                                                refreshChangeList = changeListRequireRefreshFromParentPage,
+                                                username = username,
+                                                email = email,
+                                                requireShowToast = requireShowToast,
+                                                pleaseSetUsernameAndEmailBeforeCommit = pleaseSetUsernameAndEmailBeforeCommit,
+                                                initSetUsernameAndEmailDialog = initSetUsernameAndEmailDialog,
+                                                amendCommit = amendCommit,
+                                                overwriteAuthor = overwriteAuthor,
+                                                showCommitMsgDialog = showCommitMsgDialog,
+                                                repoState = repoState,
+                                                activityContext = activityContext,
+                                                loadingText = loadingText,
+                                                repoId = repoId,
+                                                bottomBarActDoneCallback = bottomBarActDoneCallback,
+                                                fromTo = fromTo,
+                                                itemList = itemList.value,
+                                                successCommitStrRes = successCommitStrRes,
+                                                indexIsEmptyForCommitDialog=indexIsEmptyForCommitDialog,
+                                                commitBtnTextForCommitDialog=commitBtnTextForCommitDialog,
+//                            showPushForCommitDialog=showPushForCommitDialog
+                                            )
+                                        }
+                                    }
+                                }
+
+                            },
+
+                            selectAll@{
+                                //impl select all
+                                selectAll()
+                            },
+                        ) else if(fromTo == Cons.gitDiffFromHeadToIndex) listOf(  //index页面的底栏选项
+                            commit@{
+                                val curRepo = curRepoFromParentPage.value
+                                doJobThenOffLoading(loadingOn=loadingOn,loadingOff=loadingOff, loadingText=activityContext.getString(R.string.committing)) {
+                                    doActWithLock(curRepo) {
+                                        //显示commit弹窗，之后在其确认回调函数里执行后续操作
+//                doCommit(true,"", true, false)
                                         ChangeListFunctions.doCommit(
                                             requireShowCommitMsgDialog = true,
                                             cmtMsg = "",
                                             requireCloseBottomBar = true,
-//                            requireDoSync = false,
+//                    requireDoSync = false,
                                             curRepoFromParentPage = curRepo,
                                             refreshChangeList = changeListRequireRefreshFromParentPage,
                                             username = username,
@@ -3092,221 +3384,182 @@ fun ChangeListInnerPage(
                                             successCommitStrRes = successCommitStrRes,
                                             indexIsEmptyForCommitDialog=indexIsEmptyForCommitDialog,
                                             commitBtnTextForCommitDialog=commitBtnTextForCommitDialog,
-//                            showPushForCommitDialog=showPushForCommitDialog
+//                    showPushForCommitDialog=showPushForCommitDialog
                                         )
                                     }
-                                }
-                            }
 
-                        },
-
-                        selectAll@{
-                            //impl select all
-                            selectAll()
-                        },
-                    ) else if(fromTo == Cons.gitDiffFromHeadToIndex) listOf(  //index页面的底栏选项
-                        commit@{
-                            val curRepo = curRepoFromParentPage.value
-                            doJobThenOffLoading(loadingOn=loadingOn,loadingOff=loadingOff, loadingText=activityContext.getString(R.string.committing)) {
-                                doActWithLock(curRepo) {
-                                    //显示commit弹窗，之后在其确认回调函数里执行后续操作
-//                doCommit(true,"", true, false)
-                                    ChangeListFunctions.doCommit(
-                                        requireShowCommitMsgDialog = true,
-                                        cmtMsg = "",
-                                        requireCloseBottomBar = true,
-//                    requireDoSync = false,
-                                        curRepoFromParentPage = curRepo,
-                                        refreshChangeList = changeListRequireRefreshFromParentPage,
-                                        username = username,
-                                        email = email,
-                                        requireShowToast = requireShowToast,
-                                        pleaseSetUsernameAndEmailBeforeCommit = pleaseSetUsernameAndEmailBeforeCommit,
-                                        initSetUsernameAndEmailDialog = initSetUsernameAndEmailDialog,
-                                        amendCommit = amendCommit,
-                                        overwriteAuthor = overwriteAuthor,
-                                        showCommitMsgDialog = showCommitMsgDialog,
-                                        repoState = repoState,
-                                        activityContext = activityContext,
-                                        loadingText = loadingText,
-                                        repoId = repoId,
-                                        bottomBarActDoneCallback = bottomBarActDoneCallback,
-                                        fromTo = fromTo,
-                                        itemList = itemList.value,
-                                        successCommitStrRes = successCommitStrRes,
-                                        indexIsEmptyForCommitDialog=indexIsEmptyForCommitDialog,
-                                        commitBtnTextForCommitDialog=commitBtnTextForCommitDialog,
-//                    showPushForCommitDialog=showPushForCommitDialog
-                                    )
                                 }
 
-                            }
-
-                        },
-                        selectAll@{
-                            //impl select all
-                            selectAll()
-                        }
-                    )else {  // if(fromTo == Cons.gitDiffFromTreeToTree)
-                        listOf(  //tree to tree页面的底栏选项
-                            importAsRepo@{
-                                initImportAsRepo(selectedItemList.value.toList())
-                            },
-                            checkout@{
-                                val curRepo = curRepoFromParentPage.value
-                                // when diff a commit to local (commit..local), if I clicked the checkout, actually I expect checkout the left version,
-                                //  in other cases, I expect checkout the right version
-                                val target = if(localAtDiffRight.value) getCommitLeft() else getCommitRight()
-
-                                //x 废弃) 如果target是local，不需要checkout
-//                if(target == Cons.gitLocalWorktreeCommitHash) {
-//                    Msg.requireShow("canceled: target is local")
-//                    return@checkout
-//                }
-
-                                initCheckoutDialog(curRepo, target)
-                            },
-
-                            cherrypick@{
-                                val curRepo = curRepoFromParentPage.value
-                                //必须是和parents diff才能cherrypick
-                                if(commitParentList.value.isNotEmpty()) {
-                                    initCherrypickDialog(curRepo)
-                                }else {
-                                    Msg.requireShowLongDuration(activityContext.getString(R.string.cherrypick_only_work_for_diff_to_parents))
-                                }
-
-                            },
-                            createPatch@{
-                                showCreatePatchDialog.value = true
                             },
                             selectAll@{
                                 //impl select all
                                 selectAll()
                             }
-                        )
+                        )else {  // if(fromTo == Cons.gitDiffFromTreeToTree)
+                            listOf(  //tree to tree页面的底栏选项
+                                importAsRepo@{
+                                    initImportAsRepo(selectedItemList.value.toList())
+                                },
+                                checkout@{
+                                    val curRepo = curRepoFromParentPage.value
+                                    // when diff a commit to local (commit..local), if I clicked the checkout, actually I expect checkout the left version,
+                                    //  in other cases, I expect checkout the right version
+                                    val target = if(localAtDiffRight.value) getCommitLeft() else getCommitRight()
 
-                    }
+                                    //x 废弃) 如果target是local，不需要checkout
+//                if(target == Cons.gitLocalWorktreeCommitHash) {
+//                    Msg.requireShow("canceled: target is local")
+//                    return@checkout
+//                }
+
+                                    initCheckoutDialog(curRepo, target)
+                                },
+
+                                cherrypick@{
+                                    val curRepo = curRepoFromParentPage.value
+                                    //必须是和parents diff才能cherrypick
+                                    if(commitParentList.isNotEmpty()) {
+                                        initCherrypickDialog(curRepo)
+                                    }else {
+                                        Msg.requireShowLongDuration(activityContext.getString(R.string.cherrypick_only_work_for_diff_to_parents))
+                                    }
+
+                                },
+                                createPatch@{
+                                    showCreatePatchDialog.value = true
+                                },
+                                selectAll@{
+                                    //impl select all
+                                    selectAll()
+                                }
+                            )
+
+                        }
 
 
 //    val enableMoreIcon = fromTo != Cons.gitDiffFromTreeToTree
-                    //话说用这个diffFromTo变量来判断其实并非本意，但也勉强说得过去，因为worktree的changelist和index页面所需要diff的不同，所以，也可以这么写，其实本该还有一个FromHeadToWorktree的diff变量的，但在这里用不上
-                    val moreItemTextList = (if(fromTo == Cons.gitDiffFromIndexToWorktree) listOf(
-                        stringResource(R.string.accept_ours),
-                        stringResource(R.string.accept_theirs),
-                        stringResource(R.string.stage),
-                        stringResource(R.string.revert),
-                        stringResource(R.string.create_patch),
-                        if(proFeatureEnabled(ignoreWorktreeFilesTestPassed)) stringResource(R.string.ignore) else "",  //显示菜单时会跳过空文本条目
-                        stringResource(R.string.remove_from_git),
-                        stringResource(R.string.import_as_repo),
+                        //话说用这个diffFromTo变量来判断其实并非本意，但也勉强说得过去，因为worktree的changelist和index页面所需要diff的不同，所以，也可以这么写，其实本该还有一个FromHeadToWorktree的diff变量的，但在这里用不上
+                        val moreItemTextList = (if(fromTo == Cons.gitDiffFromIndexToWorktree) listOf(
+                            stringResource(R.string.accept_ours),
+                            stringResource(R.string.accept_theirs),
+                            UIHelper.bottomBarDividerPlaceHolder,
+                            stringResource(R.string.stage),
+                            stringResource(R.string.revert),
+                            stringResource(R.string.create_patch),
+                            if(proFeatureEnabled(ignoreWorktreeFilesTestPassed)) stringResource(R.string.ignore) else "",  //显示菜单时会跳过空文本条目
+                            stringResource(R.string.remove_from_git),
+                            stringResource(R.string.import_as_repo),
 
-                        )  //按元素添加顺序在列表中会呈现为从上到下
-                    else if(fromTo == Cons.gitDiffFromHeadToIndex) listOf(stringResource(R.string.unstage), stringResource(R.string.create_patch), stringResource(R.string.import_as_repo),)
-                    else listOf(  // tree to tree，无选项
-                    ))
+                            )  //按元素添加顺序在列表中会呈现为从上到下
+                        else if(fromTo == Cons.gitDiffFromHeadToIndex) listOf(stringResource(R.string.unstage), stringResource(R.string.create_patch), stringResource(R.string.import_as_repo),)
+                        else listOf(  // tree to tree，无选项
+                        ))
 
 
-                    val moreItemOnClickList:List<()->Unit> = (if(fromTo == Cons.gitDiffFromIndexToWorktree) listOf(
-                        acceptOurs@{
-                            if(!UserUtil.isPro()) {
-                                Msg.requireShowLongDuration(activityContext.getString(R.string.this_feature_is_pro_only))
-                                return@acceptOurs
-                            }
-
-                            mergeAcceptTheirs.value=false
-                            showMergeAcceptTheirsOrOursDialog.value=true
-                        },
-                        acceptTheirs@{
-                            if(!UserUtil.isPro()) {
-                                Msg.requireShowLongDuration(activityContext.getString(R.string.this_feature_is_pro_only))
-                                return@acceptTheirs
-                            }
-
-                            mergeAcceptTheirs.value=true
-                            showMergeAcceptTheirsOrOursDialog.value=true
-                        },
-                        // menu action: Stage
-                        stage@{
-                            doJobThenOffLoading(loadingOn = loadingOn, loadingOff = loadingOff, loadingText=activityContext.getString(R.string.staging)) {
-                                val curRepo = curRepoFromParentPage.value
-
-                                doActWithLock(curRepo) {
-                                    ChangeListFunctions.doStage(
-                                        curRepo = curRepo,
-                                        requireCloseBottomBar = true,
-                                        userParamList = false,
-                                        paramList = null,
-
-                                        fromTo = fromTo,
-                                        selectedListIsEmpty = selectedListIsEmpty,
-                                        requireShowToast = requireShowToast,
-                                        noItemSelectedStrRes = noItemSelectedStrRes,
-                                        activityContext = activityContext,
-                                        selectedItemList = selectedItemList.value.toList(),
-                                        loadingText = loadingText,
-                                        nFilesStagedStrRes = nFilesStagedStrRes,
-                                        bottomBarActDoneCallback = bottomBarActDoneCallback
-                                    )
+                        val moreItemOnClickList:List<()->Unit> = (if(fromTo == Cons.gitDiffFromIndexToWorktree) listOf(
+                            acceptOurs@{
+                                if(!UserUtil.isPro()) {
+                                    Msg.requireShowLongDuration(activityContext.getString(R.string.this_feature_is_pro_only))
+                                    return@acceptOurs
                                 }
 
+                                mergeAcceptTheirs.value=false
+                                showMergeAcceptTheirsOrOursDialog.value=true
+                            },
+                            acceptTheirs@{
+                                if(!UserUtil.isPro()) {
+                                    Msg.requireShowLongDuration(activityContext.getString(R.string.this_feature_is_pro_only))
+                                    return@acceptTheirs
+                                }
+
+                                mergeAcceptTheirs.value=true
+                                showMergeAcceptTheirsOrOursDialog.value=true
+                            },
+                            // menu action: Stage
+                            stage@{
+                                doJobThenOffLoading(loadingOn = loadingOn, loadingOff = loadingOff, loadingText=activityContext.getString(R.string.staging)) {
+                                    val curRepo = curRepoFromParentPage.value
+
+                                    doActWithLock(curRepo) {
+                                        ChangeListFunctions.doStage(
+                                            curRepo = curRepo,
+                                            requireCloseBottomBar = true,
+                                            userParamList = false,
+                                            paramList = null,
+
+                                            fromTo = fromTo,
+                                            selectedListIsEmpty = selectedListIsEmpty,
+                                            requireShowToast = requireShowToast,
+                                            noItemSelectedStrRes = noItemSelectedStrRes,
+                                            activityContext = activityContext,
+                                            selectedItemList = selectedItemList.value.toList(),
+                                            loadingText = loadingText,
+                                            nFilesStagedStrRes = nFilesStagedStrRes,
+                                            bottomBarActDoneCallback = bottomBarActDoneCallback
+                                        )
+                                    }
+
+                                }
+
+                                Unit
+                            },
+                            //menu action: Revert
+                            revert@{
+                                //显示弹窗，确认后才会执行操作
+                                showRevertAlert.value = true
+                            },
+                            createPatch@{
+                                showCreatePatchDialog.value = true
+                            },
+                            ignore@{
+                                showIgnoreDialog.value = true
+                            },
+                            removeFromGit@{
+                                showRemoveFromGitDialog.value = true
+                            },
+                            importAsRepo@{
+                                initImportAsRepo(selectedItemList.value.toList())
                             }
+                        ) else if(fromTo == Cons.gitDiffFromHeadToIndex) listOf(
+                            unstage@{
+                                showUnstageConfirmDialog.value = true
+                            },
+                            createPatch@{
+                                showCreatePatchDialog.value = true
+                            },
+                            importAsRepo@{
+                                initImportAsRepo(selectedItemList.value.toList())
+                            }
+                        ) else listOf( // fromTo == Cons.gitDiffFromTreeToTree
 
-                            Unit
-                        },
-                        //menu action: Revert
-                        revert@{
-                            //显示弹窗，确认后才会执行操作
-                            showRevertAlert.value = true
-                        },
-                        createPatch@{
-                            showCreatePatchDialog.value = true
-                        },
-                        ignore@{
-                            showIgnoreDialog.value = true
-                        },
-                        removeFromGit@{
-                            showRemoveFromGitDialog.value = true
-                        },
-                        importAsRepo@{
-                            initImportAsRepo(selectedItemList.value.toList())
-                        }
-                    ) else if(fromTo == Cons.gitDiffFromHeadToIndex) listOf(
-                        unstage@{
-                            showUnstageConfirmDialog.value = true
-                        },
-                        createPatch@{
-                            showCreatePatchDialog.value = true
-                        },
-                        importAsRepo@{
-                            initImportAsRepo(selectedItemList.value.toList())
-                        }
-                    ) else listOf( // fromTo == Cons.gitDiffFromTreeToTree
+                        ))
 
-                    ))
-
-                    BottomBar(
-                        quitSelectionMode=quitSelectionMode,
-                        iconList=iconList,
-                        iconTextList=iconTextList,
-                        iconDescTextList=iconTextList,
-                        iconOnClickList=iconOnClickList,
-                        iconEnableList=iconEnableList,
-                        iconVisibleList = iconVisibleList,
-                        moreItemTextList=moreItemTextList,
-                        moreItemOnClickList=moreItemOnClickList,
-                        moreItemEnableList = moreItemEnableList,
-                        moreItemVisibleList = moreItemEnableList,
-                        countNumOnClickEnabled = true,
-                        getSelectedFilesCount = getSelectedFilesCount,
-                        countNumOnClick = countNumOnClickForBottomBar,
-                        reverseMoreItemList = true
-                    )
+                        BottomBar(
+                            quitSelectionMode=quitSelectionMode,
+                            iconList=iconList,
+                            iconTextList=iconTextList,
+                            iconDescTextList=iconTextList,
+                            iconOnClickList=iconOnClickList,
+                            iconEnableList=iconEnableList,
+                            iconVisibleList = iconVisibleList,
+                            moreItemTextList=moreItemTextList,
+                            moreItemOnClickList=moreItemOnClickList,
+                            moreItemEnableList = moreItemEnableList,
+                            moreItemVisibleList = moreItemEnableList,
+                            countNumOnClickEnabled = true,
+                            getSelectedFilesCount = getSelectedFilesCount,
+                            countNumOnClick = countNumOnClickForBottomBar,
+                            reverseMoreItemList = true
+                        )
+                    }
                 }
             }
+
         }
 
+
     }
+
 
 
 //    if(lastRequireRefreshValue.value != refreshRequiredByParentPage.value) {
@@ -3319,10 +3572,7 @@ fun ChangeListInnerPage(
                 MyLog.d(TAG, "#LaunchedEffect: naviTarget.value=${naviTarget.value}")
             }
 
-            val (requestType, payloadRepoId) = getRequestDataByState<String?>(
-                refreshRequiredByParentPage,
-                getThenDel = true
-            )
+            val (requestType, payloadRepoId) = getRequestDataByState<String?>(refreshRequiredByParentPage)
 
 
             if(AppModel.devModeOn) {
@@ -3344,10 +3594,27 @@ fun ChangeListInnerPage(
 
             //未切换仓库，但不需要重载（不过可能需要执行某些操作，例如 commit all）
             //if navi to Difference page or internal Editor then navi back, actually most time no need reload page
-            if(naviTarget.value == Cons.ChangeListNaviTarget_NoNeedReload){
+            if(naviTarget.value == Cons.ChangeListNaviTarget_NoNeedReload) {
                 //不管是否返回，反正消费过naviTarget一次后，就重置为初始值
                 // if navi back from Index, need refresh
                 naviTarget.value = Cons.ChangeListNaviTarget_InitValue
+
+
+                //滚动以使用户最后在Diff页面查看的条目可见
+                val actuallyList = if(enableFilterState.value) filterList.value else itemList.value
+                val actuallyListState = if(enableFilterState.value) filterListState else itemListState
+                //最后一个else是TreeToTree
+                val lastClickedItemKey = if(fromTo == Cons.gitDiffFromIndexToWorktree) SharedState.homeChangeList_LastClickedItemKey.value else if(fromTo == Cons.gitDiffFromHeadToIndex) SharedState.index_LastClickedItemKey.value else SharedState.treeToTree_LastClickedItemKey.value
+
+                doJobThenOffLoading {
+                    //需要delay一下，等列表加载完，不然过滤开启时，从Diff页面返回会重新过滤列表，列表还没加载出来时跳转会无效
+                    delay(500)
+
+                    UIHelper.scrollByPredicate(scope, actuallyList, actuallyListState) { idx, item ->
+                        item.getItemKey() == lastClickedItemKey
+                    }
+                }
+
 
 
                 //执行到这个代码块一般是从Diff页面或者子页面文本编辑器(SubPageEditor)返回来的，
@@ -3356,6 +3623,10 @@ fun ChangeListInnerPage(
                 // 从diff页面返回可能会请求执行此操作，可针对 homeChangeList和indexChangeList执行此操作
                 if(requestType == StateRequestType.indexToWorkTree_CommitAll) {
                     Cache.set(Cache.Key.changeListInnerPage_requireDoActFromParent, PageRequest.indexToWorkTree_CommitAll)
+
+                    //目前20250501这个StateRequestType只从DiffScreen发到 worktree所以肯定是true
+                    actFromDiffScreen.value = true
+
                     requireDoActFromParentShowTextWhenDoingAct.value = activityContext.getString(R.string.committing)
                     requireDoActFromParent.value = true
 
@@ -3389,8 +3660,17 @@ fun ChangeListInnerPage(
             //这个最新pageId似乎可省略啊？虽然不省略逻辑上更清晰
             newestPageId.value = currentPageId
 
+            val loadingToken = getShortUUID()
             //初始化
-            doJobThenOffLoading(loadingOn, loadingOff, activityContext.getString(R.string.loading)) {
+            doJobThenOffLoading(
+                loadingOn={ loadingText ->
+                    loadingOnByToken(loadingToken, loadingText)
+                },
+                loadingOff={
+                    loadingOffByToken(loadingToken)
+                },
+                loadingText = activityContext.getString(R.string.loading)
+            ) {
                 try {
                     changeListInit(
                         dbContainer = dbContainer,
@@ -3495,7 +3775,7 @@ private suspend fun changeListInit(
     repoState: MutableIntState,
     commit1OidStr:String,  //只有fromTo是tree to tree时才用到这两个tree oid
     commit2OidStr:String,
-    commitParentList: CustomStateListSaveable<String>,
+    commitParentList: MutableList<String>,
     repoId:String,
     setErrMsg:(String)->Unit,
     clearErrMsg:()->Unit,
@@ -3513,6 +3793,10 @@ private suspend fun changeListInit(
 //    scope:CoroutineScope
 ){
     val funName = "changeListInit"
+
+    //清缩略图缓存
+    ThumbCache.clear()
+
 
     val tmpCommit1 = commit1OidStr
     val commit1OidStr = if(swap) commit2OidStr else commit1OidStr
@@ -3534,11 +3818,11 @@ private suspend fun changeListInit(
     //不能清id或fullSavePath，会导致误判仓库无效，然后重新查一个
 //            tmpCurRepo.id=""
 //            tmpCurRepo.fullSavePath=""
-    //重置下信息，后面会重新从db查询
-    val tmpCurRepo = curRepoFromParentPage.value
-    tmpCurRepo.lastCommitHash=""
-    tmpCurRepo.branch=""
-    tmpCurRepo.upstreamBranch=""
+    //x 20250515更新： 不知道重置这东西有什么鸟用，不重置了) 重置下信息，后面会重新从db查询
+//    val tmpCurRepo = curRepoFromParentPage.value
+//    tmpCurRepo.lastCommitHash=""
+//    tmpCurRepo.branch=""
+//    tmpCurRepo.upstreamBranch=""
 
 
     //先清空列表
@@ -3602,6 +3886,9 @@ private suspend fun changeListInit(
 //                    }
 //                }
 
+        //先清空parent list，后面若需要，会查询，另外，和local比较不需要parents list
+        commitParentList.clear()
+
         Repository.open(repoFromDb.fullSavePath).use { repo ->
             //查询head然后检查是否diff to head
 //                    val headCommitRet = Libgit2Helper.getHeadCommit(repo)
@@ -3614,29 +3901,40 @@ private suspend fun changeListInit(
 //                    }
 
 
-            //如果1或2是worktree ( local )，则用 treeToWorkTree 函数
-            if(Libgit2Helper.CommitUtil.isLocalCommitHash(commit1OidStr)
+            //获取ChangeList，若commitForQueryParents有效，则查询parent list
+
+            //两个提交相同，changeList肯定为空
+            if(commit1OidStr == commit2OidStr) {
+                itemList.value.clear()
+
+                //如果1或2是worktree ( local )，则用 treeToWorkTree 函数
+            } else if(Libgit2Helper.CommitUtil.isLocalCommitHash(commit1OidStr)
                 || Libgit2Helper.CommitUtil.isLocalCommitHash(commit2OidStr)
             ) {  // tree to worktree
                 //如果1是 "local" 则需要反转比较的两个提交对象
                 val reverse = Libgit2Helper.CommitUtil.isLocalCommitHash(commit1OidStr)
+                val leftCommit = if(reverse) commit2OidStr else commit1OidStr
 
-                val cl = if(reverse) {  //commit1 是local，解析commit2为tree2，把tree2作为参数1然后传reverse为true，这时就可比较 workTreeToTree 了
-                    val tree2 = Libgit2Helper.resolveTree(repo, commit2OidStr)
-                    if(tree2==null) {
-                        MyLog.w(TAG, "#$funName, tree to tree diff, query tree2 err!")
-                        setErrMsg(activityContext.getString(R.string.error_invalid_commit_hash)+", 3")
-                        return
-                    }
-                    Libgit2Helper.getTreeToTreeChangeList(repo, repoId, tree2, null, reverse=true, treeToWorkTree = true)
-                }else {  //commit2 是local，解析commit1为tree1，tree2传null，反转传false
-                    val tree1 = Libgit2Helper.resolveTree(repo, commit1OidStr)
-                    if(tree1==null) {
-                        MyLog.w(TAG, "#$funName, tree to tree diff, query tree1 err!")
-                        setErrMsg(activityContext.getString(R.string.error_invalid_commit_hash)+", 4")
-                        return
-                    }
-                    Libgit2Helper.getTreeToTreeChangeList(repo, repoId, tree1, null, reverse=false, treeToWorkTree = true)
+                val isActuallyIndexToLocal = leftCommit == Cons.git_IndexCommitHash;
+
+
+                val tree = if(isActuallyIndexToLocal) {
+                    null
+                } else {
+                    Libgit2Helper.resolveTree(repo, leftCommit)
+                }
+
+                if(isActuallyIndexToLocal.not() && tree == null) {
+                    MyLog.w(TAG, "#$funName, tree to tree diff, query tree err! leftCommit=$leftCommit")
+                    setErrMsg(activityContext.getString(R.string.error_invalid_commit_hash)+" '$leftCommit', (err at: 3277)")
+                    return
+                }
+
+                val cl = if(isActuallyIndexToLocal) {
+                    val wtStatusList = Libgit2Helper.getWorkdirStatusList(repo)
+                    Libgit2Helper.getWorktreeChangeList(repo, wtStatusList, repoId)
+                } else {
+                    Libgit2Helper.getTreeToTreeChangeList(repo, repoId, tree!!, null, reverse=reverse, treeToWorkTree = true)
                 }
 
                 if(repoChanged()) {
@@ -3646,19 +3944,17 @@ private suspend fun changeListInit(
                 itemList.value.clear()
                 itemList.value.addAll(cl)
 
-                //和local比较不需要parents list
-                commitParentList.value.clear()
             }else {  // tree to tree，两个tree都不是local(worktree)
                 val tree1 = Libgit2Helper.resolveTree(repo, commit1OidStr)
                 if(tree1==null) {
-                    MyLog.w(TAG, "#$funName, tree to tree diff, query tree1 err!")
-                    setErrMsg(activityContext.getString(R.string.error_invalid_commit_hash)+", 1")
+                    MyLog.w(TAG, "#$funName, tree to tree diff, query tree1 err! commit1OidStr=$commit1OidStr")
+                    setErrMsg(activityContext.getString(R.string.error_invalid_commit_hash)+" '$commit1OidStr', (err at: 5145)")
                     return
                 }
                 val tree2 = Libgit2Helper.resolveTree(repo, commit2OidStr)
                 if(tree2==null) {
-                    MyLog.w(TAG, "#$funName, tree to tree diff, query tree2 err!")
-                    setErrMsg(activityContext.getString(R.string.error_invalid_commit_hash)+", 2")
+                    MyLog.w(TAG, "#$funName, tree to tree diff, query tree2 err! commit2OidStr=$commit2OidStr")
+                    setErrMsg(activityContext.getString(R.string.error_invalid_commit_hash)+" '$commit2OidStr', (err at: 7136)")
                     return
                 }
                 val treeToTreeChangeList = Libgit2Helper.getTreeToTreeChangeList(repo, repoId, tree1, tree2);
@@ -3682,8 +3978,7 @@ private suspend fun changeListInit(
                         return
                     }
 
-                    commitParentList.value.clear()
-                    commitParentList.value.addAll(parentList)
+                    commitParentList.addAll(parentList)
                 }
             }
 
@@ -3905,6 +4200,7 @@ private fun getBackHandler(
     fromTo: String,
     naviUp:()->Unit,
     changeListPageFilterModeOn:MutableState<Boolean>,
+    resetSearchVars: () -> Unit,
     openDrawer:()->Unit
 
 ): () -> Unit {
@@ -3921,6 +4217,7 @@ private fun getBackHandler(
             quitSelectionMode()
         }else if(changeListPageFilterModeOn.value){
             changeListPageFilterModeOn.value = false
+            resetSearchVars()
         } else {
             if(fromTo != Cons.gitDiffFromIndexToWorktree) { // TreeToTree or Index，非WorkTree页面，非顶级页面，点击返回上级页面
                 doJobWithMainContext{

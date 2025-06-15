@@ -1,5 +1,6 @@
 package com.catpuppyapp.puppygit.jni
 
+import com.github.git24j.core.Blob
 import java.nio.charset.StandardCharsets
 
 object LibgitTwo {
@@ -61,6 +62,20 @@ object LibgitTwo {
     external fun jniEntryByName(treePtr: Long, filename: String?): Long?
     external fun jniGetDataOfSshCert(certPtr: Long, hostname:String): SshCert?
 
+    external fun jniGetStatusEntryRawPointers(statusListPtr: Long): LongArray?
+
+    external fun jniGetStatusEntries(statusListPtr: Long): Array<StatusEntryDto>?
+
+
+
+
+    private external fun jniSaveBlobToPath(blobPtr:Long, savePath:String): Int
+
+    fun saveBlobToPath(blob: Blob, savePath: String): SaveBlobRetCode {
+        val retCode = jniSaveBlobToPath(blob.rawPointer, savePath)
+        return SaveBlobRetCode.fromCode(retCode)!!
+    }
+
     fun getContent(contentLen: Int, content: String): String {
         // content.length() is "chars count", not "bytes count"!
         // so this code is wrong in some cases! sometimes it will give you more lines than you wanted.
@@ -78,4 +93,24 @@ object LibgitTwo {
         // if content length equals contentLen, just return it, no more operations required
         return content
     }
+
+    /**
+     *
+     * @return a Entry ptr list, use `new Entry(ptr)` to create its instance
+     */
+    fun entryRawPointers(statusListPtr: Long): LongArray {
+        val ptrs = jniGetStatusEntryRawPointers(statusListPtr)
+
+        return if(ptrs == null) LongArray(0) else ptrs
+    }
+
+    /**
+     * 在c里先遍历完，把所有jni操作都在c执行，然后存到java里，看性能会不会提升，有点用内存换性能的意思
+     */
+    fun getStatusEntries(statusListPtr:Long): Array<StatusEntryDto> {
+        val ptrs = jniGetStatusEntries(statusListPtr)
+
+        return ptrs ?: arrayOf()
+    }
+
 }

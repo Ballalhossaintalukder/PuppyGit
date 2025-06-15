@@ -9,19 +9,16 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.TextUnit
-import androidx.compose.ui.unit.sp
 import com.catpuppyapp.puppygit.style.MyStyleKt
 
 @Composable
-fun ClickableText(text:String, onClick:(()->Unit)?) {
-    Text(
+fun SingleLineClickableText(
+    text:String,
+    onClick:(()->Unit)?
+) {
+    ClickableText(
         text = text,
         maxLines = 1,
-        overflow = TextOverflow.Ellipsis,
-        fontWeight = FontWeight.Light,
-        style = MyStyleKt.ClickableText.style,
-        color = MyStyleKt.ClickableText.color,
-        fontSize = 16.sp,
         modifier = if(onClick == null) {
             Modifier
         } else {
@@ -32,14 +29,33 @@ fun ClickableText(text:String, onClick:(()->Unit)?) {
 
 
 @Composable
+fun MultiLineClickableText(
+    text:String,
+    onClick:(()->Unit)?
+) {
+    ClickableText(
+        text = text,
+        modifier = if(onClick == null) {
+            Modifier
+        } else {
+            MyStyleKt.ClickableText.modifierNoPadding.clickable { onClick() }
+        },
+    )
+}
+
+/**
+ * 这个主要是为了统一可点击文字的style，不过为了兼容旧代码，没onclick事件，
+ * 可以手动传modifier.clickable{}，或者，如果不需要改modifier参数，可用其他重载的带onClick()的实现
+ */
+@Composable
 fun ClickableText(
     text:String,
     maxLines:Int = Int.MAX_VALUE,
     overflow: TextOverflow = TextOverflow.Ellipsis,
-    fontWeight: FontWeight? = null,
-    style:TextStyle = MyStyleKt.ClickableText.style,
-    color:Color = MyStyleKt.ClickableText.color,
-    fontSize:TextUnit = 16.sp,
+    fontWeight: FontWeight? = MyStyleKt.TextItem.defaultFontWeight(),
+    style:TextStyle = MyStyleKt.ClickableText.getStyle(),
+    color:Color = MyStyleKt.ClickableText.getColor(),
+    fontSize:TextUnit = MyStyleKt.ClickableText.fontSize,
     modifier: Modifier
 ) {
     Text(
@@ -51,5 +67,32 @@ fun ClickableText(
         color = color,
         fontSize = fontSize,
         modifier = modifier,
+    )
+}
+
+@Composable
+fun ClickableText(
+    text:String,
+    maxLines:Int = Int.MAX_VALUE,
+    overflow: TextOverflow = TextOverflow.Ellipsis,
+    fontWeight: FontWeight? = MyStyleKt.TextItem.defaultFontWeight(),
+    style:TextStyle = MyStyleKt.ClickableText.getStyle(),
+    color:Color = MyStyleKt.ClickableText.getColor(),
+    fontSize:TextUnit = MyStyleKt.ClickableText.fontSize,
+    onClick: (() -> Unit)?
+) {
+    ClickableText(
+        text = text,
+        maxLines = maxLines,
+        overflow = overflow,
+        fontWeight = fontWeight,
+        style = style,
+        color = color,
+        fontSize = fontSize,
+        modifier = if(onClick == null) {
+            Modifier
+        } else {
+            MyStyleKt.ClickableText.modifierNoPadding.clickable { onClick() }
+        },
     )
 }

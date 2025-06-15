@@ -10,24 +10,34 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.TextFieldValue
 import com.catpuppyapp.puppygit.play.pro.R
+import com.catpuppyapp.puppygit.utils.state.CustomStateSaveable
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 
 @Composable
 fun CreateFileOrFolderDialog2(
     errMsg: MutableState<String>,
-    fileName:MutableState<String>,
+    fileName: CustomStateSaveable<TextFieldValue>,
     onCancel: () -> Unit,
     onOk: (fileName: String, isDir:Boolean) -> Boolean,
 ) {
     val activityContext = LocalContext.current
+    val scope = rememberCoroutineScope()
 
     val doCreate = { isDir:Boolean ->
-        val createSuccess = onOk(fileName.value, isDir)
+        val createSuccess = onOk(fileName.value.text, isDir)
         if(createSuccess) {
             onCancel()
         }
@@ -37,14 +47,19 @@ fun CreateFileOrFolderDialog2(
         errMsg.value.isNotEmpty()
     }
 
+    val focusRequester = remember { FocusRequester() }
+
     AlertDialog(
         title = {
-            Text(stringResource(R.string.create))
+            DialogTitle(stringResource(R.string.create))
         },
         text = {
             ScrollableColumn {
                 TextField(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRequester(focusRequester)
+                    ,
 
                     value = fileName.value,
                     singleLine = true,
@@ -90,7 +105,7 @@ fun CreateFileOrFolderDialog2(
         confirmButton = {
             ScrollableRow {
                 //按钮启用条件
-                val maybeIsGoodFileName = fileName.value.isNotEmpty() && !hasErr()
+                val maybeIsGoodFileName = fileName.value.text.isNotEmpty() && !hasErr()
 
                 //创建文件（左边）
                 TextButton(
@@ -122,5 +137,8 @@ fun CreateFileOrFolderDialog2(
         },
 
     )
+
+    Focuser(focusRequester, scope)
+
 
 }

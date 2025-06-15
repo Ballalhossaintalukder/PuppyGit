@@ -18,19 +18,20 @@ class TagDto (
     // below only make sense for annotated tags
     var taggerName:String="",
     var taggerEmail:String="",
-    var date:OffsetDateTime?=null,
+    val date:OffsetDateTime?=null,
     var originTimeOffsetInMinutes:Int=0,
     var msg:String=""
 ) {
 
     private var targetShortOidStr:String?=null
+    private var formattedDateStr:String? = null
 
     fun getFormattedTaggerNameAndEmail():String {
         return Libgit2Helper.getFormattedUsernameAndEmail(taggerName, taggerEmail)
     }
 
     fun getFormattedDate():String {
-        return date?.format(Cons.defaultDateTimeFormatter) ?: ""
+        return formattedDateStr ?: ((date?.format(Cons.defaultDateTimeFormatter) ?: "").let { formattedDateStr = it; it })
     }
 
     fun getActuallyUsingTimeOffsetInUtcFormat():String {

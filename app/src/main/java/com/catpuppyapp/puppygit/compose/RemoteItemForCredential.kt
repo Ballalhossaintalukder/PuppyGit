@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -20,6 +21,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.catpuppyapp.puppygit.dto.RemoteDtoForCredential
 import com.catpuppyapp.puppygit.play.pro.R
+import com.catpuppyapp.puppygit.style.MyStyleKt
 
 
 @Composable
@@ -32,7 +34,10 @@ fun RemoteItemForCredential(
     showUrlDialog:(title:String, url:String) -> Unit,
     actAction:(()->Unit)?,
 ) {
-    val activityContext = LocalContext.current
+    
+//    val activityContext = LocalContext.current
+
+    val defaultFontWeight = remember { MyStyleKt.TextItem.defaultFontWeight() }
 
     Row(
         //0.9f 占父元素宽度的百分之90
@@ -59,7 +64,7 @@ fun RemoteItemForCredential(
                 Text(text = thisItem.repoName,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    fontWeight = FontWeight.Light
+                    fontWeight = defaultFontWeight
                 )
             }
 
@@ -70,7 +75,7 @@ fun RemoteItemForCredential(
                 Text(text = thisItem.remoteName,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    fontWeight = FontWeight.Light
+                    fontWeight = defaultFontWeight
 
                 )
             }
@@ -89,7 +94,7 @@ fun RemoteItemForCredential(
                     Text(text = thisItem.remoteFetchUrl,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        fontWeight = FontWeight.Light
+                        fontWeight = defaultFontWeight
                     )
                 }
             }
@@ -108,7 +113,7 @@ fun RemoteItemForCredential(
                     Text(text = thisItem.remotePushUrl,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        fontWeight = FontWeight.Light
+                        fontWeight = defaultFontWeight
                     )
                 }
             }
@@ -120,7 +125,7 @@ fun RemoteItemForCredential(
                 Text(text = thisItem.getCredentialNameOrNone(),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    fontWeight = FontWeight.Light
+                    fontWeight = defaultFontWeight
                 )
             }
 
@@ -131,7 +136,7 @@ fun RemoteItemForCredential(
                 Text(text = thisItem.getPushCredentialNameOrNone(),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    fontWeight = FontWeight.Light
+                    fontWeight = defaultFontWeight
                 )
             }
 

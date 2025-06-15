@@ -79,7 +79,15 @@ jobs:
           name: app-release-unsigned.apk
           path: ${{ github.workspace }}/app/build/outputs/apk/release/app-release-unsigned.apk
           retention-days: 15
-          
+
+      # symbols and mapping files
+      - name: Upload Release Apk Symbols
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release-symbols-and-mappings
+          path: ${{ github.workspace }}/app/build/outputs
+          retention-days: 15
+
       - name: Build Debug APK
         run: |
           cd $GITHUB_WORKSPACE
@@ -94,4 +102,11 @@ jobs:
           path: ${{ github.workspace }}/app/build/outputs/apk/debug/app-debug.apk
           retention-days: 15
         
-        
+
+      # symbols and mapping files
+      - name: Upload Debug Apk Symbols
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-debug-symbols-and-mappings
+          path: ${{ github.workspace }}/app/build/outputs
+          retention-days: 15

@@ -836,7 +836,7 @@
     <string name="path_under_repo">Путь внутри репозитория</string>
     <string name="submodules">Субмодули</string>
     <string name="cloned">Клонировано</string>
-    <string name="not_clone">Не клонировано</string>
+    <string name="not_cloned">Не клонировано</string>
     <string name="will_clone_selected_submodules_are_you_sure">Будут клонированы выбранные субмодули, вы уверены?</string>
     <string name="re_clone">Переклонировать</string>
     <string name="re_clone_submodules_warning_text">Будут удалены файлы субмодулей на диске, затем они будут переклонированы</string>
@@ -1257,5 +1257,28 @@
     <!-- new at 20250420 -->
     <string name="link_all">Подключить Все</string>
 
+    <!-- new at 20250427 -->
+    <string name="append_a_line">Добавить строку</string>
+    <string name="restart_app">Перезапуск Приложения</string>
+
+
+    <!-- new at 20250501 -->
+    <string name="expand_all">Развернуть все</string>
+    <string name="collapse_all">Свернуть все</string>
+    <string name="patch_mode">Режим патча</string>
+
+    <!-- new at 20250513 -->
+    <string name="no_commit">Нет коммитов</string>
+    <string name="repo_no_commit_note">В вашем репозитории еще нет коммитов, пожалуйста, создайте файлы и затем коммитить их.</string>
+
+    <!-- new at 20250516 -->
+    <string name="expected_refspec">Ожидаемый Refspec</string>
+    <string name="push_force_with_lease_note">Принудительная отправка будет выполнена только если последний коммит на upstream совпадает с ожидаемым</string>
+    <string name="checking">Проверка…</string>
+    <string name="nodes">Узлы</string>
+    <string name="note_pat_instead_of_password">Примечание: Если у вас включена двухфакторная аутентификация (2FA), вместо пароля необходимо использовать персональный токен доступа (Personal Access Token). Токен должен иметь права на чтение и запись содержимого репозитория и рабочих процессов.</string>
+    <string name="graph">Граф</string>
+    <string name="commit_msg_template">Шаблон сообщения коммита</string>
+    <string name="leave_empty_to_use_global_settings">Оставьте пустым, чтобы использовать глобальные настройки</string>
 
 </resources>

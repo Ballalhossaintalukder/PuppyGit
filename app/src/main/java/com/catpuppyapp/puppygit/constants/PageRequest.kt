@@ -24,6 +24,14 @@ object PageRequest {
 //    const val goToBranch ="goToBranch"  //goToBranch#branchName，#后面是要goto的分支名
 
 
+    const val reloadRecentFileList = "reloadRecentFileList"
+    const val reloadIfChanged = "reloadIfChanged"
+    const val editor_RequireRefreshPreviewPage = "editor_RequireRefreshPreviewPage"
+    const val goToBottomOfCurrentFile = "goToBottomOfCurrentFile"
+    const val goToCurItem = "goToCurItem"
+    const val requireOpenInInnerEditor = "requireOpenInInnerEditor"
+    const val expandAll = "expandAll"
+    const val collapseAll = "collapseAll"
     const val goToStashPage = "goToStashPage"
     const val goToInnerDataStorage = "goToInnerDataStorage"
     const val goToExternalDataStorage = "goToExternalDataStorage"
@@ -85,6 +93,7 @@ object PageRequest {
     const val backFromExternalAppAskReloadFile = "backFromExternalAppAskReloadFile"  //在内置编辑器请求打开外部文件，再返回，会发出此请求，询问用户是否想重新加载文件
     const val needNotReloadFile = "needNotReloadFile"  //保存文件后，不需要加载文件，用此变量告知init函数不要重载文件
     const val requireSave = "requireSave"
+    const val requireClose = "requireClose"
     const val requireOpenAs = "requireOpenAs"  //editor的open as功能
     const val requireSearch = "requireSearch"
     const val findPrevious = "findPrevious"

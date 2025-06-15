@@ -93,7 +93,7 @@ open class DateNamedFileWriter(
                             val pair = initWriter()
                             file = pair.first
                             writer = pair.second
-                            Log.e(logTagOfSubClass, "write to file err:${e.stackTraceToString()}")
+                            Log.e(logTagOfSubClass, "write to file err: ${e.stackTraceToString()}")
                         }
                     }
                 }
@@ -166,7 +166,7 @@ open class DateNamedFileWriter(
         try {
             fileWriter?.close()
         }catch (e:Exception) {
-            Log.e(logTagOfSubClass, "#$funName err:${e.stackTraceToString()}")
+            Log.e(logTagOfSubClass, "#$funName err: ${e.stackTraceToString()}")
         }
 
         //新开一个writer

@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -35,6 +34,8 @@ import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import com.catpuppyapp.puppygit.play.pro.R
 import com.catpuppyapp.puppygit.style.MyStyleKt
+import com.catpuppyapp.puppygit.utils.UIHelper
+
 
 @Composable
 fun BottomBar(
@@ -71,15 +72,15 @@ fun BottomBar(
 
 
 ) {
-    val dropDownMenuExpendState = rememberSaveable { mutableStateOf(false) }
+    val dropDownMenuExpandState = rememberSaveable { mutableStateOf(false) }
     val showDropDownMenu = {
-        dropDownMenuExpendState.value=true
+        dropDownMenuExpandState.value=true
     }
     val closeDropDownMenu = {
-        dropDownMenuExpendState.value=false
+        dropDownMenuExpandState.value=false
     }
     val switchDropDownMenu = {
-        dropDownMenuExpendState.value = !dropDownMenuExpendState.value
+        dropDownMenuExpandState.value = !dropDownMenuExpandState.value
     }
 
     //开始：反转more菜单条目，如果设置了反转的话
@@ -204,10 +205,24 @@ fun BottomBar(
                         DropdownMenu(
                             offset = DpOffset(x=(-5).dp, y=0.dp),
 
-                            expanded = dropDownMenuExpendState.value,
+                            expanded = dropDownMenuExpandState.value,
                             onDismissRequest = { closeDropDownMenu() }
                         ) {
+                            var idxOffset = 0;
+                            var showDivider = false
+
                             for ((idx, text) in moreItemTextList.withIndex()) {
+                                if(text == UIHelper.bottomBarDividerPlaceHolder) {
+                                    showDivider = true
+                                    idxOffset--
+                                    continue
+                                }
+
+                                val willShowDivider = showDivider
+                                showDivider = false
+
+                                val idx = idx + idxOffset
+
                                 if(moreItemVisibleList.isNotEmpty() && !moreItemVisibleList[idx]()) {
                                     continue
                                 }
@@ -215,6 +230,10 @@ fun BottomBar(
                                 // ignore blank item
                                 if(text.isBlank()) {
                                     continue
+                                }
+
+                                if(willShowDivider) {
+                                    MyHorizontalDivider()
                                 }
 
                                 DropdownMenuItem(

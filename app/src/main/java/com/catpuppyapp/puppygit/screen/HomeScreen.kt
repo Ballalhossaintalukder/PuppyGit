@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -22,14 +23,12 @@ import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.DrawerState
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -49,6 +48,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import com.catpuppyapp.puppygit.compose.ConfirmDialog3
 import com.catpuppyapp.puppygit.compose.FilterTextField
 import com.catpuppyapp.puppygit.compose.GoToTopAndGoToBottomFab
@@ -61,13 +62,14 @@ import com.catpuppyapp.puppygit.constants.IntentCons
 import com.catpuppyapp.puppygit.constants.PageRequest
 import com.catpuppyapp.puppygit.constants.SingleSendHandleMethod
 import com.catpuppyapp.puppygit.data.entity.RepoEntity
-import com.catpuppyapp.puppygit.dev.bug_Editor_undoStackLostAfterRotateScreen_Fixed
+import com.catpuppyapp.puppygit.dto.FileDetail
 import com.catpuppyapp.puppygit.dto.FileItemDto
 import com.catpuppyapp.puppygit.dto.FileSimpleDto
 import com.catpuppyapp.puppygit.dto.UndoStack
 import com.catpuppyapp.puppygit.fileeditor.texteditor.view.ScrollEvent
 import com.catpuppyapp.puppygit.git.StatusTypeEntrySaver
 import com.catpuppyapp.puppygit.play.pro.R
+import com.catpuppyapp.puppygit.screen.content.editor.FileDetailListActions
 import com.catpuppyapp.puppygit.screen.content.homescreen.innerpage.AboutInnerPage
 import com.catpuppyapp.puppygit.screen.content.homescreen.innerpage.AutomationInnerPage
 import com.catpuppyapp.puppygit.screen.content.homescreen.innerpage.ChangeListInnerPage
@@ -91,7 +93,9 @@ import com.catpuppyapp.puppygit.screen.content.homescreen.scaffold.title.ReposTi
 import com.catpuppyapp.puppygit.screen.content.homescreen.scaffold.title.ScrollableTitle
 import com.catpuppyapp.puppygit.screen.content.homescreen.scaffold.title.SimpleTitle
 import com.catpuppyapp.puppygit.screen.functions.ChangeListFunctions
+import com.catpuppyapp.puppygit.screen.functions.getFilesGoToPath
 import com.catpuppyapp.puppygit.screen.functions.getInitTextEditorState
+import com.catpuppyapp.puppygit.screen.shared.EditorPreviewNavStack
 import com.catpuppyapp.puppygit.screen.shared.FileChooserType
 import com.catpuppyapp.puppygit.screen.shared.FilePath
 import com.catpuppyapp.puppygit.screen.shared.IntentHandler
@@ -101,23 +105,30 @@ import com.catpuppyapp.puppygit.settings.SettingsUtil
 import com.catpuppyapp.puppygit.style.MyStyleKt
 import com.catpuppyapp.puppygit.utils.AppModel
 import com.catpuppyapp.puppygit.utils.FsUtils
+import com.catpuppyapp.puppygit.utils.Libgit2Helper
 import com.catpuppyapp.puppygit.utils.Msg
 import com.catpuppyapp.puppygit.utils.MyLog
-import com.catpuppyapp.puppygit.utils.PrefMan
 import com.catpuppyapp.puppygit.utils.UIHelper
+import com.catpuppyapp.puppygit.utils.cache.Cache
 import com.catpuppyapp.puppygit.utils.changeStateTriggerRefreshPage
 import com.catpuppyapp.puppygit.utils.doJobThenOffLoading
 import com.catpuppyapp.puppygit.utils.generateRandomString
+import com.catpuppyapp.puppygit.utils.pref.PrefMan
 import com.catpuppyapp.puppygit.utils.saf.SafUtil
+import com.catpuppyapp.puppygit.utils.state.mutableCustomBoxOf
 import com.catpuppyapp.puppygit.utils.state.mutableCustomStateListOf
 import com.catpuppyapp.puppygit.utils.state.mutableCustomStateOf
 import com.github.git24j.core.Repository.StateT
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 
 private const val TAG = "HomeScreen"
-private const val stateKeyTag = "HomeScreen"
+private const val stateKeyTag = TAG
+
+private val refreshLock = Mutex()
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -173,10 +184,10 @@ fun HomeScreen(
     }
 //    val changeListCurRepo = rememberSaveable{ mutableStateOf(RepoEntity()) }
     val changeListCurRepo = mutableCustomStateOf(keyTag = stateKeyTag, keyName = "changeListCurRepo", initValue = RepoEntity(id=""))  //id=空，表示无效仓库
-    val changeListIsShowRepoList = rememberSaveable { mutableStateOf(false)}
-    val changeListShowRepoList = {
-        changeListIsShowRepoList.value=true
-    }
+//    val changeListIsShowRepoList = rememberSaveable { mutableStateOf(false)}
+//    val changeListShowRepoList = { changeListIsShowRepoList.value=true }
+    // 此变量仅在回调使用，与页面是否重新渲染无关，所以不需要用state
+    val changeListCachedEditorPath = mutableCustomBoxOf(stateKeyTag, "changeListCachedEditorPath") { "" }
     val changeListIsFileSelectionMode = rememberSaveable { mutableStateOf(false)}
     val changeListPageNoRepo = rememberSaveable { mutableStateOf(false)}
     val changeListPageHasNoConflictItems = rememberSaveable { mutableStateOf(false)}
@@ -338,9 +349,17 @@ fun HomeScreen(
         initValue = TextFieldValue("")
     )
 
-    val filesPageCurrentPath = rememberSaveable { mutableStateOf("")}
-    val filesPageLastPathByPressBack = rememberSaveable { mutableStateOf("")}
-    val showCreateFileOrFolderDialog = rememberSaveable { mutableStateOf(false)}
+    val filesPageCurrentPath = rememberSaveable { mutableStateOf("") }
+    val filesGetCurrentPath = {
+        filesPageCurrentPath.value
+    }
+    val filesUpdateCurrentPath = { path:String ->
+        filesPageCurrentPath.value = path
+    }
+
+
+    val filesPageLastPathByPressBack = rememberSaveable { mutableStateOf("") }
+    val showCreateFileOrFolderDialog = rememberSaveable { mutableStateOf(false) }
     val filesPageCurPathFileItemDto = mutableCustomStateOf(stateKeyTag, "filesPageCurPathFileItemDto") { FileItemDto() }
     val filesPageCurrentPathBreadCrumbList = mutableCustomStateListOf(keyTag = stateKeyTag, keyName = "filesPageCurrentPathBreadCrumbList", initValue = listOf<FileItemDto>())
 
@@ -363,14 +382,57 @@ fun HomeScreen(
     val filesFilterListState = rememberLazyListState()
     val repoFilterListState = rememberLazyListState()
 
+    val editorRecentFileList = mutableCustomStateListOf(stateKeyTag, "recentFileList") { listOf<FileDetail>() }
+    val editorSelectedRecentFileList = mutableCustomStateListOf(stateKeyTag, "editorSelectedRecentFileList") { listOf<FileDetail>() }
+    val editorRecentFileListSelectionMode = rememberSaveable { mutableStateOf(false) }
+    val editorRecentListState = rememberLazyStaggeredGridState()
+    val editorInRecentFilesPage = rememberSaveable { mutableStateOf(false) }
+
+
+    val editorFilterRecentListState = rememberLazyStaggeredGridState()
+    val editorFilterRecentList = mutableCustomStateListOf(stateKeyTag, "editorFilterRecentList") { listOf<FileDetail>() }
+    val editorFilterRecentListOn = rememberSaveable { mutableStateOf(false) }
+    val editorEnableRecentListFilter = rememberSaveable { mutableStateOf(false) }
+    val editorFilterRecentListKeyword = mutableCustomStateOf(stateKeyTag, "editorFilterRecentListKeyword") { TextFieldValue("") }
+    val editorFilterRecentListLastSearchKeyword = rememberSaveable { mutableStateOf("") }
+    val editorFilterRecentListResultNeedRefresh = rememberSaveable { mutableStateOf("") }
+    val editorFilterRecentListSearching = rememberSaveable { mutableStateOf(false) }
+    val editorFilterRecentListSearchToken = rememberSaveable { mutableStateOf("") }
+    val editorFilterResetSearchValues = {
+        editorFilterRecentListSearching.value = false
+        editorFilterRecentListSearchToken.value = ""
+        editorFilterRecentListLastSearchKeyword.value = ""
+    }
+    val editorInitRecentFilesFilterMode = {
+        editorFilterRecentListKeyword.value = TextFieldValue("")
+        editorFilterRecentListOn.value = true
+    }
+    val editorRecentFilesQuitFilterMode = {
+        editorFilterResetSearchValues()
+        editorFilterRecentListOn.value = false
+    }
+    val editorRecentListLastScrollPosition = rememberSaveable { mutableStateOf(0) }
+    val editorRecentListFilterLastScrollPosition = rememberSaveable { mutableStateOf(0) }
+    val getActuallyRecentFilesList = {
+        if(editorEnableRecentListFilter.value) editorFilterRecentList.value else editorRecentFileList.value
+    }
+    val getActuallyRecentFilesListState = {
+        if(editorEnableRecentListFilter.value) editorFilterRecentListState else editorRecentListState
+    }
+    val getActuallyRecentFilesListLastPosition = {
+        if(editorEnableRecentListFilter.value) editorRecentListFilterLastScrollPosition else editorRecentListLastScrollPosition
+    }
+
+    val editorPreviewFileDto = mutableCustomStateOf(stateKeyTag, "editorPreviewFileDto") { FileSimpleDto() }
+
     //当前展示的文件的canonicalPath
     val editorPageShowingFilePath = rememberSaveable { mutableStateOf(FilePath("")) }
 
     //当前展示的文件是否已经加载完毕
-    val editorPageShowingFileIsReady = rememberSaveable { mutableStateOf(false)}
+    val editorPageShowingFileIsReady = rememberSaveable { mutableStateOf(false) }
 
     val editorPageIsEdited = rememberSaveable { mutableStateOf(false)}
-    val editorPageIsContentSnapshoted = rememberSaveable{mutableStateOf(false)}  //是否已对当前内容创建了快照
+    val editorPageIsContentSnapshoted = rememberSaveable{ mutableStateOf(false) }  //是否已对当前内容创建了快照
 
     //TextEditor用的变量
     val editorPageTextEditorState = mutableCustomStateOf(
@@ -425,14 +487,14 @@ fun HomeScreen(
         updatePreviewPath_Internal(newPath)
         editorPreviewPathChanged.value = generateRandomString()
     }
-    val editorPreviewNavStack = mutableCustomStateOf(stateKeyTag, "editorPreviewNavStack") { SharedState.editorPreviewNavStack }
+    val editorPreviewNavStack = mutableCustomStateOf(stateKeyTag, "editorPreviewNavStack") { EditorPreviewNavStack("") }
 
     val editorQuitPreviewMode = {
-        AppModel.editorPreviewModeOnWhenDestroy.value = false
-
         editorBasePath.value = ""
         editorMdText.value = ""
         editorIsPreviewModeOn.value = false
+
+        editorPageRequestFromParent.value = PageRequest.reloadIfChanged
     }
 
     val editorInitPreviewMode = {
@@ -514,9 +576,13 @@ fun HomeScreen(
     val loadingText = rememberSaveable { mutableStateOf(initLoadingText)}
 
     val editorPageIsLoading = rememberSaveable { mutableStateOf(false)}
-    if(editorPageIsLoading.value) {
-        LoadingDialog(loadingText.value)
-    }
+    val editorPagePreviewLoading = rememberSaveable { mutableStateOf(false) }
+
+    //初始值不用忽略，因为打开文件后默认focusing line idx为null，所以这个值是否忽略并没意义
+    //这个值不能用state，不然修改state后会重组，然后又触发聚焦，就没意义了
+    val ignoreFocusOnce = mutableCustomBoxOf(stateKeyTag, "ignoreFocusOnce") { false }
+    val softKbVisibleWhenLeavingEditor = mutableCustomBoxOf(stateKeyTag, "softKbVisibleWhenLeavingEditor") { false }
+
     val editorPageLoadingOn = {msg:String ->
         loadingText.value = msg
         editorPageIsLoading.value=true
@@ -539,6 +605,7 @@ fun HomeScreen(
     val editorPageSearchMode = rememberSaveable{mutableStateOf(false)}
     val editorPageSearchKeyword = mutableCustomStateOf(keyTag = stateKeyTag, keyName = "editorPageSearchKeyword", TextFieldValue(""))
     val editorPageMergeMode = rememberSaveable{mutableStateOf(false)}
+    val editorPagePatchMode = rememberSaveable(settingsSnapshot.value.editor.patchModeOn) { mutableStateOf(settingsSnapshot.value.editor.patchModeOn) }
     val editorReadOnlyMode = rememberSaveable{mutableStateOf(false)}
 
     val editorShowLineNum = rememberSaveable{mutableStateOf(settingsSnapshot.value.editor.showLineNum)}
@@ -552,14 +619,9 @@ fun HomeScreen(
     val editorShowUndoRedo = rememberSaveable{mutableStateOf(settingsSnapshot.value.editor.showUndoRedo)}
 //    val editorUndoStack = remember(editorPageShowingFilePath.value){ derivedStateOf { UndoStack(filePath = editorPageShowingFilePath.value.ioPath) } }
 //    val editorUndoStack = remember { SharedState.editorUndoStack }
-    val editorUndoStack = remember(editorPageShowingFilePath.value.ioPath) {
-        if(bug_Editor_undoStackLostAfterRotateScreen_Fixed) {
-            SharedState.editorUndoStack
-        }else {
-            mutableStateOf(UndoStack(editorPageShowingFilePath.value.ioPath))
-        }
-    }
+    val editorUndoStack = mutableCustomStateOf(stateKeyTag, "editorUndoStack") { UndoStack("") }
 
+    val editorLoadLock = mutableCustomBoxOf(stateKeyTag, "editorLoadLock") { Mutex() }.value
 
     //给Files页面点击打开文件用的
     //第2个参数是期望值，只有当文件路径不属于app内置禁止edit的目录时才会使用那个值，否则强制开启readonly模式
@@ -638,7 +700,7 @@ fun HomeScreen(
         filesPageEnableFilterState.value = false  //过滤模式是否真的被应用（显示输入框并且有关键字）
 
         //设置路径
-        filesPageCurrentPath.value = path
+        filesUpdateCurrentPath(path)
         //跳转页面
         currentHomeScreen.intValue = Cons.selectedItem_Files
 
@@ -663,11 +725,16 @@ fun HomeScreen(
 
     val filesPageKeepFilterResultOnce = rememberSaveable { mutableStateOf(false) }
 
+    val filesGoToPath = getFilesGoToPath(filesPageLastPathByPressBack, filesGetCurrentPath, filesUpdateCurrentPath, needRefreshFilesPage)
+
+
+
     val requireEditorScrollToPreviewCurPos = rememberSaveable { mutableStateOf(false) }
     val requirePreviewScrollToEditorCurPos = rememberSaveable { mutableStateOf(false) }
     val editorPreviewPageScrolled = rememberSaveable { mutableStateOf(settingsSnapshot.value.showNaviButtons) }
     val changelistPageScrolled = rememberSaveable { mutableStateOf(settingsSnapshot.value.showNaviButtons) }
     val repoPageScrolled = rememberSaveable { mutableStateOf(settingsSnapshot.value.showNaviButtons) }
+    val editorRecentListScrolled = rememberSaveable { mutableStateOf(settingsSnapshot.value.showNaviButtons) }
 
     // two usages: 1. re query repo list when click title;  2. after imported submodules at ChangeList page
     val needReQueryRepoListForChangeListTitle = rememberSaveable { mutableStateOf("")}
@@ -778,15 +845,41 @@ fun HomeScreen(
 //        Icons.Filled.Subscriptions
     )
 
-    val refreshPageList = listOf(
-        refreshRepoPage@{ changeStateTriggerRefreshPage(needRefreshRepoPage) },
-        refreshFilesPage@{ changeStateTriggerRefreshPage(needRefreshFilesPage) },
-        refreshEditorPage@{ editorPageShowingFileIsReady.value=false; changeStateTriggerRefreshPage(needRefreshEditorPage) },
-        refreshChangeListPage@{changeListRequireRefreshFromParentPage(changeListCurRepo.value)},
-        refreshServicePage@{ refreshServicePage() },
-        refreshAutomationPage@{ refreshAutomationPage() },
-        refreshSettingsPage@{ refreshSettingsPage() },
-        refreshAboutPage@{}, //About页面静态的，不需要刷新
+    // 抽屉条目点击回调
+    val drawerItemOnClick = listOf(
+        clickRepoPage@{ changeStateTriggerRefreshPage(needRefreshRepoPage) },
+        clickFilesPage@{ changeStateTriggerRefreshPage(needRefreshFilesPage) },
+        clickEditorPage@{ editorPageShowingFileIsReady.value=false; changeStateTriggerRefreshPage(needRefreshEditorPage) },
+        clickChangeListPage@{
+            doJobThenOffLoading {
+                // 取出editor正在编辑的文件路径，如果有关联的仓库，切换到cl页面时会定位到对应仓库
+                val editorShowingPath = editorPageShowingFilePath.value.ioPath
+                val editorPageShowingFilePath = Unit  // avoid mistake using
+                val oldChangeListCachedEditorPath = changeListCachedEditorPath.value
+                changeListCachedEditorPath.value = editorShowingPath
+                val changeListCachedEditorPath = Unit
+
+
+                //后面cached路径和当前路径是否相等的判断是为了实现同一路径仅跳转一次的机制，避免跳转了一次，非用户期望，用户手动切换仓库后，再立刻cl页面，返回后再跳转
+                if(editorShowingPath.isNotBlank() && oldChangeListCachedEditorPath != editorShowingPath) {
+                    Libgit2Helper.findRepoByPath(editorShowingPath)?.use { repo ->
+                        val repoPath = Libgit2Helper.getRepoWorkdirNoEndsWithSlash(repo)
+                        // 仓库不ready不会在cl页面显示，所以设`onlyReturnReadyRepo`为true；在cl页面会重新查询仓库底层信息，所以这里不需要查，所以设`requireSyncRepoInfoWithGit`为false
+                        val repoFromDb = AppModel.dbContainer.repoRepository.getByFullSavePath(repoPath, onlyReturnReadyRepo = true, requireSyncRepoInfoWithGit = false)
+                        repoFromDb?.let { changeListCurRepo.value = it }
+                    }
+                }
+
+                // 刷新ChangeList页面
+                changeListRequireRefreshFromParentPage(changeListCurRepo.value)
+            }
+
+            Unit
+        },
+        clickServicePage@{ refreshServicePage() },
+        clickAutomationPage@{ refreshAutomationPage() },
+        clickSettingsPage@{ refreshSettingsPage() },
+        clickAboutPage@{}, //About页面静态的，不需要刷新
 //        {},  //Subscription页面
     )
 
@@ -836,7 +929,7 @@ fun HomeScreen(
                     drawTextList = drawTextList,
                     drawIdList = drawIdList,
                     drawIconList = drawIconList,
-                    refreshPageList = refreshPageList,
+                    drawerItemOnClick = drawerItemOnClick,
                     showExit = true,
                     filesPageKeepFilterResultOnce = filesPageKeepFilterResultOnce,
 
@@ -857,16 +950,26 @@ fun HomeScreen(
         val serviceLastPosition = rememberSaveable { mutableStateOf(0) }
         val automationLastPosition = rememberSaveable { mutableStateOf(0) }
 
+        val filesErrLastPosition = rememberSaveable { mutableStateOf(0) }
+        val changeListErrLastPosition = rememberSaveable { mutableStateOf(0) }
+
+        val filesPageErrScrollState = rememberScrollState()
+        val filesPageOpenDirErr = rememberSaveable { mutableStateOf("") }
+        val filesPageGetErr = { filesPageOpenDirErr.value }
+        val filesPageSetErr = { errMsg:String -> filesPageOpenDirErr.value = errMsg }
+        val filesPageHasErr = { filesPageOpenDirErr.value.isNotBlank() }
+
+
+        val changeListErrScrollState = rememberScrollState()
+        val changeListHasErr = rememberSaveable { mutableStateOf(false) }
+
 
         Scaffold(
             modifier = Modifier.nestedScroll(homeTopBarScrollBehavior.nestedScrollConnection),
 
             topBar = {
                 TopAppBar(
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer,
-                        titleContentColor = MaterialTheme.colorScheme.primary,
-                    ),
+                    colors = MyStyleKt.TopBar.getColors(),
                     title = {
                         //TODO 把app标题放到抽屉里，最好再有个长方形的背景图
                         if(currentHomeScreen.intValue == Cons.selectedItem_Repos){
@@ -882,7 +985,8 @@ fun HomeScreen(
                             }
                         } else if(currentHomeScreen.intValue == Cons.selectedItem_Files){
                             FilesTitle(
-                                currentPath = filesPageCurrentPath,
+                                currentPath = filesGetCurrentPath,
+                                goToPath = filesGoToPath,
                                 allRepoParentDir = allRepoParentDir,
                                 needRefreshFilesPage = needRefreshFilesPage,
                                 filesPageGetFilterMode = filesPageGetFilterMode,
@@ -898,6 +1002,12 @@ fun HomeScreen(
                             )
                         } else if (currentHomeScreen.intValue == Cons.selectedItem_Editor) {
                             EditorTitle(
+                                recentFileListIsEmpty = editorRecentFileList.value.isEmpty(),
+                                recentFileListFilterModeOn = editorFilterRecentListOn.value,
+                                recentListFilterKeyword = editorFilterRecentListKeyword,
+                                getActuallyRecentFilesListState=getActuallyRecentFilesListState,
+                                getActuallyRecentFilesListLastPosition=getActuallyRecentFilesListLastPosition,
+                                patchModeOn = editorPagePatchMode.value,
                                 previewNavStack = editorPreviewNavStack.value,
                                 previewingPath = editorPreviewPath,
                                 isPreviewModeOn = editorIsPreviewModeOn.value,
@@ -926,6 +1036,7 @@ fun HomeScreen(
                                     enableAction = changeListEnableAction.value,
                                     repoList = changeListRepoList,
                                     needReQueryRepoList=needReQueryRepoListForChangeListTitle,
+                                    goToChangeListPage = goToChangeListPage,
                                 )
                             }
                         } else if (currentHomeScreen.intValue == Cons.selectedItem_Settings) {
@@ -979,8 +1090,10 @@ fun HomeScreen(
                             }
                         }else if(currentHomeScreen.intValue == Cons.selectedItem_Editor
                             && (editorIsPreviewModeOn.value || editorPageSearchMode.value
-                                    || editorAdjustFontSizeMode.value || editorAdjustLineNumFontSizeMode.value)
-                            ){
+                                    || editorAdjustFontSizeMode.value || editorAdjustLineNumFontSizeMode.value
+                                    || (editorInRecentFilesPage.value && editorFilterRecentListOn.value)
+                            )
+                        ){
                             LongPressAbleIconBtn(
                                 tooltipText = stringResource(R.string.close),
                                 icon =  Icons.Filled.Close,
@@ -994,6 +1107,8 @@ fun HomeScreen(
                                     editorPageRequestFromParent.value = PageRequest.requireSaveFontSizeAndQuitAdjust
                                 }else if(editorAdjustLineNumFontSizeMode.value) {
                                     editorPageRequestFromParent.value = PageRequest.requireSaveLineNumFontSizeAndQuitAdjust
+                                }else if(editorInRecentFilesPage.value && editorFilterRecentListOn.value) {
+                                    editorRecentFilesQuitFilterMode()
                                 }
                             }
                         }else {
@@ -1017,7 +1132,7 @@ fun HomeScreen(
                         }else if(currentHomeScreen.intValue == Cons.selectedItem_Files) {
                             FilesPageActions(
                                 isFileChooser = false,
-                                showCreateFileOrFolderDialog = showCreateFileOrFolderDialog,
+//                                showCreateFileOrFolderDialog = showCreateFileOrFolderDialog,
                                 refreshPage = {
                                     changeStateTriggerRefreshPage(needRefreshFilesPage)
                                 },
@@ -1030,43 +1145,54 @@ fun HomeScreen(
                             )
 
                         }else if(currentHomeScreen.intValue == Cons.selectedItem_Editor && !editorOpenFileErr.value) {
-                            EditorPageActions(
-                                initPreviewMode = editorInitPreviewMode,
-                                requireEditorScrollToPreviewCurPos = requireEditorScrollToPreviewCurPos,
-                                previewNavStack = editorPreviewNavStack.value,
-                                previewPath = editorPreviewPath,
-                                previewPathChanged = editorPreviewPathChanged.value,
-                                isPreviewModeOn = editorIsPreviewModeOn.value,
-                                editorPageShowingFilePath = editorPageShowingFilePath,
-//                                editorPageRequireOpenFilePath,
-                                editorPageShowingFileIsReady = editorPageShowingFileIsReady,
-                                needRefreshEditorPage = needRefreshEditorPage,
-                                editorPageTextEditorState = editorPageTextEditorState,
-//                                editorPageShowSaveDoneToast,
-                                isSaving = editorPageIsSaving,
-                                isEdited = editorPageIsEdited,
-                                showReloadDialog = showReloadDialog,
-                                showCloseDialog=editorPageShowCloseDialog,
-                                closeDialogCallback = editorPageCloseDialogCallback,
-//                                isLoading = editorPageIsLoading,
-                                doSave = doSave,
-                                loadingOn = editorPageLoadingOn,
-                                loadingOff = editorPageLoadingOff,
-                                editorPageRequest = editorPageRequestFromParent,
-                                editorPageSearchMode=editorPageSearchMode,
-                                editorPageMergeMode=editorPageMergeMode,
-                                readOnlyMode = editorReadOnlyMode,
-                                editorSearchKeyword = editorPageSearchKeyword.value.text,
-                                isSubPageMode = false,
+                            val notOpenFile = !editorPageShowingFileIsReady.value && editorPageShowingFilePath.value.isBlank()
 
-                                fontSize=editorFontSize,
-                                lineNumFontSize=editorLineNumFontSize,
-                                adjustFontSizeMode=editorAdjustFontSizeMode,
-                                adjustLineNumFontSizeMode=editorAdjustLineNumFontSizeMode,
-                                showLineNum = editorShowLineNum,
-                                undoStack = editorUndoStack.value,
-                                showUndoRedo = editorShowUndoRedo
-                            )
+                            if(notOpenFile && editorRecentFileList.value.isNotEmpty()) {
+                                FileDetailListActions(
+                                    request = editorPageRequestFromParent,
+                                    filterModeOn = editorFilterRecentListOn.value,
+                                    initFilterMode = editorInitRecentFilesFilterMode,
+                                )
+                            }else {
+                                EditorPageActions(
+                                    initPreviewMode = editorInitPreviewMode,
+                                    requireEditorScrollToPreviewCurPos = requireEditorScrollToPreviewCurPos,
+                                    previewNavStack = editorPreviewNavStack.value,
+                                    previewPath = editorPreviewPath,
+                                    previewPathChanged = editorPreviewPathChanged.value,
+                                    isPreviewModeOn = editorIsPreviewModeOn.value,
+                                    editorPageShowingFilePath = editorPageShowingFilePath,
+//                                editorPageRequireOpenFilePath,
+                                    editorPageShowingFileIsReady = editorPageShowingFileIsReady,
+                                    needRefreshEditorPage = needRefreshEditorPage,
+                                    editorPageTextEditorState = editorPageTextEditorState,
+//                                editorPageShowSaveDoneToast,
+                                    isSaving = editorPageIsSaving,
+                                    isEdited = editorPageIsEdited,
+                                    showReloadDialog = showReloadDialog,
+                                    showCloseDialog=editorPageShowCloseDialog,
+                                    closeDialogCallback = editorPageCloseDialogCallback,
+//                                isLoading = editorPageIsLoading,
+                                    doSave = doSave,
+                                    loadingOn = editorPageLoadingOn,
+                                    loadingOff = editorPageLoadingOff,
+                                    editorPageRequest = editorPageRequestFromParent,
+                                    editorPageSearchMode=editorPageSearchMode,
+                                    editorPageMergeMode=editorPageMergeMode,
+                                    editorPagePatchMode=editorPagePatchMode,
+                                    readOnlyMode = editorReadOnlyMode,
+                                    editorSearchKeyword = editorPageSearchKeyword.value.text,
+                                    isSubPageMode = false,
+
+                                    fontSize=editorFontSize,
+                                    lineNumFontSize=editorLineNumFontSize,
+                                    adjustFontSizeMode=editorAdjustFontSizeMode,
+                                    adjustLineNumFontSizeMode=editorAdjustLineNumFontSizeMode,
+                                    showLineNum = editorShowLineNum,
+                                    undoStack = editorUndoStack.value,
+                                    showUndoRedo = editorShowUndoRedo
+                                )
+                            }
                         }else if(currentHomeScreen.intValue == Cons.selectedItem_ChangeList) {
                             if(!changeListPageFilterModeOn.value){
                                 ChangeListPageActions(
@@ -1121,16 +1247,36 @@ fun HomeScreen(
                     ) {
                         editorPageRequestFromParent.value = PageRequest.requireSave
                     }
-                }else if(currentHomeScreen.intValue == Cons.selectedItem_ChangeList && changelistPageScrolled.value) {
+                }else if(currentHomeScreen.intValue == Cons.selectedItem_Editor && editorInRecentFilesPage.value) {
                     GoToTopAndGoToBottomFab(
-                        filterModeOn = changeListPageFilterModeOn.value,
+                        filterModeOn = editorFilterRecentListOn.value,
                         scope = scope,
-                        filterListState = changelistFilterListState,
-                        listState = changeListPageItemListState,
-                        filterListLastPosition = changeListFilterLastPosition,
-                        listLastPosition = changeListLastPosition,
-                        showFab = changelistPageScrolled
+                        filterListState = editorFilterRecentListState,
+                        listState = editorRecentListState,
+                        filterListLastPosition = editorRecentListFilterLastScrollPosition,
+                        listLastPosition = editorRecentListLastScrollPosition,
+                        showFab = editorRecentListScrolled,
+                        listSize = getActuallyRecentFilesList().size,
                     )
+                }else if(currentHomeScreen.intValue == Cons.selectedItem_ChangeList && changelistPageScrolled.value) {
+                    if(changeListHasErr.value) {
+                        GoToTopAndGoToBottomFab(
+                            scope = scope,
+                            listState = changeListErrScrollState,
+                            listLastPosition = changeListErrLastPosition,
+                            showFab = changelistPageScrolled
+                        )
+                    }else {
+                        GoToTopAndGoToBottomFab(
+                            filterModeOn = changeListPageFilterModeOn.value,
+                            scope = scope,
+                            filterListState = changelistFilterListState,
+                            listState = changeListPageItemListState,
+                            filterListLastPosition = changeListFilterLastPosition,
+                            listLastPosition = changeListLastPosition,
+                            showFab = changelistPageScrolled
+                        )
+                    }
 
                 }else if(currentHomeScreen.intValue == Cons.selectedItem_Repos && repoPageScrolled.value) {
                     GoToTopAndGoToBottomFab(
@@ -1144,15 +1290,24 @@ fun HomeScreen(
                     )
 
                 }else if(currentHomeScreen.intValue == Cons.selectedItem_Files && filesPageScrolled.value) {
-                    GoToTopAndGoToBottomFab(
-                        filterModeOn = filesPageSimpleFilterOn.value,
-                        scope = scope,
-                        filterListState = filesFilterListState,
-                        listState = filesPageListState.value,
-                        filterListLastPosition = fileListFilterLastPosition,
-                        listLastPosition = filesLastPosition,
-                        showFab = filesPageScrolled
-                    )
+                    if(filesPageHasErr()) {
+                        GoToTopAndGoToBottomFab(
+                            scope = scope,
+                            listState = filesPageErrScrollState,
+                            listLastPosition = filesErrLastPosition,
+                            showFab = filesPageScrolled
+                        )
+                    }else {
+                        GoToTopAndGoToBottomFab(
+                            filterModeOn = filesPageSimpleFilterOn.value,
+                            scope = scope,
+                            filterListState = filesFilterListState,
+                            listState = filesPageListState.value,
+                            filterListLastPosition = fileListFilterLastPosition,
+                            listLastPosition = filesLastPosition,
+                            showFab = filesPageScrolled
+                        )
+                    }
                 }else if(currentHomeScreen.intValue == Cons.selectedItem_Automation && automationPageScrolled.value) {
                     GoToTopAndGoToBottomFab(
                         scope = scope,
@@ -1163,9 +1318,19 @@ fun HomeScreen(
                 }
             }
         ) { contentPadding ->
+            if(editorPageIsLoading.value || editorPagePreviewLoading.value) {
+                LoadingDialog(
+                    // edit mode可能会设loading text，例如正在保存之类的；preview直接显示个普通的loading文案就行
+                    if(editorPageIsLoading.value) loadingText.value else stringResource(R.string.loading)
+                )
+            }
+
             if(currentHomeScreen.intValue == Cons.selectedItem_Repos) {
 //                changeStateTriggerRefreshPage(needRefreshRepoPage)
                 RepoInnerPage(
+//                    stateKeyTag = Cache.combineKeys(stateKeyTag, "RepoInnerPage"),
+                    stateKeyTag = stateKeyTag,
+
                     requireInnerEditorOpenFile = requireInnerEditorOpenFile,
                     lastSearchKeyword=reposLastSearchKeyword,
                     searchToken=reposSearchToken,
@@ -1211,6 +1376,15 @@ fun HomeScreen(
             else if(currentHomeScreen.intValue== Cons.selectedItem_Files) {
 //                changeStateTriggerRefreshPage(needRefreshFilesPage)
                 FilesInnerPage(
+//                    stateKeyTag = Cache.combineKeys(stateKeyTag, "FilesInnerPage"),
+                    stateKeyTag = stateKeyTag,
+
+                    errScrollState = filesPageErrScrollState,
+                    getErr = filesPageGetErr,
+                    setErr = filesPageSetErr,
+                    hasErr = filesPageHasErr,
+
+
                     naviUp = {},
                     updateSelectedPath = {},
                     isFileChooser = false,
@@ -1225,7 +1399,8 @@ fun HomeScreen(
                     editorPageShowingFilePath = editorPageShowingFilePath,
                     editorPageShowingFileIsReady = editorPageShowingFileIsReady,
                     needRefreshFilesPage = needRefreshFilesPage,
-                    currentPath=filesPageCurrentPath,
+                    currentPath=filesGetCurrentPath,
+                    updateCurrentPath=filesUpdateCurrentPath,
                     showCreateFileOrFolderDialog=showCreateFileOrFolderDialog,
                     requireImportFile=filesPageRequireImportFile,
                     requireImportUriList=filesPageRequireImportUriList,
@@ -1255,13 +1430,38 @@ fun HomeScreen(
                     filterList = filesPageFilterList,
                     lastPosition = filesLastPosition,
                     keepFilterResultOnce = filesPageKeepFilterResultOnce,
-
+                    goToPath = filesGoToPath,
                 )
             }
             else if(currentHomeScreen.intValue == Cons.selectedItem_Editor) {
 //                changeStateTriggerRefreshPage(needRefreshEditorPage)
 
                 EditorInnerPage(
+//                    stateKeyTag = Cache.combineKeys(stateKeyTag, "EditorInnerPage"),
+                    stateKeyTag = stateKeyTag,
+
+                    recentFileList = editorRecentFileList,
+                    selectedRecentFileList = editorSelectedRecentFileList,
+                    recentFileListSelectionMode = editorRecentFileListSelectionMode,
+                    recentListState = editorRecentListState,
+                    inRecentFilesPage = editorInRecentFilesPage,
+
+                    editorFilterRecentListState = editorFilterRecentListState,
+                    editorFilterRecentList = editorFilterRecentList.value,
+                    editorFilterRecentListOn = editorFilterRecentListOn,
+                    editorEnableRecentListFilter = editorEnableRecentListFilter,
+                    editorFilterRecentListKeyword = editorFilterRecentListKeyword,
+                    editorFilterRecentListLastSearchKeyword = editorFilterRecentListLastSearchKeyword,
+                    editorFilterRecentListResultNeedRefresh = editorFilterRecentListResultNeedRefresh,
+                    editorFilterRecentListSearching = editorFilterRecentListSearching,
+                    editorFilterRecentListSearchToken = editorFilterRecentListSearchToken,
+                    editorFilterResetSearchValues = editorFilterResetSearchValues,
+                    editorRecentFilesQuitFilterMode = editorRecentFilesQuitFilterMode,
+
+                    ignoreFocusOnce = ignoreFocusOnce,
+                    softKbVisibleWhenLeavingEditor = softKbVisibleWhenLeavingEditor,
+                    previewLoading = editorPagePreviewLoading,
+                    editorPreviewFileDto = editorPreviewFileDto,
                     requireEditorScrollToPreviewCurPos = requireEditorScrollToPreviewCurPos,
                     requirePreviewScrollToEditorCurPos = requirePreviewScrollToEditorCurPos,
                     previewPageScrolled = editorPreviewPageScrolled,
@@ -1310,6 +1510,7 @@ fun HomeScreen(
                     editorSearchKeyword = editorPageSearchKeyword,
                     readOnlyMode = editorReadOnlyMode,
                     editorMergeMode = editorPageMergeMode,
+                    editorPatchMode = editorPagePatchMode,
                     editorShowLineNum=editorShowLineNum,
                     editorLineNumFontSize=editorLineNumFontSize,
                     editorFontSize=editorFontSize,
@@ -1319,7 +1520,8 @@ fun HomeScreen(
                     editorLastSavedFontSize = editorLastSavedFontSize,
                     openDrawer = openDrawer,
                     editorOpenFileErr = editorOpenFileErr,
-                    undoStack = editorUndoStack
+                    undoStack = editorUndoStack.value,
+                    loadLock = editorLoadLock
 
                 )
 
@@ -1331,6 +1533,15 @@ fun HomeScreen(
 
                 //从抽屉菜单打开的changelist是对比worktree和index的文件，所以from是worktree
                 ChangeListInnerPage(
+//                    stateKeyTag = Cache.combineKeys(stateKeyTag, "ChangeListInnerPage"),
+                    stateKeyTag = stateKeyTag,
+
+                    errScrollState = changeListErrScrollState,
+                    hasError = changeListHasErr,
+
+                    commit1OidStr = Cons.git_IndexCommitHash,
+                    commit2OidStr = Cons.git_LocalWorktreeCommitHash,
+
                     lastSearchKeyword=changeListLastSearchKeyword,
                     searchToken=changeListSearchToken,
                     searching=changeListSearching,
@@ -1393,6 +1604,9 @@ fun HomeScreen(
 //                }
             }else if(currentHomeScreen.intValue == Cons.selectedItem_Settings) {
                 SettingsInnerPage(
+//                    stateKeyTag = Cache.combineKeys(stateKeyTag, "SettingsInnerPage"),
+                    stateKeyTag = stateKeyTag,
+
                     contentPadding = contentPadding,
                     needRefreshPage = needRefreshSettingsPage,
                     openDrawer = openDrawer,
@@ -1408,6 +1622,9 @@ fun HomeScreen(
                 SubscriptionPage(contentPadding = contentPadding, needRefresh = subscriptionPageNeedRefresh, openDrawer = openDrawer)
             }else if(currentHomeScreen.intValue == Cons.selectedItem_Service) {
                 ServiceInnerPage(
+//                    stateKeyTag = Cache.combineKeys(stateKeyTag, "ServiceInnerPage"),
+                    stateKeyTag = stateKeyTag,
+
                     contentPadding = contentPadding,
                     needRefreshPage = needRefreshServicePage,
                     openDrawer = openDrawer,
@@ -1416,6 +1633,9 @@ fun HomeScreen(
                 )
             }else if(currentHomeScreen.intValue == Cons.selectedItem_Automation) {
                 AutomationInnerPage(
+//                    stateKeyTag = Cache.combineKeys(stateKeyTag, "AutomationInnerPage"),
+                    stateKeyTag = stateKeyTag,
+
                     contentPadding = contentPadding,
                     needRefreshPage = needRefreshAutomationPage,
                     listState = automationListState,
@@ -1462,198 +1682,210 @@ fun HomeScreen(
         //test
 
         doJobThenOffLoading {
-            try {
-                //有时候明明设置过了还会显示欢迎弹窗，做些额外判断看看好不好用
-                if(showWelcomeToNewUser.value) {
-                    val newSettings = SettingsUtil.getSettingsSnapshot()
-                    if(PrefMan.isFirstUse(activityContext) && newSettings.globalGitConfig.username.isEmpty() && newSettings.globalGitConfig.email.isEmpty()) {
-                        showSetGlobalGitUsernameAndEmailDialog.value = true
-                    }else {
-                        closeWelcome()
-                    }
-                }
+            refreshLock.withLock {
 
-                //恢复上次退出页面
-                val startPageMode = settingsSnapshot.value.startPageMode
-                if (startPageMode == SettingsCons.startPageMode_rememberLastQuit) {
-                    //从配置文件恢复上次退出页面
-                    currentHomeScreen.intValue = settingsSnapshot.value.lastQuitHomeScreen
-                    //设置初始化完成，之后就会通过更新页面值的代码来在页面值变化时更新配置文件中的值了
-                    initDone.value = true
-                }
+                try {
+                    //有时候明明设置过了还会显示欢迎弹窗，做些额外判断看看好不好用
+                    if(showWelcomeToNewUser.value) {
+                        val newSettings = SettingsUtil.getSettingsSnapshot()
+                        if(PrefMan.isFirstUse(activityContext) && newSettings.globalGitConfig.username.isEmpty() && newSettings.globalGitConfig.email.isEmpty()) {
+                            showSetGlobalGitUsernameAndEmailDialog.value = true
+                        }else {
+                            closeWelcome()
+                        }
+                    }
+
+                    //恢复上次退出页面
+                    val startPageMode = settingsSnapshot.value.startPageMode
+                    if (startPageMode == SettingsCons.startPageMode_rememberLastQuit) {
+                        //从配置文件恢复上次退出页面
+                        currentHomeScreen.intValue = settingsSnapshot.value.lastQuitHomeScreen
+                        //设置初始化完成，之后就会通过更新页面值的代码来在页面值变化时更新配置文件中的值了
+                        initDone.value = true
+                    }
 
 //                val activity = activityContext.findActivity()
 //                MyLog.d(TAG, "activity==null: ${activity == null}")
-                //检查是否存在intent，如果存在，则切换到导入模式
+                    //检查是否存在intent，如果存在，则切换到导入模式
 //                if (activity != null) {
-                if (true) {  //检查activity是否为null没意义了，若为null怎么会执行这个页面的这块代码？之前主要是需要通过activity获取intent，现在不用了，所以直接设为true即可，但为了方便日后修改，不删除此if代码块
+                    if (true) {  //检查activity是否为null没意义了，若为null怎么会执行这个页面的这块代码？之前主要是需要通过activity获取intent，现在不用了，所以直接设为true即可，但为了方便日后修改，不删除此if代码块
 //                    val intent = activity.intent  //单例之后，这玩意老出问题，废弃了，改用状态变量获取
 
-                    val intent = IntentHandler.intent.value  //通过状态变量获取intent
+                        val intent = IntentHandler.intent.value  //通过状态变量获取intent
 
-                    MyLog.d(TAG, "intent==null: ${intent == null}")
+                        MyLog.d(TAG, "intent==null: ${intent == null}")
 
-                    if (intent != null) {
+                        if (intent != null) {
 
-                        //一进入代码块立即设为已消费，确保intent只被消费一次，不然你通过导入模式进来，一进二级页面，这变量没更新，
-                        // 会重新读取intent中的数据再次启动导入模式，其他使用intent的场景也有这个问题，
-                        // 比如点击service通知进入changelist页面，然后再切换到repos页面，
-                        // 再点进随便一个二级页面，再返回，又会重入此代码块，又回到changelist...
-                        val curIntentConsumed = intentConsumed.value
-                        MyLog.d(TAG, "curIntentConsumed: $curIntentConsumed, intent.action: ${intent.action}, intent.extras==null: ${intent.extras == null}, intent.data==null: ${intent.data == null}")
+                            //一进入代码块立即设为已消费，确保intent只被消费一次，不然你通过导入模式进来，一进二级页面，这变量没更新，
+                            // 会重新读取intent中的数据再次启动导入模式，其他使用intent的场景也有这个问题，
+                            // 比如点击service通知进入changelist页面，然后再切换到repos页面，
+                            // 再点进随便一个二级页面，再返回，又会重入此代码块，又回到changelist...
+                            val curIntentConsumed = intentConsumed.value
+                            MyLog.d(TAG, "curIntentConsumed: $curIntentConsumed, intent.action: ${intent.action}, intent.extras==null: ${intent.extras == null}, intent.data==null: ${intent.data == null}")
 
-                        intentConsumed.value = true
-                        val intentConsumed = Unit // avoid mistake using
+                            intentConsumed.value = true
+                            val intentConsumed = Unit // avoid mistake using
 
-                        // import file or jump to specified screen
-                        // 注意这个ACTION_VIEW其实也有可能是写权限，具体取决于flag，后面有做判断
-                        val requireEditFile = intent.action.let { it == Intent.ACTION_VIEW || it == Intent.ACTION_EDIT }
-                        val extras = intent.extras
+                            // import file or jump to specified screen
+                            // 注意这个ACTION_VIEW其实也有可能是写权限，具体取决于flag，后面有做判断
+                            val requireEditFile = intent.action.let { it == Intent.ACTION_VIEW || it == Intent.ACTION_EDIT }
+                            val extras = intent.extras
 
-                        //importListConsumed 确保每个Activity的文件列表只被消费一次(20240706: 修复以导入模式启动app再进入子页面再返回会再次触发导入模式的bug)
-                        if (requireEditFile || extras != null) {
-                            //if need import files, go to Files, else go to page which matched to the page id in the extras
-                            //if need import files, go to Files, else go to page which matched to the page id in the extras
+                            //importListConsumed 确保每个Activity的文件列表只被消费一次(20240706: 修复以导入模式启动app再进入子页面再返回会再次触发导入模式的bug)
+                            if (requireEditFile || extras != null) {
+                                //if need import files, go to Files, else go to page which matched to the page id in the extras
+                                //if need import files, go to Files, else go to page which matched to the page id in the extras
 
 
-                            if (!curIntentConsumed) {  //如果列表已经消费过一次，不重新导入，有可能通过系统分享菜单启动app，然后切换到后台，然后再从后台启动app会发生这种情况，但用户有可能已经在上次进入app后点击进入其他页面，所以这时再启动导入模式是不合逻辑的
-                                //是否请求编辑文件
-                                if(requireEditFile) {
-                                    val uri: Uri? = intent.data
-                                    if(uri != null) {
-                                        //若无写权限，则以只读方式打开
-                                        val expectReadOnly = (intent.flags and Intent.FLAG_GRANT_WRITE_URI_PERMISSION) == 0
+                                if (!curIntentConsumed) {  //如果列表已经消费过一次，不重新导入，有可能通过系统分享菜单启动app，然后切换到后台，然后再从后台启动app会发生这种情况，但用户有可能已经在上次进入app后点击进入其他页面，所以这时再启动导入模式是不合逻辑的
+                                    //是否请求编辑文件
+                                    if(requireEditFile) {
+                                        val uri: Uri? = intent.data
+                                        if(uri != null) {
+                                            //若无写权限，则以只读方式打开
+                                            val expectReadOnly = (intent.flags and Intent.FLAG_GRANT_WRITE_URI_PERMISSION) == 0
 
-                                        //请求获取永久访问权限，不然重启手机后会丢失权限，文件名等文件信息都会无法读取，最近文件列表的文件名会变成空白
-                                        //注：如果成功从content中guess出绝对路径，则这个权限有无就无所谓了，
-                                        // 不过万一获取不了呢？所以还是尝试take uri永久rw权限，
-                                        // 但是，多数app让外部打开时，其实都不会给你永久权限，所以这个take可能多数情况下都会返回失败。
-                                        val contentResolver = activityContext.contentResolver
-                                        if(expectReadOnly) {
-                                            SafUtil.takePersistableReadOnlyPermission(contentResolver, uri)
-                                        }else {
-                                            SafUtil.takePersistableRWPermission(contentResolver, uri)
+                                            //请求获取永久访问权限，不然重启手机后会丢失权限，文件名等文件信息都会无法读取，最近文件列表的文件名会变成空白
+                                            //注：如果成功从content中guess出绝对路径，则这个权限有无就无所谓了，
+                                            // 不过万一获取不了呢？所以还是尝试take uri永久rw权限，
+                                            // 但是，多数app让外部打开时，其实都不会给你永久权限，所以这个take可能多数情况下都会返回失败。
+                                            val contentResolver = activityContext.contentResolver
+                                            if(expectReadOnly) {
+                                                SafUtil.takePersistableReadOnlyPermission(contentResolver, uri)
+                                            }else {
+                                                SafUtil.takePersistableRWPermission(contentResolver, uri)
+                                            }
+
+                                            requireInnerEditorOpenFile(uri.toString(), expectReadOnly)
+
+                                            return@doJobThenOffLoading
                                         }
+                                    }
 
-                                        requireInnerEditorOpenFile(uri.toString(), expectReadOnly)
-
+                                    if(extras == null) {
                                         return@doJobThenOffLoading
                                     }
-                                }
-
-                                if(extras == null) {
-                                    return@doJobThenOffLoading
-                                }
 
 
-                                //执行到已经排除外部app请求让本app编辑文件，还剩三种可能：
-                                // 1. action 为 SEND，导入或编辑单文件
-                                // 2. action 为 SEND_MULTIPLE，导入多文件
-                                // 3. 请求打开指定页面，从通知栏点通知信息时会用到这个逻辑，p.s. 这个是直接通过类跳转的，我不确定action是什么
+                                    //执行到已经排除外部app请求让本app编辑文件，还剩三种可能：
+                                    // 1. action 为 SEND，导入或编辑单文件
+                                    // 2. action 为 SEND_MULTIPLE，导入多文件
+                                    // 3. 请求打开指定页面，从通知栏点通知信息时会用到这个逻辑，p.s. 这个是直接通过类跳转的，我不确定action是什么
 
-                                //检查是否需要启动导入模式（用户可通过系统分享菜单文件到app以启动此模式）
-                                var importFiles = false  // after jump to Files, it will be set to true, else keep false
-                                //20240706: fixed: if import mode in app then go to any sub page then back, will duplicate import files list
-                                //20240706: 修复以导入模式启动app后跳转到任意子页面再返回，导入文件列表重复的bug
-                                filesPageRequireImportUriList.value.clear()
+                                    //检查是否需要启动导入模式（用户可通过系统分享菜单文件到app以启动此模式）
+                                    var importFiles = false  // after jump to Files, it will be set to true, else keep false
+                                    //20240706: fixed: if import mode in app then go to any sub page then back, will duplicate import files list
+                                    //20240706: 修复以导入模式启动app后跳转到任意子页面再返回，导入文件列表重复的bug
+                                    filesPageRequireImportUriList.value.clear()
 
-                                //获取单文件，对应 action SEND
-                                val uri = try {
-                                    extras.getParcelable<Uri>(Intent.EXTRA_STREAM)  //如果没条目，会警告并打印异常信息，然后返回null
-                                } catch (e: Exception) {
-                                    null
-                                }
+                                    //获取单文件，对应 action SEND
+                                    val uri = try {
+                                        extras.getParcelable<Uri>(Intent.EXTRA_STREAM)  //如果没条目，会警告并打印异常信息，然后返回null
+                                    } catch (e: Exception) {
+                                        null
+                                    }
 
-                                //过去导入单文件会询问是否编辑，若想测试，可取消这行注释
+                                    //过去导入单文件会询问是否编辑，若想测试，可取消这行注释
 //                                val howToDealWithSingleSend = howToDealWithSingleSend.value
 
-                                //目前已经实现了专门的编辑，这里只有 import 一种可能了
-                                val howToDealWithSingleSend = SingleSendHandleMethod.IMPORT.code
+                                    //目前已经实现了专门的编辑，这里只有 import 一种可能了
+                                    val howToDealWithSingleSend = SingleSendHandleMethod.IMPORT.code
 
-                                //导入单文件，需要弹窗询问一下，用户想导入文件还是想编辑文件
-                                if (uri != null) {
-                                    if(howToDealWithSingleSend == SingleSendHandleMethod.NEED_ASK.code) {
-                                        initAskHandleSingleSendMethodDialog()
-                                        return@doJobThenOffLoading
-                                    }else if(howToDealWithSingleSend == SingleSendHandleMethod.EDIT.code) {
-                                        //由于直接导入时只有对uri的写权限，而且现在已经实现了专门针对文本文件的编辑功能，所以这里以导入作为edit入口的功能作废
-                                        val uriStr = uri.toString()
+                                    //导入单文件，需要弹窗询问一下，用户想导入文件还是想编辑文件
+                                    if (uri != null) {
+                                        if(howToDealWithSingleSend == SingleSendHandleMethod.NEED_ASK.code) {
+                                            initAskHandleSingleSendMethodDialog()
+                                            return@doJobThenOffLoading
+                                        }else if(howToDealWithSingleSend == SingleSendHandleMethod.EDIT.code) {
+                                            //由于直接导入时只有对uri的写权限，而且现在已经实现了专门针对文本文件的编辑功能，所以这里以导入作为edit入口的功能作废
+                                            val uriStr = uri.toString()
 
-                                        val expectReadOnly = false
-                                        val fileName = null  //直接传null即可，会自动获取文件名，做了处理，兼容"content://"和"file://"
-                                        requireInnerEditorOpenFileWithFileName(uriStr, expectReadOnly, fileName)
+                                            val expectReadOnly = false
+                                            val fileName = null  //直接传null即可，会自动获取文件名，做了处理，兼容"content://"和"file://"
+                                            requireInnerEditorOpenFileWithFileName(uriStr, expectReadOnly, fileName)
 
-                                        return@doJobThenOffLoading
-                                    }else if(howToDealWithSingleSend == SingleSendHandleMethod.IMPORT.code) {
-                                        //导入文件，添加到列表，然后继续执行后面的代码块就行
-                                        filesPageRequireImportUriList.value.add(uri)
-                                    }
-                                }
-
-
-                                //获取多文件，对应 action SEND_MULTIPLE
-                                val uriList = try {
-                                    extras.getParcelableArrayList<Uri>(Intent.EXTRA_STREAM) ?: listOf()
-                                } catch (e: Exception) {
-                                    listOf()
-                                }
-                                if (uriList.isNotEmpty()) {
-                                    filesPageRequireImportUriList.value.addAll(uriList)
-                                }
-
-                                if (filesPageRequireImportUriList.value.isNotEmpty()) {
-                                    //请求Files页面导入文件
-                                    filesPageRequireImportFile.value = true
-                                    currentHomeScreen.intValue = Cons.selectedItem_Files  //跳转到Files页面
-
-                                    //20250218: fix bug: 导入单文件时若本来就在Files页面，不会显示导入文件的底栏，必须手动刷新一下，或者离开此页面再返回才会显示
-                                    changeStateTriggerRefreshPage(needRefreshFilesPage)
-
-                                    importFiles = true
-                                }
-
-
-                                //导入文件完了，下面检查是否跳转页面
-
-
-                                //导入模式启动，页面已经跳转到Files，后面不用检查了
-                                if(importFiles) {
-                                    return@doJobThenOffLoading
-                                }
-
-                                //如果没有导入文件，检查是否需要跳转页面
-
-                                //如果intent携带了启动页面和仓库，使用
-                                val startPage = extras.getString(IntentCons.ExtrasKey.startPage) ?: ""
-                                val startRepoId = extras.getString(IntentCons.ExtrasKey.startRepoId) ?: ""
-
-                                if (startPage.isNotBlank()) {
-                                    if (startPage == Cons.selectedItem_ChangeList.toString()) {
-                                        var startRepo = changeListCurRepo.value
-                                        if (startRepoId.isNotBlank()) {  //参数中携带的目标仓库id，查一下子，有就有，没就拉倒
-                                            startRepo = AppModel.dbContainer.repoRepository.let { it.getById(startRepoId) ?: it.getByName(startRepoId) ?: startRepo }
+                                            return@doJobThenOffLoading
+                                        }else if(howToDealWithSingleSend == SingleSendHandleMethod.IMPORT.code) {
+                                            //导入文件，添加到列表，然后继续执行后面的代码块就行
+                                            filesPageRequireImportUriList.value.add(uri)
                                         }
-
-                                        goToChangeListPage(startRepo)
-                                    }else if(startPage == Cons.selectedItem_Repos.toString()) {
-                                        goToRepoPage(startRepoId)
-                                    }else if(startPage == Cons.selectedItem_Service.toString()) {
-                                        goToServicePage()
                                     }
-                                    // else if go to other page maybe
-                                }
-                            }
 
+
+                                    //获取多文件，对应 action SEND_MULTIPLE
+                                    val uriList = try {
+                                        extras.getParcelableArrayList<Uri>(Intent.EXTRA_STREAM) ?: listOf()
+                                    } catch (e: Exception) {
+                                        listOf()
+                                    }
+                                    if (uriList.isNotEmpty()) {
+                                        filesPageRequireImportUriList.value.addAll(uriList)
+                                    }
+
+                                    if (filesPageRequireImportUriList.value.isNotEmpty()) {
+                                        //请求Files页面导入文件
+                                        filesPageRequireImportFile.value = true
+                                        currentHomeScreen.intValue = Cons.selectedItem_Files  //跳转到Files页面
+
+                                        //20250218: fix bug: 导入单文件时若本来就在Files页面，不会显示导入文件的底栏，必须手动刷新一下，或者离开此页面再返回才会显示
+                                        changeStateTriggerRefreshPage(needRefreshFilesPage)
+
+                                        importFiles = true
+                                    }
+
+
+                                    //导入文件完了，下面检查是否跳转页面
+
+
+                                    //导入模式启动，页面已经跳转到Files，后面不用检查了
+                                    if(importFiles) {
+                                        return@doJobThenOffLoading
+                                    }
+
+                                    //如果没有导入文件，检查是否需要跳转页面
+
+                                    //如果intent携带了启动页面和仓库，使用
+                                    val startPage = extras.getString(IntentCons.ExtrasKey.startPage) ?: ""
+                                    val startRepoId = extras.getString(IntentCons.ExtrasKey.startRepoId) ?: ""
+
+                                    if (startPage.isNotBlank()) {
+                                        if (startPage == Cons.selectedItem_ChangeList.toString()) {
+                                            var startRepo = changeListCurRepo.value
+                                            if (startRepoId.isNotBlank()) {  //参数中携带的目标仓库id，查一下子，有就有，没就拉倒
+                                                startRepo = AppModel.dbContainer.repoRepository.let { it.getById(startRepoId) ?: it.getByName(startRepoId) ?: startRepo }
+                                            }
+
+                                            goToChangeListPage(startRepo)
+                                        }else if(startPage == Cons.selectedItem_Repos.toString()) {
+                                            goToRepoPage(startRepoId)
+                                        }else if(startPage == Cons.selectedItem_Service.toString()) {
+                                            goToServicePage()
+                                        }
+                                        // else if go to other page maybe
+                                    }
+                                }
+
+                            }
                         }
                     }
+                } catch (e: Exception) {
+                    MyLog.e(TAG, "#LaunchedEffect: init home err: " + e.stackTraceToString())
+                    Msg.requireShowLongDuration("init home err: " + e.localizedMessage)
                 }
-            } catch (e: Exception) {
-                MyLog.e(TAG, "#LaunchedEffect: init home err: " + e.stackTraceToString())
-                Msg.requireShowLongDuration("init home err: " + e.localizedMessage)
-            }
 
+            }
         }
     }
+
+
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        //回到主页了，好，把所有其他子页面的状态变量全他妈清掉
+        doJobThenOffLoading {
+            Cache.clearAllSubPagesStates()
+        }
+    }
+
 
 }
 

@@ -4,6 +4,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.stringResource
 import com.catpuppyapp.puppygit.play.pro.R
+import com.catpuppyapp.puppygit.style.MyStyleKt
 
 @Composable
 fun OpenAsAskReloadDialog(
@@ -20,7 +21,8 @@ fun OpenAsAskReloadDialog(
         },
         okBtnText = stringResource(R.string.reload),
         cancelBtnText = stringResource(R.string.cancel),
+        cancelTextColor = MyStyleKt.TextColor.danger(),
         onCancel = onCancel,
-        onOk = doReload
+        onOk = doReload,
     )
 }

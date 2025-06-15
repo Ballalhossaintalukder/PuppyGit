@@ -7,10 +7,19 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
+import androidx.compose.material.icons.automirrored.filled.Message
+import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.Commit
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.ViewCompact
+import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableIntState
 import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -19,11 +28,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.catpuppyapp.puppygit.git.FileHistoryDto
 import com.catpuppyapp.puppygit.play.pro.R
+import com.catpuppyapp.puppygit.style.MyStyleKt
 import com.catpuppyapp.puppygit.utils.Libgit2Helper
 import com.catpuppyapp.puppygit.utils.Msg
 import com.catpuppyapp.puppygit.utils.UIHelper
@@ -46,6 +55,7 @@ fun FileHistoryItem(
     shouldShowTimeZoneInfo:Boolean,
 
     showItemDetails:(FileHistoryDto)->Unit,
+    showCommits:(FileHistoryDto)->Unit,
     onClick:(FileHistoryDto)->Unit={}
 ) {
 
@@ -62,6 +72,8 @@ fun FileHistoryItem(
         curCommit.value = dto
         curCommitIdx.intValue = idx
     }
+    
+    val defaultFontWeight = remember { MyStyleKt.TextItem.defaultFontWeight() }
 
 //    println("IDX::::::::::"+idx)
     Column(
@@ -79,7 +91,7 @@ fun FileHistoryItem(
                     lastClickedItemKey.value = dto.getItemKey()
 
                     //震动反馈
-                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+//                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
 
                     updateCurObjState()
 
@@ -115,14 +127,20 @@ fun FileHistoryItem(
         Row(
             verticalAlignment = Alignment.CenterVertically,
 
-            ) {
+        ) {
 
-            Text(text = stringResource(R.string.commit_id) + ": ")
+            InLineIcon(
+                icon = Icons.Filled.Commit,
+                tooltipText = stringResource(R.string.commit_id)
+            )
+
+//            Text(text = stringResource(R.string.commit_id) + ": ")
+
             Text(
                 text = dto.getCachedCommitShortOidStr(),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                fontWeight = FontWeight.Light
+                fontWeight = defaultFontWeight
 
             )
 
@@ -135,14 +153,20 @@ fun FileHistoryItem(
         Row(
             verticalAlignment = Alignment.CenterVertically,
 
-            ) {
+        ) {
 
-            Text(text = stringResource(R.string.entry_id) + ": ")
+            InLineIcon(
+                icon = Icons.AutoMirrored.Filled.InsertDriveFile,
+                tooltipText = stringResource(R.string.entry_id)
+            )
+
+//            Text(text = stringResource(R.string.entry_id) + ": ")
+
             Text(
                 text = dto.getCachedTreeEntryShortOidStr(),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                fontWeight = FontWeight.Light
+                fontWeight = defaultFontWeight
 
             )
 
@@ -160,20 +184,27 @@ fun FileHistoryItem(
 //            Text(text = FileHistoryDto.email,
 //                maxLines = 1,
 //                overflow = TextOverflow.Ellipsis,
-//                fontWeight = FontWeight.Light
+//                fontWeight = defaultFontWeight
 //
 //            )
 //        }
         Row(
             verticalAlignment = Alignment.CenterVertically,
 
-            ) {
-            Text(text = stringResource(R.string.author) + ": ")
+        ) {
+
+            InLineIcon(
+                icon = Icons.Filled.Person,
+                tooltipText = stringResource(R.string.author)
+            )
+
+//            Text(text = stringResource(R.string.author) + ": ")
+
             Text(
                 text = Libgit2Helper.getFormattedUsernameAndEmail(dto.authorUsername, dto.authorEmail),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                fontWeight = FontWeight.Light
+                fontWeight = defaultFontWeight
 
             )
         }
@@ -183,12 +214,19 @@ fun FileHistoryItem(
             Row(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(text = stringResource(R.string.committer) + ": ")
+
+                InLineIcon(
+                    icon = Icons.Outlined.Person,
+                    tooltipText = stringResource(R.string.committer)
+                )
+
+//                Text(text = stringResource(R.string.committer) + ": ")
+
                 Text(
                     text = Libgit2Helper.getFormattedUsernameAndEmail(dto.committerUsername, dto.committerEmail),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    fontWeight = FontWeight.Light
+                    fontWeight = defaultFontWeight
 
                 )
             }
@@ -197,23 +235,55 @@ fun FileHistoryItem(
         Row(
             verticalAlignment = Alignment.CenterVertically,
 
-            ) {
+        ) {
 
-            Text(text = stringResource(R.string.date) + ": ")
+            InLineIcon(
+                icon = Icons.Filled.CalendarMonth,
+                tooltipText = stringResource(R.string.date)
+            )
+
+//            Text(text = stringResource(R.string.date) + ": ")
+
             Text(
                 text = if(shouldShowTimeZoneInfo) TimeZoneUtil.appendUtcTimeZoneText(dto.dateTime, dto.originTimeOffsetInMinutes) else dto.dateTime,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                fontWeight = FontWeight.Light
+                fontWeight = defaultFontWeight
 
             )
         }
+
+//        Row(
+//            verticalAlignment = Alignment.CenterVertically,
+//
+//        ) {
+//            //包含当前entry id的所有提交
+//
+//            InLineIcon(
+//                icon = Icons.Filled.ViewCompact,
+//                tooltipText = stringResource(R.string.commits)
+//            )
+//
+////            Text(text = stringResource(R.string.commits) + ": ")
+//
+//            SingleLineClickableText(dto.cachedShortCommitListStr()) {
+//                showCommits(dto)
+//            }
+//        }
+
         Row(
             verticalAlignment = Alignment.CenterVertically,
         ) {
 
-            Text(text = stringResource(R.string.msg) + ": ")
-            ClickableText(dto.msg) {
+            InLineIcon(
+                icon = Icons.AutoMirrored.Filled.Message,
+                tooltipText = stringResource(R.string.msg)
+            )
+
+
+//            Text(text = stringResource(R.string.msg) + ": ")
+
+            SingleLineClickableText(dto.getCachedOneLineMsg()) {
                 lastClickedItemKey.value = dto.getItemKey()
 
                 updateCurObjState()

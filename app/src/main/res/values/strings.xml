@@ -368,7 +368,7 @@
     <string name="import_has_err">Import has err</string>
     <string name="import_success">Import success</string>
     <string name="import_failed">Import failed</string>
-    <string name="you_can_click_here_copy_err_msg">You can click HERE copy err msg to clipboard</string>
+    <string name="you_can_click_here_copy_err_msg">You can click HERE to copy err msg</string>
     <string name="err_msg">err msg</string>
     <string name="file_not_found">File Not Found!</string>
     <string name="do_you_want_save_before_close_file">Do you want to save before close file?</string>
@@ -699,6 +699,7 @@
     <string name="push_force_failed">Push(Force) Failed</string>
     <string name="push_force_success">Push(Force) Success</string>
     <string name="compare_to_head">Compare to HEAD</string>
+    <!-- due to "Compare to HEAD" is too long, but in some menu items, better use a shorter word for display well, so, I use "Diff to HEAD" instead of it -->
     <string name="diff_to_head">Diff To HEAD</string>
     <string name="cherrypick">Cherrypick</string>
     <string name="create_patch">Create Patch</string>
@@ -732,7 +733,7 @@
     <string name="invalid_path">invalid path</string>
     <string name="path">Path</string>
     <string name="overwrite_if_exist">Overwrite If Exist</string>
-    <string name="will_overwrite_if_branch_already_exists">will overwrite if branch already exists</string>
+    <string name="will_overwrite_if_branch_already_exists">Will overwrite if branch already exists</string>
     <string name="just_checkout">Just Checkout</string>
     <string name="checkout_new">Checkout New</string>
     <string name="checkout_old">Checkout Old</string>
@@ -836,14 +837,14 @@
     <string name="path_under_repo">Path Under Repo</string>
     <string name="submodules">Submodules</string>
     <string name="cloned">Cloned</string>
-    <string name="not_clone">Not Clone</string>
+    <string name="not_cloned">Not Cloned</string>
     <string name="will_clone_selected_submodules_are_you_sure">Will clone selected submodules, are you sure?</string>
     <string name="re_clone">Re-Clone</string>
     <string name="re_clone_submodules_warning_text">Will delete submodules files on disk, then re-clone them again</string>
     <string name="recursive">Recursive</string>
     <string name="update">Update</string>
-    <string name="recursive_clone_submodule_nested_loop_warn">WARN: becareful! if your repo contains nested-loops, it will be infinite clone until your device no more storage space!!</string>
-    <string name="recursive_update_submodule_nested_loop_warn">WARN: becareful! please make sure your repo doesn\'t contains nested-loops!!</string>
+    <string name="recursive_clone_submodule_nested_loop_warn">WARN: Be careful! if your repo contains nested-loops, it will be infinite clone until your device no more storage space!!</string>
+    <string name="recursive_update_submodule_nested_loop_warn">WARN: Be careful! please make sure your repo doesn\'t contains nested-loops!!</string>
     <string name="no_submodules_found">No Submodules Found</string>
     <string name="full_path">Full Path</string>
     <string name="checkout_to_recorded_commit">Checkout To Recorded Commit</string>
@@ -924,12 +925,6 @@
 
 
 
-<!--    non-translatable or no need translate(such as language name text) -->
-<!--    order by language code a-z-->
-    <string name="lang_name_english" translatable="false">English</string>
-    <string name="lang_name_russian" translatable="false">Русский</string>
-    <string name="lang_name_chinese_simplified" translatable="false">中文(简体)</string>
-    <string name="lang_name_turkish" translatable="false">Türkçe</string>
 
 
     <string name="log_level">Log Level</string>
@@ -1264,5 +1259,27 @@
     <!-- new at 20250420 -->
     <string name="link_all">Link All</string>
 
+    <!-- new at 20250427 -->
+    <string name="append_a_line">Append a line</string>
+    <string name="restart_app">Restart App</string>
+
+    <!-- new at 20250501 -->
+    <string name="expand_all">Expand All</string>
+    <string name="collapse_all">Collapse All</string>
+    <string name="patch_mode">Patch Mode</string>
+
+    <!-- new at 20250513 -->
+    <string name="no_commit">No Commit</string>
+    <string name="repo_no_commit_note">Your repo have not any commit yet, please create some files then commit them.</string>
+
+
+    <string name="expected_refspec">Expected Refspec</string>
+    <string name="push_force_with_lease_note">Will only force push when upstream\'s latest commit is the same as expected</string>
+    <string name="checking">Checking…</string>
+    <string name="nodes">Nodes</string>
+    <string name="note_pat_instead_of_password">Note: If you have enabled 2FA, you must use a Personal Access Token instead of the password. The token must have read and write permissions for repository contents and workflows.</string>
+    <string name="graph">Graph</string>
+    <string name="commit_msg_template">Commit Msg Template</string>
+    <string name="leave_empty_to_use_global_settings">Leave empty to use global settings</string>
 
 </resources>

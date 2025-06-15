@@ -2,12 +2,11 @@ package com.catpuppyapp.puppygit.screen
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
@@ -22,7 +21,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableIntStateOf
@@ -51,13 +49,14 @@ import com.catpuppyapp.puppygit.play.pro.R
 import com.catpuppyapp.puppygit.screen.content.homescreen.scaffold.title.ScrollableTitle
 import com.catpuppyapp.puppygit.style.MyStyleKt
 import com.catpuppyapp.puppygit.utils.AppModel
+import com.catpuppyapp.puppygit.utils.baseVerticalScrollablePageModifier
+import com.catpuppyapp.puppygit.utils.cache.Cache
 import com.catpuppyapp.puppygit.utils.doJobThenOffLoading
 import com.catpuppyapp.puppygit.utils.state.mutableCustomStateOf
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-private val stateKeyTag = "CredentialNewOrEdit"
-private val TAG = "CredentialNewOrEdit"
+private const val TAG = "CredentialNewOrEdit"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -65,6 +64,7 @@ fun CredentialNewOrEdit(
     credentialId: String?,  //编辑已存在条目的时候，用得着这个
     naviUp: () -> Unit,
 ) {
+    val stateKeyTag = Cache.getSubPageKey(TAG)
 
     val activityContext = LocalContext.current
 
@@ -126,7 +126,7 @@ fun CredentialNewOrEdit(
 
     val passwordVisible = rememberSaveable { mutableStateOf(false)}
 
-//    val dropDownMenuExpendState = rememberSaveable{ mutableStateOf(false) }
+//    val dropDownMenuExpandState = rememberSaveable{ mutableStateOf(false) }
 
 //    val showRepoNameAlreadyExistsErr = rememberSaveable { mutableStateOf(false) }
     val showCredentialNameAlreadyExistsErr = rememberSaveable { mutableStateOf(false)}
@@ -223,10 +223,7 @@ fun CredentialNewOrEdit(
         modifier = Modifier.nestedScroll(homeTopBarScrollBehavior.nestedScrollConnection),
         topBar = {
             TopAppBar(
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    titleContentColor = MaterialTheme.colorScheme.primary,
-                ),
+                colors = MyStyleKt.TopBar.getColors(),
                 title = {
                     val titleText = if(isEditMode.value){
                         stringResource(R.string.edit_credential)
@@ -269,167 +266,99 @@ fun CredentialNewOrEdit(
             LoadingDialog(loadingText.value)
         }
 
-        Column (modifier = Modifier
-            .padding(contentPadding)
-            .fillMaxSize()
-            .verticalScroll(listState)
-            .padding(bottom = MyStyleKt.Padding.PageBottom)  //这个padding是为了使密码框不在底部，类似vscode中文件的最后一行也可滑到屏幕中间一样的意义
-        ){
+        Column (
+            modifier = Modifier
+                .baseVerticalScrollablePageModifier(contentPadding, listState)
+                .padding(bottom = MyStyleKt.Padding.PageBottom)
+                .imePadding()
+            ,
+        ) {
 
-                //显示新建credential的输入框
-                TextField(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(10.dp)
-                        .focusRequester(focusRequesterCredentialName)
-                    ,
-                    isError = showCredentialNameAlreadyExistsErr.value,
-                    supportingText = {
-                        if (showCredentialNameAlreadyExistsErr.value) {
-                            Text(
-                                modifier = Modifier.fillMaxWidth(),
-                                text = stringResource(R.string.credential_name_exists_err),
-                                color = MaterialTheme.colorScheme.error
-                            )
-                        }
-                    },
-                    trailingIcon = {
-                        if (showCredentialNameAlreadyExistsErr.value)
-                            Icon(imageVector=Icons.Filled.Error,
-                                contentDescription= stringResource(R.string.credential_name_exists_err),
-                                tint = MaterialTheme.colorScheme.error)
-                    },
-                    singleLine = true,
-
-                    value = credentialName.value,
-                    onValueChange = {
-                        updateCredentialName(it)
-                    },
-                    label = {
-                        Text(stringResource(R.string.credential_name))
-                    },
-                    placeholder = {
-                        Text(stringResource(R.string.credential_name_placeholder))
+            //显示新建credential的输入框
+            TextField(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(10.dp)
+                    .focusRequester(focusRequesterCredentialName)
+                ,
+                isError = showCredentialNameAlreadyExistsErr.value,
+                supportingText = {
+                    if (showCredentialNameAlreadyExistsErr.value) {
+                        Text(
+                            modifier = Modifier.fillMaxWidth(),
+                            text = stringResource(R.string.credential_name_exists_err),
+                            color = MaterialTheme.colorScheme.error
+                        )
                     }
-                )
-//            Row (modifier = Modifier.padding(10.dp)){
-//                Text(text = stringResource(id = R.string.type)+":")
-//            }
-//            for ((k, optext) in radioOptions.toList().withIndex()) {
-//                Row(
-//                    Modifier
-//                        .fillMaxWidth()
-//                        .heightIn(min = MyStyleKt.RadioOptions.minHeight)
-//
-//                        .selectable(
-//                            selected = credentialSelectedOption.intValue == k,
-//                            onClick = {
-//                                //更新选择值
-//                                credentialSelectedOption.intValue = k
-//                                if (k == optNumHttp) {
-//                                    credentialType.intValue = Cons.dbCredentialTypeHttp
-//                                } else {
-//                                    credentialType.intValue = Cons.dbCredentialTypeSsh
-//                                }
-//                            },
-//                            role = Role.RadioButton
-//                        )
-//                        .padding(horizontal = 10.dp),
-//                    verticalAlignment = Alignment.CenterVertically
-//                ) {
-//                    RadioButton(
-//                        selected = credentialSelectedOption.intValue == k,
-//                        onClick = null // null recommended for accessibility with screenreaders
-//                    )
-//                    Text(
-//                        text = optext,
-//                        style = MaterialTheme.typography.bodyLarge,
-//                        modifier = Modifier.padding(start = 10.dp)
-//                    )
-//                }
-//            }
+                },
+                trailingIcon = {
+                    if (showCredentialNameAlreadyExistsErr.value)
+                        Icon(imageVector=Icons.Filled.Error,
+                            contentDescription= stringResource(R.string.credential_name_exists_err),
+                            tint = MaterialTheme.colorScheme.error)
+                },
+                singleLine = true,
+
+                value = credentialName.value,
+                onValueChange = {
+                    updateCredentialName(it)
+                },
+                label = {
+                    Text(stringResource(R.string.credential_name))
+                },
+                placeholder = {
+                    Text(stringResource(R.string.credential_name_placeholder))
+                }
+            )
 
             TextField(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(10.dp)
-                    //如果type是ssh，让private-key输入框高点
-//                    if(credentialType.intValue == Cons.dbCredentialTypeSsh) {
-//                        Modifier
-//                            .fillMaxWidth()
-//                            .heightIn(min = 300.dp, max = 300.dp)
-//                            .padding(10.dp)
-//
-//                    }else{
-//                        Modifier
-//                            .fillMaxWidth()
-//                            .padding(10.dp)
-//                    }
-                    ,
-                    //如果是http的密码框，整成单行即可
-//                    singleLine = credentialType.intValue != Cons.dbCredentialTypeSsh,
+                // 可能输入private key，但最多6行，不然占屏幕太多，滚着麻烦
+                maxLines = MyStyleKt.defaultMultiLineTextFieldMaxLines,
 
-                    value = credentialVal.value,
-                    onValueChange = {
-                        credentialVal.value=it
-                    },
-                    label = {
-                        Text(stringResource(R.string.username_or_private_key))
-//                        if(credentialType.intValue == Cons.dbCredentialTypeHttp) {
-//                            Text(stringResource(R.string.username_or_private_key))
-//                            Text(stringResource(R.string.username))
-//                        }else{
-//                            Text(stringResource(R.string.private_key))
-//                        }
-                    },
-//                    placeholder = {
-//                        if(credentialType.intValue == Cons.dbCredentialTypeHttp) {
-//                            Text(stringResource(R.string.username))
-//                        }else{
-//                            Text(stringResource(R.string.paste_your_private_key_here))
-//                        }
-//                    }
-                )
-                TextField(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(10.dp),
-//                    singleLine = true,
-                    value = credentialPass.value,
-                    onValueChange = {
-                        credentialPass.value=it
-                    },
-                    label = {
-                        Text(stringResource(R.string.password_or_passphrase))
-//
-//                        if(credentialType.intValue == Cons.dbCredentialTypeHttp) {
-//                            Text(stringResource(R.string.password_or_passphrase))
-////                            Text(stringResource(R.string.password))
-//                        }else{
-//                            Text(stringResource(R.string.passphrase_if_have))
-//                        }
-                    },
-//                    placeholder = {
-//                        if(credentialType.intValue == Cons.dbCredentialTypeHttp) {
-//                            Text(stringResource(R.string.password))
-//                        }else{
-//                            Text(stringResource(R.string.input_passphrase_if_have))
-//                        }
-//                    },
-                    visualTransformation = if (passwordVisible.value) VisualTransformation.None else PasswordVisualTransformation(),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                    trailingIcon = {
-                        if(!isEditMode.value || oldPassIsEmpty.value) {  //只有新建模式能查看密码，编辑模式不许看，避免被人偷看已保存的密码
-                            IconButton(onClick = { passwordVisible.value = !passwordVisible.value }) {
-                                Icon(
-                                    imageVector = if (passwordVisible.value) Icons.Filled.Visibility else Icons.Filled.VisibilityOff,
-                                    contentDescription = if (passwordVisible.value) stringResource(R.string.an_opened_eye) else stringResource(R.string.a_closed_eye)
-                                )
-                            }
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(10.dp)
+                        ,
+                value = credentialVal.value,
+                onValueChange = {
+                    credentialVal.value=it
+                },
+                label = {
+                    Text(stringResource(R.string.username_or_private_key))
+                },
+
+            )
+
+            TextField(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(10.dp)
+                ,
+
+                //密码最多一行，singleLine和maxLines = 1不完全相同，singleLine还做了更多处理，有的情况无所谓，两者皆可，但这里最好用singleLine
+                singleLine = true,
+
+                value = credentialPass.value,
+                onValueChange = {
+                    credentialPass.value=it
+                },
+                label = {
+                    Text(stringResource(R.string.password_or_passphrase))
+                },
+                visualTransformation = if (passwordVisible.value) VisualTransformation.None else PasswordVisualTransformation(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                trailingIcon = {
+                    if(!isEditMode.value || oldPassIsEmpty.value) {  //只有新建模式能查看密码，编辑模式不许看，避免被人偷看已保存的密码
+                        IconButton(onClick = { passwordVisible.value = !passwordVisible.value }) {
+                            Icon(
+                                imageVector = if (passwordVisible.value) Icons.Filled.Visibility else Icons.Filled.VisibilityOff,
+                                contentDescription = if (passwordVisible.value) stringResource(R.string.an_opened_eye) else stringResource(R.string.a_closed_eye)
+                            )
                         }
                     }
+                }
 
-                )
+            )
 
             //编辑模式且密码不为空会显示加密后的密码，用户看了那个长度可能会傻眼，所以给个提示
             if(isEditMode.value && oldPassIsEmpty.value.not()) {
@@ -437,7 +366,7 @@ fun CredentialNewOrEdit(
                     Text(
                         text = stringResource(R.string.don_t_touch_the_password_passphrase_if_you_don_t_want_to_update_it),
                         fontWeight = FontWeight.Light,
-                        color = MyStyleKt.TextColor.highlighting_green
+                        color = MyStyleKt.TextColor.getHighlighting()
                     )
                 }
             }
@@ -457,8 +386,8 @@ fun CredentialNewOrEdit(
         //      从数据库异步查询repo数据，更新页面state
         //      设置页面loading 为false
         doJobThenOffLoading(
-            loadingOn = { showLoadingDialog.value = true },
-            loadingOff = { showLoadingDialog.value = false }
+//            loadingOn = { showLoadingDialog.value = true },
+//            loadingOff = { showLoadingDialog.value = false }
         ) job@{
             // 废弃，没必要重置，只重置这个状态，其他状态不重置，万一按钮隐藏了但密码状态为显示？怎么办？根本没必要重置，让这个变量个其他变量生命周期和初始状态都一致即可）重置此变量，避免错误显示查看密码按钮。
 //         //   oldPassIsEmpty.value = false

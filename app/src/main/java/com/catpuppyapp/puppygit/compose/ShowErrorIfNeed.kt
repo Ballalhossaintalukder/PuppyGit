@@ -20,7 +20,7 @@ fun ShowErrorIfNeed(
         //显示提示信息：
         if(useErrorPrefix){
             // use Prefix, show: “Error: 错误信息”
-            showToast(activityContext, stringResource(R.string.error)+":"+ errMsg.value)
+            showToast(activityContext, stringResource(R.string.error)+": "+ errMsg.value)
         }else {
             //no Prefix, show: "错误信息"
             showToast(activityContext, errMsg.value)

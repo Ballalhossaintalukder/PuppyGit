@@ -1,15 +1,9 @@
 package com.catpuppyapp.puppygit.compose
 
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.selection.selectable
-import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
@@ -17,18 +11,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import com.catpuppyapp.puppygit.data.entity.RepoEntity
 import com.catpuppyapp.puppygit.play.pro.R
-import com.catpuppyapp.puppygit.utils.AppModel
 import com.catpuppyapp.puppygit.utils.Libgit2Helper
 import com.catpuppyapp.puppygit.utils.Msg
-import com.catpuppyapp.puppygit.utils.MyLog
 import com.catpuppyapp.puppygit.utils.doJobThenOffLoading
 import com.github.git24j.core.Repository
 
@@ -67,56 +57,26 @@ fun AskGitUsernameAndEmailDialogWithSelection(
 
     AlertDialog(
         title = {
-            Text(stringResource(R.string.user_info))
+            DialogTitle(stringResource(R.string.user_info))
         },
         text = {
             ScrollableColumn {
-                Column(
-                    modifier = Modifier.selectableGroup(),
 
-                ) {
-                    //如果设置了有效gitUrl，显示新建和选择凭据，否则只显示无凭据
-                    //key should like: "1"; value should like "1: balbalba"
-                    for ((k, optext) in optionsList.toList().withIndex()) {
-                        //k=1,v=text, optionNumAndText="1: text"
-//                        val optionNumAndText = RadioOptionsUtil.formatOptionKeyAndText(k, v)
-                        Row(
-                            Modifier
-                                .fillMaxWidth()
-                                .heightIn(min=40.dp)
-                                .selectable(
-                                    selected = selectedOption.intValue==k,
-                                    onClick = {
-                                        if(AppModel.devModeOn) {
-                                            MyLog.d(TAG, "#onClick(), selected option, k=$k, optext=$optext")
-                                        }
-
-                                        //更新选择值
-                                        selectedOption.intValue = k
-                                    },
-                                    role = Role.RadioButton
-                                )
-                                .padding(horizontal = 10.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            RadioButton(
-                                selected = selectedOption.intValue==k,
-                                onClick = null // null recommended for accessibility with screenreaders
-                            )
-                            Text(
-                                text = optext,
-                                style = MaterialTheme.typography.bodyLarge,
-                                modifier = Modifier.padding(start = 10.dp)
-                            )
-                        }
-                    }
-                }
+                //如果设置了有效gitUrl，显示新建和选择凭据，否则只显示无凭据
+                //key should like: "1"; value should like "1: balbalba"
+                SingleSelection(
+                    itemList = optionsList,
+                    selected = {idx, item -> selectedOption.intValue == idx},
+                    text = {idx, item -> item},
+                    onClick = {idx, item -> selectedOption.intValue = idx}
+                )
 
                 Row(modifier = Modifier.padding(5.dp)) {
 
                 }
 
                 TextField(
+                    singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
 
 //                            modifier = Modifier.focusRequester(focusRequester),
@@ -135,6 +95,7 @@ fun AskGitUsernameAndEmailDialogWithSelection(
 
                 }
                 TextField(
+                    singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
 
                     value = email.value,

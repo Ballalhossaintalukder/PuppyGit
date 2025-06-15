@@ -42,4 +42,6 @@ interface CacheStore { // TODO定时删除
 
     //清除拥有某些key前缀的value，如果requireDel为true，会删除，否则会把值设为null
     fun clearByKeyPrefix(keyPrefix:String)
+
+    fun clearByPredicate(predicate:(key:String)->Boolean)
 }

@@ -7,7 +7,6 @@ import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.webkit.MimeTypeMap
-import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableLongState
 import androidx.compose.runtime.MutableState
 import androidx.core.content.FileProvider
@@ -17,6 +16,7 @@ import com.catpuppyapp.puppygit.constants.LineNum
 import com.catpuppyapp.puppygit.dto.FileSimpleDto
 import com.catpuppyapp.puppygit.etc.Ret
 import com.catpuppyapp.puppygit.fileeditor.texteditor.state.TextEditorState
+import com.catpuppyapp.puppygit.play.pro.BuildConfig
 import com.catpuppyapp.puppygit.play.pro.R
 import com.catpuppyapp.puppygit.screen.shared.FilePath
 import com.catpuppyapp.puppygit.screen.shared.FuckSafFile
@@ -48,6 +48,8 @@ object FsUtils {
      */
     const val internalPathPrefix = "Internal://"
     const val externalPathPrefix = "External://"
+    // /data/data/packagename/
+    const val innerPathPrefix = "Inner://"
 
     //路径前缀
     //这个后面跟的不是路径，得用什么玩意解析一下才能拿到真名
@@ -174,18 +176,18 @@ object FsUtils {
         return type
     }
 
-    @Deprecated("instead by MimeType#guessXXX serials function")
-    fun getMimeTypeForFilePath(context: Context, fullPathOfFile:String): String {
-        val file = File(fullPathOfFile)
-        return getMimeType(getUriForFile(context, file).toString())
-    }
+//    @Deprecated("instead by MimeType#guessXXX serials function")
+//    fun getMimeTypeForFilePath(context: Context, fullPathOfFile:String): String {
+//        val file = File(fullPathOfFile)
+//        return getMimeType(getUriForFile(context, file).toString())
+//    }
 
     /**
      * get authority for gen uri for file
      * note: the value must same as provider.android:authorities in AndroidManifest.xml
      */
     fun getAuthorityOfUri():String {
-        return AppModel.appPackageName + ".provider"
+        return BuildConfig.FILE_PROVIDIER_AUTHORITY
     }
 
     fun getUriForFile(context: Context, file: File):Uri {
@@ -450,7 +452,7 @@ object FsUtils {
         val errList = mutableListOf<PasteResult>()
 
         //开始执行 拷贝 or 移动 or 导出
-        srcList.forEach {
+        srcList.forEachBetter forEach@{
             val src = it
             var target:File? = null
 
@@ -510,8 +512,8 @@ object FsUtils {
 //            val retFileName = if(fileName.isEmpty()) getFileNameFromCanonicalPath(fileFullPath) else fileName
             return Ret.createSuccess(null)
         }catch (e:Exception) {
-            MyLog.e(TAG, "#saveFileAndGetResult() err:"+e.stackTraceToString())
-            return Ret.createError(null, "save file failed:${e.localizedMessage}", Ret.ErrCode.saveFileErr)
+            MyLog.e(TAG, "#saveFileAndGetResult() err: "+e.stackTraceToString())
+            return Ret.createError(null, "save file failed: ${e.localizedMessage}", Ret.ErrCode.saveFileErr)
         }
     }
 
@@ -787,13 +789,12 @@ object FsUtils {
             MyLog.e(TAG, "#simpleSafeFastSave: err: "+e.stackTraceToString())
             //若返回错误，百分百保存文件失败或未保存，但快照可能有成功创建，需要检查对应path是否为空来判断
             val writeContentToTargetFileSuccess = false
-            return Ret.createError(Triple(writeContentToTargetFileSuccess, contentAndFileSnapshotPathPair.first, contentAndFileSnapshotPathPair.second), "SSFS: save err:"+e.localizedMessage)
+            return Ret.createError(Triple(writeContentToTargetFileSuccess, contentAndFileSnapshotPathPair.first, contentAndFileSnapshotPathPair.second), "SSFS: save err: "+e.localizedMessage)
         }
 
     }
 
-    //这个函数为了状态变量变化时能重新获取doSave，所以加了Composable？
-    @Composable
+
     fun getDoSaveForEditor(
         editorPageShowingFilePath: MutableState<FilePath>,
         editorPageLoadingOn: (String) -> Unit,
@@ -866,9 +867,10 @@ object FsUtils {
                     //文件存在，检查是否修改过，如果修改过，创建快照，如果创建快照失败，为当前显示的内容创建快照
                     val newDto = FileSimpleDto.genByFile(targetFile)
                     //这里没必要确保dto和newDto的路径一样，创建快照的条件要宽松一些，哪怕多创建几个也比少创建几个强。（这里后面的fullPath判断其实有点多余，这里代表当前正在显示的文件读取时的初始dto，路径应和newDto的始终一致，这个dto用来判断是否重载，作为判断是否已经创建快照的dto，要不然创建完快照一更新它，再进editor的初始化代码块时，会错误认为当前显示的文件已经是最新，而不重新加载文件）
-                    if(newDto.sizeInBytes!=editorPageFileDto.value.sizeInBytes || newDto.lastModifiedTime!=editorPageFileDto.value.lastModifiedTime || newDto.fullPath!=editorPageFileDto.value.fullPath) {
+                    //判断文件是否被外部修改过，如果修改过，则进一步判断当前已创建的快照是否和修改过的文件匹配，若不匹配则创建快照
+                    if(newDto != editorPageFileDto.value) { // editor正在编辑的文件被外部修改过
                         //判断已创建快照的文件信息是否和目前硬盘上的文件信息一致，注意最后一个条件判断fullPath不相同也创建快照，在这判断的话就无需在外部更新dto信息了，直接路径不一样，创建快照，更新文件信息（包含路径）就行了，而且当路径不匹配时newDto所代表的文件是save to 的对象，其内容将被覆盖，理应创建快照
-                        if(snapshotedFileInfo.value.sizeInBytes != newDto.sizeInBytes || snapshotedFileInfo.value.lastModifiedTime!=newDto.lastModifiedTime || snapshotedFileInfo.value.fullPath!=newDto.fullPath) {
+                        if(newDto != snapshotedFileInfo.value) {  //未存被外部修改过的文件快照
                             MyLog.w(pageTag, "#$funName: warn! file maybe modified by external! will create a snapshot before save...")
                             val snapRet = SnapshotUtil.createSnapshotByFileAndGetResult(targetFile, SnapshotFileFlag.editor_file_BeforeSave)
                             //连读取文件都不行，直接不保存，用户爱怎么办怎么办吧
@@ -1118,7 +1120,7 @@ object FsUtils {
                     || path.startsWith(AppModel.getOrCreateSubmoduleDotGitBackupDir().canonicalPath)
                     || path.startsWith(Lg2HomeUtils.getLg2Home().canonicalPath)
         }catch (e:Exception) {
-            MyLog.e(TAG, "#isReadOnlyDir err:${e.stackTraceToString()}")
+            MyLog.e(TAG, "#isReadOnlyDir err: ${e.stackTraceToString()}")
             false
         }
 
@@ -1132,7 +1134,7 @@ object FsUtils {
             val list = fileOrFolder.listFiles()
 
             if(!list.isNullOrEmpty()) {
-                list.forEach {
+                list.forEachBetter {
                     calculateFolderSize(it, itemsSize)
                 }
             }
@@ -1149,7 +1151,7 @@ object FsUtils {
      */
     fun getAppCeilingPaths():List<String> {
         return listOf(
-            // usually is "/storage/emulated/0"
+            // usually is "/storage/emulated/0"，这个cover了 "外部存储/Android/data/包名" 那个目录
             getExternalStorageRootPathNoEndsWithSeparator(),
             // "/data/data/app.package.name"
             AppModel.innerDataDir.canonicalPath,
@@ -1171,7 +1173,15 @@ object FsUtils {
      */
     fun getExternalStorageRootPathNoEndsWithSeparator():String{
         return try {
-            Environment.getExternalStorageDirectory().path.trimEnd(Cons.slashChar)
+            Environment.getExternalStorageDirectory().canonicalPath
+        }catch (_:Exception) {
+            ""
+        }
+    }
+
+    fun getInnerStorageRootPathNoEndsWithSeparator():String{
+        return try {
+            AppModel.innerDataDir.canonicalPath
         }catch (_:Exception) {
             ""
         }
@@ -1206,7 +1216,9 @@ object FsUtils {
             (getInternalStorageRootPathNoEndsWithSeparator() + Cons.slash + removeInternalStoragePrefix(path)).trimEnd(Cons.slashChar)
         }else if(path.startsWith(externalPathPrefix)) {
             (getExternalStorageRootPathNoEndsWithSeparator() + Cons.slash + removeExternalStoragePrefix(path)).trimEnd(Cons.slashChar)
-        }else {  // absolute path like "/storage/emulate/0/abc"
+        }else if(path.startsWith(innerPathPrefix)) {
+            (getInnerStorageRootPathNoEndsWithSeparator() + Cons.slash + removeInnerStoragePrefix(path)).trimEnd(Cons.slashChar)
+        }else {
             path
         }
     }
@@ -1276,11 +1288,14 @@ object FsUtils {
     fun getPathWithInternalOrExternalPrefix(fullPath:String) :String {
         val internalStorageRoot = getInternalStorageRootPathNoEndsWithSeparator()
         val externalStorageRoot = getExternalStorageRootPathNoEndsWithSeparator()
+        val innerStorageRoot = getInnerStorageRootPathNoEndsWithSeparator()
 
         return if(fullPath.startsWith(internalStorageRoot)) {  // internal storage must before external storage, because internal storage actually under external storage (eg: internal is "/storage/emulated/0/Android/data/packagename/xxx/xxxx/x", external is "/storage/emulated/0")
             internalPathPrefix+((getPathAfterParent(parent= internalStorageRoot, fullPath=fullPath)).removePrefix("/"))
         }else if(fullPath.startsWith(externalStorageRoot)) {
             externalPathPrefix+((getPathAfterParent(parent= externalStorageRoot, fullPath=fullPath)).removePrefix("/"))
+        }else if(fullPath.startsWith(innerStorageRoot)) {
+            innerPathPrefix+((getPathAfterParent(parent= innerStorageRoot, fullPath=fullPath)).removePrefix("/"))
         }else { //原样返回, no matched, return origin path
             fullPath
         }
@@ -1292,6 +1307,10 @@ object FsUtils {
 
     fun removeExternalStoragePrefix(path: String): String {
         return path.removePrefix(externalPathPrefix)
+    }
+
+    fun removeInnerStoragePrefix(path: String): String {
+        return path.removePrefix(innerPathPrefix)
     }
 
     fun stringToLines(string: String):List<String> {
@@ -1541,4 +1560,48 @@ object FsUtils {
             writer.write(text)
         }
     }
+
+    fun readShortContent(file: FuckSafFile, contentCharsLimit:Int = 80):String {
+        return try {
+            val sb = StringBuilder()
+
+            file.bufferedReader().use { br ->
+                while (true) {
+                    if(sb.length >= contentCharsLimit) {
+                        break
+                    }
+
+                    val line = br.readLine() ?: break
+
+                    line.trim().let {
+                        if(it.isNotBlank()) {
+                            sb.appendLine(it)
+                        }
+                    }
+                }
+
+            }
+
+            if(sb.length <= contentCharsLimit) {
+                sb.toString()
+            }else {
+                sb.substring(0, contentCharsLimit)
+            }
+        }catch (e: Exception) {
+            MyLog.d(TAG, "readShortContent of file err: fileIoPath=${file.path.ioPath}, err=${e.stackTraceToString()}")
+            ""
+        }
+    }
+
+
+    fun getPathWithInternalOrExternalPrefixAndRemoveFileNameAndEndSlash(path:String, fileName:String):String {
+        // don't handle the content uri, the file name may be encoded or even haven't a file name,
+        //  try add storage prefix to it may return a wrong path
+        return if(path.startsWith(contentUriPathPrefix)) {
+            path
+        }else {
+            getPathWithInternalOrExternalPrefix(path.removeSuffix(fileName).trimEnd(Cons.slashChar)).ifBlank { Cons.slash }
+        }
+    }
+
 }

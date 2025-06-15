@@ -19,7 +19,7 @@
 ---
 ## Question 11805957:
 #### Q: How link credential and repo?
-#### A: Actually the credential not linked to the repo, it linked to the remote of repo, the video show how to do it: https://github.com/user-attachments/assets/fa6f0daf-6030-41e1-9929-ec3b733a5759
+#### A: Actually the credential not linked to the repo, it linked to the remote of repo, the video show how to do it: https://github.com/user-attachments/assets/d9cda88e-b040-4f19-93d6-273f37d9f151
 ---
 ## Question 17853895:
 #### Q: How restore a removed file?

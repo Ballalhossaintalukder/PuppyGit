@@ -135,6 +135,7 @@ class FuckSafFile(val context: Context?, val path: FilePath) {
     }
 
     fun canRead():Boolean {
+        // 注：saf的 canRead并不准，有时候明明能读，告诉你不能
         return (if(isSaf) safFile?.canRead() else file?.canRead()) == true
     }
 

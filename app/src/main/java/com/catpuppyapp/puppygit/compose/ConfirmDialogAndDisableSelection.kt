@@ -48,7 +48,7 @@ fun ConfirmDialogAndDisableSelection(
                 if(requireShowTitleCompose) {
                     titleCompose()
                 }else {
-                    Text(title)
+                    DialogTitle(title)
                 }
             }
         },
@@ -98,7 +98,7 @@ fun ConfirmDialogAndDisableSelection(
                         ) {
                             Text(
                                 text = okBtnText,
-                                color = okTextColor,
+                                color = if(okBtnEnabled) okTextColor else Color.Unspecified,
                             )
                         }
                     }

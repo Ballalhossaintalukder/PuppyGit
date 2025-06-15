@@ -58,7 +58,7 @@ class CredentialRepositoryImpl(private val dao: CredentialDao) : CredentialRepos
         Cons.credentialInsertLock.withLock {
             //如果名称已经存在则不保存
             if(isCredentialNameExist(item.name)) {
-                MyLog.w(TAG, "#insertWithEncrypt(): Credential name exists, item will NOT insert! name is:"+item.name)
+                MyLog.w(TAG, "#insertWithEncrypt(): Credential name exists, item will NOT insert! name is: '${item.name}'")
                 throw RuntimeException("#$funName err: name already exists")
 
             }

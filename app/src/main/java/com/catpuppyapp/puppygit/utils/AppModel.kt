@@ -1,6 +1,7 @@
 package com.catpuppyapp.puppygit.utils
 
 import android.content.Context
+import android.content.res.Configuration
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.TopAppBarScrollBehavior
@@ -8,29 +9,36 @@ import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.core.graphics.drawable.toBitmap
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.vectorResource
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
 import com.catpuppyapp.puppygit.constants.Cons
 import com.catpuppyapp.puppygit.constants.StorageDirCons
 import com.catpuppyapp.puppygit.data.AppContainer
 import com.catpuppyapp.puppygit.data.AppDataContainer
+import com.catpuppyapp.puppygit.dev.DevFeature
 import com.catpuppyapp.puppygit.dev.FlagFileName
 import com.catpuppyapp.puppygit.dev.dev_EnableUnTestedFeature
-import com.catpuppyapp.puppygit.dto.DeviceWidthHeight
 import com.catpuppyapp.puppygit.jni.LibLoader
 import com.catpuppyapp.puppygit.notification.util.NotifyUtil
 import com.catpuppyapp.puppygit.play.pro.BuildConfig
+import com.catpuppyapp.puppygit.play.pro.R
 import com.catpuppyapp.puppygit.service.HttpService
 import com.catpuppyapp.puppygit.settings.AppSettings
 import com.catpuppyapp.puppygit.settings.SettingsUtil
+import com.catpuppyapp.puppygit.ui.theme.Theme
 import com.catpuppyapp.puppygit.utils.app.upgrade.migrator.AppMigrator
 import com.catpuppyapp.puppygit.utils.app.upgrade.migrator.AppVersionMan
+import com.catpuppyapp.puppygit.utils.cache.Cache
+import com.catpuppyapp.puppygit.utils.cache.CommitCache
 import com.catpuppyapp.puppygit.utils.cert.CertMan
 import com.catpuppyapp.puppygit.utils.encrypt.MasterPassUtil
 import com.catpuppyapp.puppygit.utils.fileopenhistory.FileOpenHistoryMan
+import com.catpuppyapp.puppygit.utils.pref.PrefMan
+import com.catpuppyapp.puppygit.utils.pref.PrefUtil
 import com.catpuppyapp.puppygit.utils.saf.SafUtil
 import com.catpuppyapp.puppygit.utils.snapshot.SnapshotUtil
 import com.catpuppyapp.puppygit.utils.storagepaths.StoragePathsMan
@@ -38,6 +46,7 @@ import com.catpuppyapp.puppygit.utils.time.TimeZoneMode
 import com.catpuppyapp.puppygit.utils.time.TimeZoneUtil
 import com.github.git24j.core.Libgit2
 import io.ktor.util.collections.ConcurrentMap
+import kotlinx.coroutines.runBlocking
 import java.io.File
 import java.time.ZoneOffset
 
@@ -57,7 +66,8 @@ object AppModel {
      */
     var masterPassword:MutableState<String> = mutableStateOf("")
 
-    lateinit var deviceWidthHeight: DeviceWidthHeight
+    //废弃，改在compose里用 `SharedState.getCurrentConfigure()` 获取当前配置再获取屏幕宽高，那样获取的是响应式的 （参考案例：仓库页面，旋转屏幕后会根据屏幕宽度重新计算每行条目数）
+//    lateinit var deviceWidthHeight: DeviceWidthHeight
 
     /**
      * 和日志的debug模式没直接关系，这个不影响日志等级，只是有些时候，开发模式下希望出错立刻抛异常，但对用户来说，这样体验不好，所以加个开关判断下
@@ -94,33 +104,6 @@ object AppModel {
 //    lateinit var coroutineScope:CoroutineScope  //这个scope是全局的，生命周期几乎等于app的生命周期(？有待验证，不过因为是在根Compose创建的所以多半差不多是这样)，如果要执行和当前compose生命周期一致的任务，应该用 rememberCoroutineScope() 在对应compose重新获取一个scope
 
     lateinit var navController:NavHostController
-
-
-    /**
-     * 用来保存导航状态，在旋转屏幕后恢复目标页面
-     */
-    var lastNavController:NavHostController? = null
-
-
-    // 废弃
-//    var lastNavState:Bundle? = null
-
-    /**
-     * 编辑器最后编辑的文件，在Activity销毁时使用此变量更新`lastEditFileWhenDestroy`的值
-     */
-    val lastEditFile:MutableState<String> = mutableStateOf("")
-
-    /**
-     * Activity销毁时最后编辑的文件，用来在旋转屏幕后恢复
-     * 此变量应确保仅消费一次，不然可能会在不应该打开文件的时候打开文件
-     */
-    val lastEditFileWhenDestroy:MutableState<String> = mutableStateOf("")
-
-    /**
-     * 用来在旋转屏幕后恢复预览模式
-     */
-    val editorPreviewModeOnWhenDestroy:MutableState<Boolean> = mutableStateOf(false)
-    val subEditorPreviewModeOnWhenDestroy:MutableState<Boolean> = mutableStateOf(false)
 
     /**
      * 系统时区偏移量，单位: 分钟
@@ -207,7 +190,7 @@ object AppModel {
     private lateinit var submoduleDotGitBackupDir: File
 
     /**
-     * 存储App当前主题，自动，明亮，暗黑，不过这变量好像实际没用到？
+     * 存储当前Activity的主题的状态变量，弄状态变量是为了实现切换主题后不需要重启即可生效
      */
     var theme:MutableState<String>? = null
 
@@ -312,15 +295,16 @@ object AppModel {
 
 
         AppModel.devModeOn = PrefUtil.getDevMode(realAppContext)
+        DevFeature.showRandomLaunchingText.state.value = PrefUtil.getShowRandomLaunchingText(realAppContext)
 
-        AppModel.deviceWidthHeight = UIHelper.getDeviceWidthHeightInDp(realAppContext)
+//        AppModel.deviceWidthHeight = UIHelper.getDeviceWidthHeightInDp(realAppContext)
 
         AppModel.realAppContext = realAppContext
 
         //注册通知渠道
         NotifyUtil.initAllNotify(realAppContext)
 
-        //获取主密码 (若与AppSetings里记的hash不匹配，启动时会弹窗请求用户输入）
+        //获取主密码 (若与AppSettings里记的hash不匹配，启动时会弹窗请求用户输入）
         AppModel.masterPassword.value = MasterPassUtil.get(realAppContext)
 
 
@@ -397,12 +381,6 @@ object AppModel {
         //设置退出app的函数
         if(initActivity) {
             AppModel.exitApp = {
-                //先清空再退出，不然退出后，下次启动，默认打开上次文件，如果上次文件会导致app崩溃，就死循环了
-                AppModel.lastEditFile.value = ""
-                //重置切换屏幕后恢复预览模式的变量
-                AppModel.editorPreviewModeOnWhenDestroy.value = false
-                AppModel.subEditorPreviewModeOnWhenDestroy.value = false
-
                 //退出 Activity
                 exitApp()
             }
@@ -464,7 +442,7 @@ object AppModel {
             //用原始设置文件初始化异常
             try {
                 //初始化设置，用备用设置文件，若成功则恢复备用到原始设置文件
-                MyLog.e(TAG, "#$funName init settings err:"+e.stackTraceToString())
+                MyLog.e(TAG, "#$funName init settings err: "+e.stackTraceToString())
                 MyLog.w(TAG, "#$funName init origin settings err, will try use backup")
 
                 SettingsUtil.init(settingsSaveDir, useBak = true)
@@ -476,7 +454,7 @@ object AppModel {
                 MyLog.w(TAG, "#$funName restore bak settings to origin success")
             }catch (e2:Exception) {
                 //用备用文件初始化设置也异常，尝试重建设置项，用户设置会丢失
-                MyLog.e(TAG, "#$funName init settings with bak err:"+e2.stackTraceToString())
+                MyLog.e(TAG, "#$funName init settings with bak err: "+e2.stackTraceToString())
                 MyLog.w(TAG, "#$funName init bak settings err, will clear origin settings, user settings will lost!")
 
                 // delete settings files
@@ -504,6 +482,17 @@ object AppModel {
         Lg2HomeUtils.init(AppModel.appDataUnderAllReposDir, applicationContext)
 
 
+
+        //开始：初始化开发者功能设置项
+        DevFeature.singleDiff.state.value = settings.devSettings.singleDiffOn
+        DevFeature.treatNoWordMatchAsNoMatchedForDiff.state.value = settings.devSettings.treatNoWordMatchAsNoMatchedForDiff
+        DevFeature.degradeMatchByWordsToMatchByCharsIfNonMatched.state.value = settings.devSettings.degradeMatchByWordsToMatchByCharsIfNonMatched
+        DevFeature.showMatchedAllAtDiff.state.value = settings.devSettings.showMatchedAllAtDiff
+        DevFeature.legacyChangeListLoadMethod.state.value = settings.devSettings.legacyChangeListLoadMethod
+        //结束：初始化开发者功能设置项
+
+
+
         //实际上，在20241205之后发布的版本都不会再执行此函数了，改成用主密码了，以后默认密码就写死了，不会再改，版本号也不会再变，自然也不再需要迁移
         //执行会suspend的初始化操作
         //检查是否需要迁移密码
@@ -511,7 +500,7 @@ object AppModel {
 //                try {
 //                    AppModel.dbContainer.passEncryptRepository.migrateIfNeed(AppModel.dbContainer.credentialRepository)
 //                }catch (e:Exception) {
-//                    MyLog.e(TAG, "#$funName migrate password err:"+e.stackTraceToString())
+//                    MyLog.e(TAG, "#$funName migrate password err: "+e.stackTraceToString())
 //                    MyLog.w(TAG, "#$funName migrate password err, user's password may will be invalid :(")
 //                }
 
@@ -529,7 +518,7 @@ object AppModel {
                 keepInDays = settings.editor.editCacheKeepInDays
             )
         }catch (e:Exception) {
-            MyLog.e(TAG, "#$funName init EditCache err:"+e.stackTraceToString())
+            MyLog.e(TAG, "#$funName init EditCache err: "+e.stackTraceToString())
         }
 
 
@@ -542,7 +531,7 @@ object AppModel {
                 enableFileSnapshotForDiffInitValue = settings.diff.createSnapShotForOriginFileBeforeSave
             )
         }catch (e:Exception) {
-            MyLog.e(TAG, "#$funName init SnapshotUtil err:"+e.stackTraceToString())
+            MyLog.e(TAG, "#$funName init SnapshotUtil err: "+e.stackTraceToString())
         }
 
         try {
@@ -558,7 +547,7 @@ object AppModel {
                 requireClearOldSettingsEditedHistory = false
             )
         }catch (e:Exception) {
-            MyLog.e(TAG, "#$funName init FileOpenHistoryMan err:"+e.stackTraceToString())
+            MyLog.e(TAG, "#$funName init FileOpenHistoryMan err: "+e.stackTraceToString())
         }
 
         try {
@@ -574,7 +563,7 @@ object AppModel {
                 oldSettingsLastSelectedPath = null
             )
         }catch (e:Exception) {
-            MyLog.e(TAG, "#$funName init StoragePathsMan err:"+e.stackTraceToString())
+            MyLog.e(TAG, "#$funName init StoragePathsMan err: "+e.stackTraceToString())
         }
 
 
@@ -583,14 +572,14 @@ object AppModel {
                 //删除过期日志文件
                 MyLog.delExpiredFiles()
             }catch (e:Exception) {
-                MyLog.e(TAG, "#$funName del expired log files err:"+e.stackTraceToString())
+                MyLog.e(TAG, "#$funName del expired log files err: "+e.stackTraceToString())
             }
 
             //删除过期的编辑缓存文件
             try {
                 EditCache.delExpiredFiles()
             }catch (e:Exception) {
-                MyLog.e(TAG, "#$funName del expired edit cache files err:"+e.stackTraceToString())
+                MyLog.e(TAG, "#$funName del expired edit cache files err: "+e.stackTraceToString())
             }
 
             //删除过期的快照文件
@@ -601,7 +590,7 @@ object AppModel {
 
                 //                 //   AppModel.getOrCreateFileSnapshotDir()  // is delete expired files, is not del the folder, so no need call this make sure folder exist
             }catch (e:Exception) {
-                MyLog.e(TAG, "#$funName del expired snapshot files err:"+e.stackTraceToString())
+                MyLog.e(TAG, "#$funName del expired snapshot files err: "+e.stackTraceToString())
             }
         }
 
@@ -661,14 +650,7 @@ object AppModel {
 
         // nav controller, start
         AppModel.navController = rememberNavController()
-        //restore nav controller state
-        //恢复上次导航状态，如果有的话，不然一旋转屏幕就强制回到顶级页面了，用户体验差
-        if(AppModel.lastNavController != null) {
-            MyLog.d(TAG, "will restore navi stack")
-            AppModel.navController.restoreState(AppModel.lastNavController!!.saveState())
-        }
 
-        AppModel.lastNavController = AppModel.navController
         // nav controller, end
 
 //        AppModel.coroutineScope = rememberCoroutineScope()
@@ -684,8 +666,15 @@ object AppModel {
 
 
 
-    fun getAppIcon(context: Context) :ImageBitmap{
-        return context.packageManager.getApplicationIcon(appPackageName).toBitmap().asImageBitmap()
+    @Composable
+    fun getAppIcon(context: Context, inDarkTheme:Boolean = Theme.inDarkTheme) : ImageVector{
+//        return context.packageManager.getApplicationIcon(appPackageName).toBitmap().asImageBitmap()
+        return ImageVector.vectorResource(if(inDarkTheme)  R.drawable.icon_dark_foreground else R.drawable.icon_light_foreground)
+    }
+
+    @Composable
+    fun getAppIconMonoChrome(context: Context): ImageVector {
+        return ImageVector.vectorResource(R.drawable.icon_monochrome)
     }
 
     fun getAppVersionCode():Int {
@@ -701,7 +690,11 @@ object AppModel {
         val funName = "getStringByResKey"
         try {
             val res = context.resources
-            val resType = "string"  //TODO 需要测试是否支持多语言
+            //TODO 是否需要改为 "string-语言后缀" 才能支持多语言？感觉应该不用，
+            // 是否支持多语言应该取决于 Context 里设置的Locale，不过我没测试过
+            // (ps: 已在MainActivity 用 attachBaseContext设置了Local，
+            // 还有，每个Service和Activity都需要单独设置)
+            val resType = "string"
             return res.getString(res.getIdentifier(resKey, resType, appPackageName))
 
         }catch (e:Exception) {
@@ -711,18 +704,18 @@ object AppModel {
         }
     }
 
+    // app销毁时调用此函数，其实就是把这函数扔 Activity 的destoryer()里了
     fun destroyer() {
-//            inited_3.value = false
-//            inited_2.value = false
-//            inited_1.value = false
+        runCatching {
+            //清文件管理器页面列表滚动状态缓存
+            Cache.clearFilesListStates()
+        }
 
-        //改成在创建完后恢复并保存导航器状态了
-//            AppModel.lastNavState = AppModel.navController.saveState()
-
-        AppModel.lastEditFileWhenDestroy.value = AppModel.lastEditFile.value
-
+        runCatching {
+            //退出app清提交缓存
+            runBlocking { CommitCache.clear() }
+        }
     }
-
 
 
 
@@ -887,4 +880,132 @@ object AppModel {
 
       return systemTimeZoneOffsetInMinutes!!
     }
+
+    @Composable
+    fun init_forPreview() {
+        val realAppContext = LocalContext.current
+
+        //set dbHolder ，如果以后使用依赖注入框架，这个需要修改
+        AppModel.dbContainer = AppDataContainer(realAppContext)
+        // run once in app process life time end
+
+        // every time run after Activity/Service destory and re create
+
+
+        AppModel.devModeOn = PrefUtil.getDevMode(realAppContext)
+
+//        AppModel.deviceWidthHeight = UIHelper.getDeviceWidthHeightInDp(realAppContext)
+
+        AppModel.realAppContext = realAppContext
+
+
+        //获取主密码 (若与AppSetings里记的hash不匹配，启动时会弹窗请求用户输入）
+        AppModel.masterPassword.value = MasterPassUtil.get(realAppContext)
+
+
+        // init Activity only variable
+//        if(initActivity) {
+//            AppModel.activityContext = activityContext;
+//        }
+//            AppModel.mainActivity = mainActivity  //忘了这个干嘛的了，后来反正没用了，IDE提示什么Activity内存泄漏之类的，所以就注释了
+
+        //设置app工作目录，如果获取不到目录，app无法工作，会在这抛出异常
+        val externalFilesDir = File("/test_android_preview")
+        val externalCacheDir = externalFilesDir
+        val innerDataDir = externalFilesDir
+        AppModel.externalFilesDir = externalFilesDir
+        AppModel.externalCacheDir = externalCacheDir
+        AppModel.innerDataDir = innerDataDir
+        AppModel.innerCacheDir = externalFilesDir
+        AppModel.externalDataDir = externalFilesDir
+
+
+//            AppModel.logDir = createLogDirIfNonexists(externalCacheDir, Cons.defaultLogDirName);
+
+        //20240527：禁用，sd相关 ，开始
+//            AppModel.internalStorageDirsParentDir = createDirIfNonexists(externalFilesDir, Cons.defaultInternalStorageDirsParentDirName)
+
+        //设置repodir
+//            AppModel.allRepoParentDir = createDirIfNonexists(AppModel.internalStorageDirsParentDir, StorageDirCons.DefaultStorageDir.repoStorage1.name)
+//            StorageDirCons.DefaultStorageDir.repoStorage1.fullPath = AppModel.allRepoParentDir.canonicalPath
+//
+//            //设置对用户可见的app工作目录
+//            AppModel.appDataUnderAllReposDir = createDirIfNonexists(AppModel.internalStorageDirsParentDir, StorageDirCons.DefaultStorageDir.puppyGitDataDir.name)
+//            StorageDirCons.DefaultStorageDir.puppyGitDataDir.fullPath = AppModel.appDataUnderAllReposDir.canonicalPath
+        //20240527：禁用，sd相关 ，结束
+
+
+        //与sd相关代码互斥，开始
+        //设置repodir
+        AppModel.allRepoParentDir = externalFilesDir
+        //test access external storage, passed
+//            AppModel.allRepoParentDir = createDirIfNonexists(File("/sdcard"), "puppygit-repos")
+
+
+        StorageDirCons.DefaultStorageDir.puppyGitRepos.fullPath = AppModel.allRepoParentDir.canonicalPath
+
+        //设置对用户可见的app工作目录
+        AppModel.appDataUnderAllReposDir = externalFilesDir
+        //与sd相关代码互斥，结束
+
+
+        //存放app内置证书的路径
+        AppModel.certBundleDir = externalFilesDir
+        AppModel.certUserDir = externalFilesDir
+
+
+        AppModel.fileSnapshotDir = externalFilesDir
+        //创建editor cache目录
+        AppModel.editCacheDir = externalFilesDir
+
+        //创建git pathch 导出目录
+        AppModel.patchDir = externalFilesDir
+
+        //create settings folder
+        AppModel.settingsDir = externalFilesDir
+
+        // log dir，必须在初始化log前初始化这个变量
+        AppModel.logDir = externalFilesDir
+        AppModel.submoduleDotGitBackupDir = externalFilesDir
+
+        //设置文件快照目录
+//            AppModel.fileSnapshotDir = createFileSnapshotDirIfNonexists(AppModel.allRepoParentDir, Cons.defaultFileSnapshotDirName)
+
+        //设置退出app的函数
+        AppModel.exitApp = {}
+
+
+        //debug mode相关变量
+        //必须先初始化此变量再去查询isDebugModeOn()
+//        AppModel.debugModeFlagFile = File(AppModel.appDataUnderAllReposDir, DebugModeManager.debugModeFlagFileName)  //debugMode检测模式是如果在特定目录下存在名为`debugModeFlagFileName`变量值的文件，则debugModeOn，否则off
+        //初始化debugModeOn。注：app运行期间若需修改此变量，应通过DebugModeManager来修改；获取则直接通过AppModel.debugModeOn来获取即可
+//        AppModel.debugModeOn = AppModel.isDebugModeFlagFileExists()  //TODO 在设置页面添加相关选项“开启调试模式”，开启则在上面的目录创建debugModeOn文件，否则删除文件，这样每次启动app就能通过检查文件是否存在来判断是否开了debugMode了。(btw: 因为要在Settings初始化之前就读取到这个变量，所以不能放到Settings里)
+
+
+        //for test unstable features
+        dev_EnableUnTestedFeature = try {
+            File(AppModel.appDataUnderAllReposDir, FlagFileName.enableUnTestedFeature).exists()
+        }catch (_:Exception) {
+            false
+        }
+
+//        runBlocking{AppModel.init_2()}
+        reloadTimeZone(AppSettings())
+        AppModel.init_3()
+    }
+
+
+    // start: device configuration (include width/height, and rotate screen or do other actions will update it)
+    private val currentConfiguration = mutableStateOf<Configuration?>(null)
+
+    @Composable
+    fun getCurActivityConfig(): Configuration {
+        return currentConfiguration.value ?: LocalConfiguration.current
+    }
+
+    fun handleActivityConfigurationChanged(newConfig: Configuration) {
+        currentConfiguration.value = newConfig
+    }
+
+    // end device configuration
 }

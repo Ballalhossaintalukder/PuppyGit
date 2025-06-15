@@ -12,7 +12,6 @@ import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableState
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import com.catpuppyapp.puppygit.play.pro.R
 import com.catpuppyapp.puppygit.screen.functions.navToFileChooser
@@ -36,7 +35,7 @@ fun InternalFileChooser(
     TextField(
         modifier = Modifier.fillMaxWidth().padding(horizontal = MyStyleKt.defaultHorizontalPadding),
         value = path.value,
-        maxLines = 6,
+        maxLines = MyStyleKt.defaultMultiLineTextFieldMaxLines,
         onValueChange = {
             path.value = it
         },

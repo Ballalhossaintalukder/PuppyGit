@@ -11,6 +11,8 @@ import kotlin.concurrent.withLock
 
 private const val TAG = "UndoStack"
 
+private const val defaultSizeLimit = 100
+
 class UndoStack(
     /**
     用来标记这是哪个文件的stack
@@ -19,19 +21,19 @@ class UndoStack(
     /**
      * 记多少步
      */
-    val sizeLimit: Int = 100,
+    var sizeLimit: Int = defaultSizeLimit,
 
     /**
      * 保存间隔，秒数，为0则不限只要状态变化就立即存一版
      */
 //    val undoSaveIntervalInSec:Int = 5,
     //5秒的用户体验并不好，有可能漏选，用0秒了
-    val undoSaveIntervalInSec:Int = 0,
+    var undoSaveIntervalInSec:Int = 0,
 
     /**
      * utc秒数，上次保存时间，用来和时间间隔配合实现在几秒内只保存一次，若为0，无视时间间隔，立即存一版本，然后更新时间为当前秒数
      */
-    var undoLastSaveAt:MutableLongState = mutableLongStateOf(0),
+    val undoLastSaveAt:MutableLongState = mutableLongStateOf(0),
 
 
     private var undoStack:LinkedList<TextEditorState> = LinkedList(),
@@ -39,6 +41,28 @@ class UndoStack(
     private var undoLock: ReentrantLock = ReentrantLock(true),
     private var redoLock: ReentrantLock = ReentrantLock(true),
 ) {
+
+    fun reset(filePath:String) {
+        this.filePath = filePath
+        sizeLimit = defaultSizeLimit
+        undoSaveIntervalInSec = 0
+        undoLastSaveAt.longValue = 0L
+        undoStack = LinkedList()
+        redoStack = LinkedList()
+        undoLock = ReentrantLock(true)
+        redoLock = ReentrantLock(true)
+    }
+
+    fun copyFrom(other:UndoStack) {
+        filePath = other.filePath
+        sizeLimit = other.sizeLimit
+        undoSaveIntervalInSec = other.undoSaveIntervalInSec
+        undoLastSaveAt.longValue = other.undoLastSaveAt.longValue
+        undoStack = other.undoStack
+        redoStack = other.redoStack
+        undoLock = other.undoLock
+        redoLock = other.redoLock
+    }
 
     fun undoStackIsEmpty():Boolean {
         return undoStack.isEmpty()
@@ -69,7 +93,7 @@ class UndoStack(
                 undoLastSaveAt.longValue = now
 
                 //若超过数量限制移除第一个
-                if(undoStack.size > sizeLimit) {
+                if(undoStack.size.let { it > 0 && it > sizeLimit }) {
                     undoStack.removeAt(0)
                 }
 

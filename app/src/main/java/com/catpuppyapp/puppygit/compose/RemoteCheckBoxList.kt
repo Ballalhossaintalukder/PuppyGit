@@ -17,7 +17,8 @@ import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.unit.dp
 import com.catpuppyapp.puppygit.play.pro.R
 import com.catpuppyapp.puppygit.utils.UIHelper
-import com.catpuppyapp.puppygit.utils.state.StateUtil
+import com.catpuppyapp.puppygit.utils.forEachBetter
+import com.catpuppyapp.puppygit.utils.forEachIndexedBetter
 
 @Composable
 fun RemoteCheckBoxList(
@@ -64,12 +65,12 @@ fun RemoteCheckBoxList(
             MyTriCheckBox(text = stringResource(R.string.all)+" (${selectedList.size}/${itemList.size})", state = selectAll.value, enabled=enabled) {
                 //如果不是选中所有，添加所有元素到列表，然后切换状态为选中所有；如选中所有，清空选中列表，然后设置状态为未选中任何条目
                 if(selectAll.value!=ToggleableState.On) {
-                    itemList.forEach { selectItem(it) }
-                    checkedListState.forEachIndexed {idx, it -> it.value = true; checkedList[idx]=true }
+                    itemList.forEachBetter { selectItem(it) }
+                    checkedListState.forEachIndexedBetter {idx, it -> it.value = true; checkedList[idx]=true }
                     selectAll.value = ToggleableState.On
                 }else {
                     selectedList.clear()
-                    checkedListState.forEachIndexed {idx, it-> it.value = false; checkedList[idx]=false }
+                    checkedListState.forEachIndexedBetter {idx, it-> it.value = false; checkedList[idx]=false }
                     selectAll.value = ToggleableState.Off
                 }
             }
@@ -93,7 +94,7 @@ fun RemoteCheckBoxList(
     }
 
     if(showChildren.value) {
-        itemList.forEachIndexed {idx, name->
+        itemList.forEachIndexedBetter {idx, name->
             val v = checkedListState[idx]
             Row(modifier = Modifier.padding(start = 10.dp)) {
                 MyCheckBox(text = name, value = v, enabled = enabled) {

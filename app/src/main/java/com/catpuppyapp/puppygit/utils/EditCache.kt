@@ -41,7 +41,7 @@ object EditCache: DateNamedFileWriter(
         }catch (e:Exception) {
             isInited=false
 
-            MyLog.e(TAG, "#init err:"+e.stackTraceToString())
+            MyLog.e(TAG, "#init err: "+e.stackTraceToString())
 
         }
     }
